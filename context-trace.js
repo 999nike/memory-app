@@ -5,6 +5,7 @@
   const CHAT_PATH = '/api/chat';
   const baseFetch = window.fetch.bind(window);
   let lastTrace = null;
+  let mounted = false;
 
   function loadWorkspace() {
     try {
@@ -60,7 +61,7 @@
 
   function render() {
     const header = document.querySelector('#phase2ChatPanel .ai-panel-header');
-    if (!header) return;
+    if (!header) return false;
 
     let panel = document.getElementById('contextTracePanel');
     if (!panel) {
@@ -70,15 +71,19 @@
       header.insertAdjacentElement('afterend', panel);
     }
 
+    let html;
     if (!lastTrace) {
-      panel.innerHTML = '<strong>Context budget</strong><span>Ready · focused memory will be selected locally for each message.</span>';
-      return;
+      html = '<strong>Context budget</strong><span>Ready · focused memory will be selected locally for each message.</span>';
+    } else {
+      const titles = lastTrace.titles.length ? lastTrace.titles.join(' · ') : 'No confirmed memory selected';
+      html = `
+        <div><strong>Context budget</strong><span>${escapeHtml(lastTrace.selected)}/${escapeHtml(lastTrace.total)} memories sent · ${escapeHtml(lastTrace.strategy)}</span></div>
+        <small title="${escapeAttr(titles)}">${escapeHtml(titles)}</small>`;
     }
 
-    const titles = lastTrace.titles.length ? lastTrace.titles.join(' · ') : 'No confirmed memory selected';
-    panel.innerHTML = `
-      <div><strong>Context budget</strong><span>${escapeHtml(lastTrace.selected)}/${escapeHtml(lastTrace.total)} memories sent · ${escapeHtml(lastTrace.strategy)}</span></div>
-      <small title="${escapeAttr(titles)}">${escapeHtml(titles)}</small>`;
+    if (panel.innerHTML !== html) panel.innerHTML = html;
+    mounted = true;
+    return true;
   }
 
   window.fetch = async function contextTraceFetch(input, init = {}) {
@@ -103,8 +108,17 @@
 
   function escapeAttr(value) { return escapeHtml(value); }
 
-  const observer = new MutationObserver(render);
+  const observer = new MutationObserver(() => {
+    if (mounted) return;
+    if (render()) observer.disconnect();
+  });
   observer.observe(document.documentElement, { childList: true, subtree: true });
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render, { once: true });
-  else render();
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      if (render()) observer.disconnect();
+    }, { once: true });
+  } else if (render()) {
+    observer.disconnect();
+  }
 })();
