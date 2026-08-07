@@ -21,12 +21,13 @@ html {
   border-radius: 18px;
   background: linear-gradient(180deg, rgb(199 255 86 / 0.035), transparent 180px), var(--panel);
   display: grid;
-  grid-template-rows: auto auto minmax(220px, 1fr) auto;
+  grid-template-rows: auto auto auto auto minmax(220px, 1fr) auto auto;
   overflow: hidden;
   box-shadow: var(--shadow);
 }
 
 .ai-panel-header {
+  grid-row: 1;
   padding: 18px;
   border-bottom: 1px solid var(--line);
   display: flex;
@@ -34,6 +35,9 @@ html {
   justify-content: space-between;
   gap: 14px;
 }
+
+.external-proposal-check { grid-row: 2; }
+.context-trace { grid-row: 3; }
 
 .ai-panel-header h3 { margin: 0; font-size: 1rem; }
 
@@ -64,6 +68,7 @@ html {
 }
 
 .proposal-section {
+  grid-row: 4;
   padding: 14px;
   border-bottom: 1px solid var(--line);
   max-height: 320px;
@@ -152,6 +157,7 @@ html {
 }
 
 .chat-messages {
+  grid-row: 5;
   min-height: 0;
   overflow: auto;
   padding: 16px;
@@ -223,7 +229,10 @@ html {
   text-align: left;
 }
 
+.chat-notice { grid-row: 6; }
+
 .chat-form {
+  grid-row: 7;
   padding: 12px;
   border-top: 1px solid var(--line);
   background: #0b0f14;
