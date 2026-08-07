@@ -16,12 +16,13 @@ export async function sendDirect() {
   const text = input?.value.trim();
   if (!text) return;
 
-  const workspace = loadJson(WORKSPACE_KEY);
+  const workspace = loadWorkspaceOrSeed();
   const chat = loadJson(CHAT_KEY) || { version: 1, messages: [], proposals: [] };
   const space = workspace?.spaces?.find((item) => item.id === workspace.activeSpaceId) || workspace?.spaces?.[0];
 
   if (!workspace || !space || !Array.isArray(workspace.memories)) {
-    showError('Could not read the local workspace.');
+    showError('Could not initialise the local workspace.');
+    if (button) button.textContent = 'Send';
     return;
   }
 
@@ -127,6 +128,85 @@ export async function sendDirect() {
     }
     syncProviderStatus();
   }
+}
+
+function loadWorkspaceOrSeed() {
+  const existing = loadJson(WORKSPACE_KEY);
+  if (existing && Array.isArray(existing.spaces) && Array.isArray(existing.memories) && existing.spaces.length) {
+    return existing;
+  }
+
+  const stamp = now();
+  const seeded = {
+    version: 1,
+    activeSpaceId: 'space_memory_app',
+    spaces: [
+      {
+        id: 'space_memory_app',
+        name: 'Memory App',
+        description: 'A private, visible long-term context space controlled by the user and built together with an AI.',
+        createdAt: stamp,
+        updatedAt: stamp
+      }
+    ],
+    memories: [
+      {
+        id: 'memory_visible',
+        spaceId: 'space_memory_app',
+        title: 'Memory must be visible',
+        content: 'The user should be able to see, understand, edit, lock, export, and delete the information an AI uses as long-term context.',
+        type: 'decision',
+        importance: 'critical',
+        source: 'User confirmed in project conversation',
+        locked: true,
+        status: 'confirmed',
+        createdAt: stamp,
+        updatedAt: stamp
+      },
+      {
+        id: 'memory_local',
+        spaceId: 'space_memory_app',
+        title: 'Local-first and private',
+        content: 'Version one stores its workspace on the user’s device. Pinecone, Upstash, accounts, and cloud sync are deliberately excluded from the first build.',
+        type: 'decision',
+        importance: 'critical',
+        source: 'User confirmed in project conversation',
+        locked: true,
+        status: 'confirmed',
+        createdAt: stamp,
+        updatedAt: stamp
+      },
+      {
+        id: 'memory_product',
+        spaceId: 'space_memory_app',
+        title: 'The shared space is the product',
+        content: 'This is not a hidden chatbot memory list. It is a dedicated virtual workspace that a human and AI can both interact with over time.',
+        type: 'goal',
+        importance: 'critical',
+        source: 'User confirmed in project conversation',
+        locked: true,
+        status: 'confirmed',
+        createdAt: stamp,
+        updatedAt: stamp
+      },
+      {
+        id: 'memory_ai_connection',
+        spaceId: 'space_memory_app',
+        title: 'How should AI access be granted?',
+        content: 'Define a permission model where each AI can only read or propose changes within spaces the user explicitly authorises.',
+        type: 'question',
+        importance: 'high',
+        source: 'Phase 2 planning',
+        locked: false,
+        status: 'confirmed',
+        createdAt: stamp,
+        updatedAt: stamp
+      }
+    ]
+  };
+
+  saveJson(WORKSPACE_KEY, seeded);
+  return seeded;
 }
 
 function buildContext(workspace, space) {
