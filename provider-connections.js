@@ -78,6 +78,55 @@
     }
   }
 
+  async function testConnection(connection, button) {
+    const transport = api()?.transportFetch || window.fetch.bind(window);
+    const original = button?.textContent;
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Testing…';
+    }
+
+    try {
+      const response = await transport(connection.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: connection.model,
+          messages: [{ role: 'user', content: 'Reply with exactly: MEMORY SPACE CONNECTED' }],
+          temperature: 0,
+          max_tokens: 16,
+          stream: false
+        })
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json().catch(() => null);
+      const reply = data?.choices?.[0]?.message?.content;
+      if (!reply) throw new Error('The server answered but returned no chat message');
+
+      if (button) button.textContent = 'Passed';
+      toast(`${connection.name} is reachable`);
+      setTimeout(() => {
+        if (button) {
+          button.disabled = false;
+          button.textContent = original || 'Test';
+        }
+      }, 1300);
+      return true;
+    } catch (error) {
+      console.error('Local provider test failed:', error);
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Failed';
+      }
+      toast(`Could not reach ${connection.name}: ${error?.message || 'connection failed'}`);
+      setTimeout(() => {
+        if (button) button.textContent = original || 'Test';
+      }, 1800);
+      return false;
+    }
+  }
+
   function providerIdFor(id) {
     return `local-server:${id}`;
   }
@@ -166,6 +215,7 @@
 
           <div class="connection-form-actions">
             <button type="button" class="ghost-button" data-connection-close>Cancel</button>
+            <button type="button" class="ghost-button" data-connection-test-form>Test</button>
             <button type="submit" class="primary-button">Save & use</button>
           </div>
         </form>
@@ -187,6 +237,23 @@
     const preset = presets[type] || presets.custom;
     nameInput.value = preset.name;
     endpointInput.value = preset.endpoint;
+  }
+
+  function readFormConnection(dialog) {
+    const name = dialog.querySelector('#connectionName')?.value.trim();
+    const endpoint = dialog.querySelector('#connectionEndpoint')?.value.trim();
+    const model = dialog.querySelector('#connectionModel')?.value.trim();
+    if (!name || !endpoint || !model) {
+      toast('Enter a connection name, endpoint, and model first');
+      return null;
+    }
+    return {
+      id: 'test',
+      type: dialog.querySelector('#connectionType')?.value || 'custom',
+      name,
+      endpoint,
+      model
+    };
   }
 
   function saveConnectionFromForm(event) {
@@ -222,6 +289,20 @@
     const close = event.target.closest('[data-connection-close]');
     if (close) {
       event.currentTarget.close();
+      return;
+    }
+
+    const formTest = event.target.closest('[data-connection-test-form]');
+    if (formTest) {
+      const connection = readFormConnection(event.currentTarget);
+      if (connection) testConnection(connection, formTest);
+      return;
+    }
+
+    const rowTest = event.target.closest('[data-connection-test]');
+    if (rowTest) {
+      const connection = loadConnections().find((item) => item.id === rowTest.dataset.connectionTest);
+      if (connection) testConnection(connection, rowTest);
       return;
     }
 
@@ -265,6 +346,7 @@
           <small>${escapeHtml(connection.model)} · ${escapeHtml(connection.endpoint)}</small>
         </div>
         <div class="connection-row-actions">
+          <button type="button" data-connection-test="${escapeHtml(connection.id)}">Test</button>
           <button type="button" data-connection-use="${escapeHtml(connection.id)}">Use</button>
           <button type="button" class="danger" data-connection-delete="${escapeHtml(connection.id)}">Remove</button>
         </div>
@@ -304,7 +386,7 @@
     if (!el) return;
     el.textContent = message;
     el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 1800);
+    setTimeout(() => el.classList.remove('show'), 2600);
   }
 
   function escapeHtml(value) {
