@@ -28,6 +28,12 @@ The core product loop is now proven on a Samsung S24 Ultra in Chrome.
 - Provider registry so the memory system is not tied to one model
 - Local provider connection UI for Ollama, LM Studio, and OpenAI-compatible local servers
 - Safe provider connection test that sends no Memory Space context
+- Memory Bridge v1 browser protocol client
+- Memory Bridge pairing UI with a separate remote-local trust boundary
+- Memory Bridge companion server for forwarding to a model on another trusted machine
+- Pairing-token authentication and origin allow-listing on the bridge companion
+- Bridge pairing test that sends no workspace memory
+- Bridge protocol documented in `bridge/README.md`
 - Mobile Send/touch handling fixed
 - Mobile chat now remains at normal page scale when the keyboard opens
 
@@ -39,12 +45,17 @@ Current provider path:
 
 `Memory Space -> context firewall -> provider interface -> selected AI`
 
+Remote-local path:
+
+`Memory Space -> context firewall -> Memory Bridge -> model runtime on trusted machine`
+
 Current provider types:
 
 - On-device browser model
 - Ollama connection definition
 - LM Studio connection definition
 - Generic OpenAI-compatible local server
+- Memory Bridge remote-local provider
 
 The browser-local model is only the prototype inference engine. It does not own memory and can be replaced without changing the workspace.
 
@@ -54,44 +65,42 @@ The browser-local model is only the prototype inference engine. It does not own 
 - A proposed memory is not treated as confirmed memory
 - Locked/current memory is visible to the user
 - Superseded and archived history stays available but is excluded from current model context
-- Provider connection tests receive no private workspace context
+- Provider and bridge connection tests receive no private workspace context
+- The Memory Bridge requires explicit pairing and does not store the workspace
 - No silent cloud fallback
 - Approved memories are not silently rewritten after approval
 
 ### Next build order
 
-1. **Memory Bridge protocol**
-   - Allow a phone/browser Memory Space to reach an AI runtime on another trusted machine
-   - Keep the model on that machine rather than turning Memory Space into a cloud inference service
-   - Add explicit pairing/permission rather than open LAN access
-   - Keep the context firewall at the browser boundary
-
-2. **Real external-local provider test**
-   - Test against Ollama or LM Studio on a machine running an actual model
+1. **Real external-local provider test**
+   - Run Memory Bridge on a trusted machine with Ollama or LM Studio
+   - Give the bridge an HTTPS route reachable from the phone
+   - Pair from Memory Space using a token
    - Confirm provider switching preserves the same Memory Space
    - Confirm only current confirmed context is transmitted
+   - Confirm a bridge connection test sends no memory
 
-3. **MCP interface**
+2. **MCP interface**
    - Expose Memory Space as controlled tools for compatible AI clients
    - Initial tools: search memory, get current space context, read a memory, propose a memory, list spaces, get current decisions
    - Approval remains human-only; external AIs do not receive an unrestricted write/approve tool
 
-4. **Memory lifecycle improvements**
+3. **Memory lifecycle improvements**
    - Contradiction detection
    - Explicit supersede proposals
    - Better history UI
    - Timeline view
 
-5. **Storage hardening**
+4. **Storage hardening**
    - Move larger browser state toward IndexedDB
    - Add backup/versioned export manifest
    - Add optional client-side encryption experiments
 
-6. **Native/desktop routes**
+5. **Native/desktop routes**
    - Android/native bridge for local device models such as AICore/ML Kit or bundled runtimes
    - Desktop packaging later with Tauri + SQLite
 
-7. **Retrieval improvements only when needed**
+6. **Retrieval improvements only when needed**
    - Start with deterministic/full-text retrieval
    - Add semantic/vector search only after the current approach demonstrates a real limitation
 
@@ -533,6 +542,7 @@ This phase works without any AI model.
 - Add approval, edit, reject, and lock actions
 - Record source and provenance
 - Add the context inspector
+- Add Memory Bridge v1 protocol/client/companion for remote-local inference
 
 ### Phase 3 — Continuity and trust — in progress
 
