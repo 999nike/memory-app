@@ -1,0 +1,46 @@
+.context-trace {
+  display: grid;
+  gap: 6px;
+  margin: 0 20px 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(166, 255, 73, 0.16);
+  border-radius: 12px;
+  background: rgba(166, 255, 73, 0.045);
+  color: #c6cfda;
+  font-size: 12px;
+}
+
+.context-trace > div {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.context-trace strong {
+  color: #dfe8f2;
+  font-size: 12px;
+}
+
+.context-trace span,
+.context-trace small {
+  color: #8f9aaa;
+}
+
+.context-trace small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .context-trace {
+    margin: 0 20px 10px;
+  }
+
+  .context-trace > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+}
