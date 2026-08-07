@@ -22,9 +22,13 @@
 
   let mounted = false;
   let observer;
+  let browserStatusSnapshot = globalThis.__memoryAIStatus
+    ? { ...globalThis.__memoryAIStatus }
+    : { mode: 'local', label: 'On-device browser' };
 
   restoreConnections();
   observeUi();
+  addEventListener('memory-ai-provider-changed', syncActiveProviderStatus);
 
   function api() {
     return globalThis.MemoryAI || null;
@@ -46,13 +50,14 @@
   function restoreConnections() {
     const memoryAI = api();
     if (!memoryAI) {
-      setTimeout(restoreConnections, 0);
+      setTimeout(restoreConnections, 20);
       return;
     }
 
     for (const connection of loadConnections()) {
       registerConnection(connection, false);
     }
+    queueMicrotask(syncActiveProviderStatus);
   }
 
   function registerConnection(connection, select = true) {
@@ -67,10 +72,7 @@
         model: connection.model,
         local: true
       });
-      if (select) {
-        memoryAI.setActiveProvider(providerId);
-        updateProviderStatus(connection.name);
-      }
+      if (select) memoryAI.setActiveProvider(providerId);
     } catch (error) {
       console.error('Could not register local AI connection:', error);
     }
@@ -183,7 +185,7 @@
 
   function applyPreset(type, nameInput, endpointInput) {
     const preset = presets[type] || presets.custom;
-    if (!nameInput.dataset.userEdited || !nameInput.value.trim()) nameInput.value = preset.name;
+    nameInput.value = preset.name;
     endpointInput.value = preset.endpoint;
   }
 
@@ -211,7 +213,8 @@
     registerConnection(connection, true);
     renderConnectionList(dialog);
     event.currentTarget.reset();
-    applyPreset(type, dialog.querySelector('#connectionName'), dialog.querySelector('#connectionEndpoint'));
+    const resetType = dialog.querySelector('#connectionType').value;
+    applyPreset(resetType, dialog.querySelector('#connectionName'), dialog.querySelector('#connectionEndpoint'));
     toast(`${name} connected`);
   }
 
@@ -268,14 +271,32 @@
       </div>`).join('');
   }
 
-  function updateProviderStatus(name) {
-    globalThis.__memoryAIStatus = { mode: 'local', label: `${name} · selected` };
-    const status = document.getElementById('aiStatus');
-    if (status) {
-      status.classList.remove('busy', 'provider-error');
-      status.classList.add('local-provider');
-      status.innerHTML = `<span></span> ${escapeHtml(name)} · selected`;
+  function syncActiveProviderStatus() {
+    const memoryAI = api();
+    const provider = memoryAI?.getActiveProvider?.();
+    if (!provider) return;
+
+    if (provider.id === 'browser-local') {
+      globalThis.__memoryAIStatus = { ...browserStatusSnapshot };
+      renderProviderStatus(browserStatusSnapshot.label, browserStatusSnapshot.mode || 'local');
+      return;
     }
+
+    if (globalThis.__memoryAIStatus?.label && !String(globalThis.__memoryAIStatus.label).endsWith(' · selected')) {
+      browserStatusSnapshot = { ...globalThis.__memoryAIStatus };
+    }
+    const label = `${provider.name} · selected`;
+    globalThis.__memoryAIStatus = { mode: 'local', label };
+    renderProviderStatus(label, 'local');
+  }
+
+  function renderProviderStatus(label, mode) {
+    const status = document.getElementById('aiStatus');
+    if (!status) return;
+    status.classList.toggle('busy', mode === 'busy');
+    status.classList.toggle('provider-error', mode === 'error');
+    status.classList.toggle('local-provider', mode !== 'error');
+    status.innerHTML = `<span></span> ${escapeHtml(label)}`;
   }
 
   function toast(message) {
