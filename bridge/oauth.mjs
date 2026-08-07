@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 const DEFAULT_SCOPES = ['memory.read', 'memory.propose'];
 const CODE_TTL_MS = 5 * 60 * 1000;
 const TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
+const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DCR_MAX_CLIENTS = 64;
 
 export function createMemoryBridgeOAuth({
@@ -14,6 +15,7 @@ export function createMemoryBridgeOAuth({
   const issuer = String(publicUrl || '').replace(/\/+$/, '');
   const authorizationCodes = new Map();
   const accessTokens = new Map();
+  const refreshTokens = new Map();
   const dynamicClients = new Map();
 
   if (!issuer.startsWith('https://')) throw new Error('OAuth publicUrl must be HTTPS');
@@ -117,6 +119,11 @@ export function createMemoryBridgeOAuth({
     return Boolean(registration && registration.redirectUris.includes(String(redirectUri || '')));
   }
 
+  function clientSupportsRefreshToken(requestedClientId) {
+    const registration = dynamicClients.get(requestedClientId);
+    return Boolean(registration && registration.grantTypes.includes('refresh_token'));
+  }
+
   function validateRegistrationRequest(body) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       throw new Error('OAuth client registration body must be a JSON object');
@@ -134,10 +141,14 @@ export function createMemoryBridgeOAuth({
     if (tokenAuthMethod !== 'none') throw new Error('Only token_endpoint_auth_method=none is supported');
 
     const grantTypes = Array.isArray(body.grant_types) && body.grant_types.length
-      ? body.grant_types.map(String)
+      ? [...new Set(body.grant_types.map(String))]
       : ['authorization_code'];
-    if (grantTypes.some((value) => value !== 'authorization_code')) {
-      throw new Error('Only authorization_code grant type is supported');
+    const supportedGrantTypes = new Set(['authorization_code', 'refresh_token']);
+    if (!grantTypes.includes('authorization_code')) {
+      throw new Error('authorization_code grant type is required');
+    }
+    if (grantTypes.some((value) => !supportedGrantTypes.has(value))) {
+      throw new Error('Only authorization_code and refresh_token grant types are supported');
     }
 
     const responseTypes = Array.isArray(body.response_types) && body.response_types.length
@@ -164,6 +175,9 @@ export function createMemoryBridgeOAuth({
     }
     for (const [token, item] of accessTokens) {
       if (item.expiresAt <= now) accessTokens.delete(token);
+    }
+    for (const [token, item] of refreshTokens) {
+      if (item.expiresAt <= now) refreshTokens.delete(token);
     }
   }
 
@@ -246,6 +260,27 @@ export function createMemoryBridgeOAuth({
     return Boolean(record && record.expiresAt > Date.now());
   }
 
+  function issueAccessToken(clientIdValue, scope) {
+    const accessToken = randomToken();
+    const expiresIn = Math.floor(TOKEN_TTL_MS / 1000);
+    accessTokens.set(accessToken, {
+      clientId: clientIdValue,
+      scope,
+      expiresAt: Date.now() + TOKEN_TTL_MS
+    });
+    return { accessToken, expiresIn };
+  }
+
+  function issueRefreshToken(clientIdValue, scope) {
+    const refreshToken = randomToken();
+    refreshTokens.set(refreshToken, {
+      clientId: clientIdValue,
+      scope,
+      expiresAt: Date.now() + REFRESH_TOKEN_TTL_MS
+    });
+    return refreshToken;
+  }
+
   async function handle(req, res) {
     cleanup();
     const url = new URL(req.url || '/', issuer);
@@ -272,7 +307,7 @@ export function createMemoryBridgeOAuth({
         token_endpoint: `${issuer}/token`,
         registration_endpoint: `${issuer}/register`,
         response_types_supported: ['code'],
-        grant_types_supported: ['authorization_code'],
+        grant_types_supported: ['authorization_code', 'refresh_token'],
         code_challenge_methods_supported: ['S256'],
         token_endpoint_auth_methods_supported: ['none'],
         scopes_supported: DEFAULT_SCOPES
@@ -305,7 +340,7 @@ export function createMemoryBridgeOAuth({
 
         log(
           'client registered',
-          `client=${dynamicClientId} redirectHosts=${registration.redirectUris.map((value) => new URL(value).hostname).join(',')}`
+          `client=${dynamicClientId} redirectHosts=${registration.redirectUris.map((value) => new URL(value).hostname).join(',')} grants=${registration.grantTypes.join(',')}`
         );
         sendJson(res, 201, {
           client_id: dynamicClientId,
@@ -367,47 +402,89 @@ export function createMemoryBridgeOAuth({
     if (req.method === 'POST' && url.pathname === '/token') {
       try {
         const params = await readParams(req);
-        log('token request', `grant=${params.get('grant_type') || 'missing'} client=${params.get('client_id') || 'missing'} redirect=${params.get('redirect_uri') ? 'present' : 'missing'} verifier=${params.get('code_verifier') ? 'present' : 'missing'}`);
-        if (params.get('grant_type') !== 'authorization_code') {
-          log('token rejected', 'unsupported_grant_type');
-          sendJson(res, 400, { error: 'unsupported_grant_type' });
+        const grantType = params.get('grant_type') || '';
+        log('token request', `grant=${grantType || 'missing'} client=${params.get('client_id') || 'missing'} redirect=${params.get('redirect_uri') ? 'present' : 'missing'} verifier=${params.get('code_verifier') ? 'present' : 'missing'}`);
+
+        if (grantType === 'authorization_code') {
+          const code = params.get('code') || '';
+          const record = authorizationCodes.get(code);
+          authorizationCodes.delete(code);
+          if (!record || record.expiresAt <= Date.now()) {
+            log('token rejected', 'invalid-or-expired-code');
+            sendJson(res, 400, { error: 'invalid_grant' });
+            return true;
+          }
+          if (params.get('client_id') !== record.clientId || params.get('redirect_uri') !== record.redirectUri) {
+            log('token rejected', 'client-or-redirect-mismatch');
+            sendJson(res, 400, { error: 'invalid_grant' });
+            return true;
+          }
+          const verifier = params.get('code_verifier') || '';
+          if (!verifier || !timingSafeEqualText(sha256Base64Url(verifier), record.codeChallenge)) {
+            log('token rejected', 'pkce-verification-failed');
+            sendJson(res, 400, { error: 'invalid_grant', error_description: 'PKCE verification failed' });
+            return true;
+          }
+
+          const { accessToken, expiresIn } = issueAccessToken(record.clientId, record.scope);
+          const response = {
+            access_token: accessToken,
+            token_type: 'Bearer',
+            expires_in: expiresIn,
+            scope: record.scope
+          };
+          if (clientSupportsRefreshToken(record.clientId)) {
+            response.refresh_token = issueRefreshToken(record.clientId, record.scope);
+          }
+
+          log('token issued', `client=${record.clientId} expiresIn=${expiresIn} refresh=${response.refresh_token ? 'issued' : 'none'}`);
+          sendJson(res, 200, response);
           return true;
         }
 
-        const code = params.get('code') || '';
-        const record = authorizationCodes.get(code);
-        authorizationCodes.delete(code);
-        if (!record || record.expiresAt <= Date.now()) {
-          log('token rejected', 'invalid-or-expired-code');
-          sendJson(res, 400, { error: 'invalid_grant' });
-          return true;
-        }
-        if (params.get('client_id') !== record.clientId || params.get('redirect_uri') !== record.redirectUri) {
-          log('token rejected', 'client-or-redirect-mismatch');
-          sendJson(res, 400, { error: 'invalid_grant' });
-          return true;
-        }
-        const verifier = params.get('code_verifier') || '';
-        if (!verifier || !timingSafeEqualText(sha256Base64Url(verifier), record.codeChallenge)) {
-          log('token rejected', 'pkce-verification-failed');
-          sendJson(res, 400, { error: 'invalid_grant', error_description: 'PKCE verification failed' });
+        if (grantType === 'refresh_token') {
+          const oldRefreshToken = params.get('refresh_token') || '';
+          const record = refreshTokens.get(oldRefreshToken);
+          refreshTokens.delete(oldRefreshToken);
+          if (!record || record.expiresAt <= Date.now()) {
+            log('refresh rejected', 'invalid-or-expired-refresh-token');
+            sendJson(res, 400, { error: 'invalid_grant' });
+            return true;
+          }
+          if (!clientSupportsRefreshToken(record.clientId) || params.get('client_id') !== record.clientId) {
+            log('refresh rejected', 'client-mismatch-or-refresh-not-registered');
+            sendJson(res, 400, { error: 'invalid_grant' });
+            return true;
+          }
+
+          let scope = record.scope;
+          const requestedScopeText = String(params.get('scope') || '').trim();
+          if (requestedScopeText) {
+            const requestedScopes = [...new Set(requestedScopeText.split(/\s+/).filter(Boolean))];
+            const grantedScopes = new Set(record.scope.split(/\s+/).filter(Boolean));
+            if (requestedScopes.some((value) => !DEFAULT_SCOPES.includes(value) || !grantedScopes.has(value))) {
+              log('refresh rejected', 'invalid-scope');
+              sendJson(res, 400, { error: 'invalid_scope' });
+              return true;
+            }
+            scope = requestedScopes.join(' ');
+          }
+
+          const { accessToken, expiresIn } = issueAccessToken(record.clientId, scope);
+          const newRefreshToken = issueRefreshToken(record.clientId, scope);
+          log('token refreshed', `client=${record.clientId} expiresIn=${expiresIn}`);
+          sendJson(res, 200, {
+            access_token: accessToken,
+            token_type: 'Bearer',
+            expires_in: expiresIn,
+            refresh_token: newRefreshToken,
+            scope
+          });
           return true;
         }
 
-        const accessToken = randomToken();
-        const expiresIn = Math.floor(TOKEN_TTL_MS / 1000);
-        accessTokens.set(accessToken, {
-          clientId: record.clientId,
-          scope: record.scope,
-          expiresAt: Date.now() + TOKEN_TTL_MS
-        });
-        log('token issued', `client=${record.clientId} expiresIn=${expiresIn}`);
-        sendJson(res, 200, {
-          access_token: accessToken,
-          token_type: 'Bearer',
-          expires_in: expiresIn,
-          scope: record.scope
-        });
+        log('token rejected', 'unsupported_grant_type');
+        sendJson(res, 400, { error: 'unsupported_grant_type' });
       } catch (error) {
         log('token error', error?.message || 'unknown');
         sendJson(res, 400, { error: 'invalid_request', error_description: error?.message || 'Token request failed' });
