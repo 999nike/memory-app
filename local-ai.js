@@ -4,7 +4,7 @@
   const nativeFetch = window.fetch.bind(window);
   const CHAT_PATH = '/api/chat';
   const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1';
-  const FALLBACK_MODEL = 'onnx-community/Qwen2.5-0.5B-Instruct';
+  const FALLBACK_MODEL = 'onnx-community/SmolLM2-135M-Instruct-ONNX-MHA';
   let fallbackGeneratorPromise = null;
 
   const responseSchema = {
@@ -100,19 +100,19 @@
   }
 
   async function runTransformersFallback(body) {
-    setProviderStatus('Browser AI · loading', 'busy');
+    setProviderStatus('Mobile AI · loading', 'busy');
     const generator = await getFallbackGenerator();
-    setProviderStatus('Browser AI · on-device', 'local');
+    setProviderStatus('Mobile AI · on-device', 'local');
 
     const messages = [
       { role: 'system', content: systemInstruction() },
-      { role: 'user', content: `${buildPrompt(body)}\n\nReturn ONLY one valid JSON object with keys reply, usedMemoryTitles, proposals. No markdown fences.` }
+      { role: 'user', content: `${buildPrompt(body)}\n\nReply as one JSON object with keys reply, usedMemoryTitles, proposals. If JSON is difficult, answer normally.` }
     ];
 
     const output = await generator(messages, {
-      max_new_tokens: 420,
+      max_new_tokens: 160,
       do_sample: false,
-      repetition_penalty: 1.05,
+      repetition_penalty: 1.04,
       return_full_text: false
     });
 
@@ -135,7 +135,7 @@
     if (fallbackGeneratorPromise) return fallbackGeneratorPromise;
 
     fallbackGeneratorPromise = (async () => {
-      setProviderStatus('Loading browser AI library…', 'busy');
+      setProviderStatus('Loading lightweight mobile AI…', 'busy');
       const { pipeline, env } = await import(TRANSFORMERS_URL);
       env.allowLocalModels = false;
       env.useBrowserCache = true;
@@ -146,11 +146,11 @@
         progress_callback(progress) {
           if (!progress) return;
           if (progress.status === 'progress' && Number.isFinite(progress.progress)) {
-            setProviderStatus(`Downloading browser AI ${Math.round(progress.progress)}%`, 'busy');
+            setProviderStatus(`Downloading mobile AI ${Math.round(progress.progress)}%`, 'busy');
           } else if (progress.status === 'ready') {
-            setProviderStatus('Browser AI · on-device', 'local');
+            setProviderStatus('Mobile AI · on-device', 'local');
           } else if (progress.file) {
-            setProviderStatus('Downloading browser AI…', 'busy');
+            setProviderStatus('Downloading mobile AI…', 'busy');
           }
         }
       });
@@ -164,34 +164,31 @@
 
   function systemInstruction() {
     return [
-      'You are the AI collaborator inside a private, user-owned Memory Space.',
-      'Confirmed memory is trusted context. Locked memory is an explicit user constraint.',
-      'You cannot permanently save, edit, delete, or lock memory yourself.',
-      'You may only propose durable memory; the user must approve it in the interface.',
-      'Only propose something when the user states a durable fact, decision, goal, open question, or note likely to matter later.',
-      'Do not propose trivial chat, guesses, temporary wording, or information already present in confirmed memory.',
-      'Zero proposals is normal.',
-      'usedMemoryTitles must contain only exact titles from confirmed memory that materially affected the answer.',
+      'You are the AI collaborator inside a private user-owned Memory Space.',
+      'Confirmed memory is trusted context and locked memory is an explicit user constraint.',
+      'You cannot permanently save memory yourself.',
+      'Only propose durable memory when it is likely to matter later; zero proposals is normal.',
+      'Never claim a proposal is saved before user approval.',
       'Answer naturally and directly.'
     ].join(' ');
   }
 
   function buildPrompt(body) {
     const history = Array.isArray(body.history)
-      ? body.history.slice(-8).map((item) => `${String(item.role || '').toUpperCase()}: ${String(item.content || '').slice(0, 1800)}`).join('\n\n')
+      ? body.history.slice(-4).map((item) => `${String(item.role || '').toUpperCase()}: ${String(item.content || '').slice(0, 700)}`).join('\n\n')
       : '';
 
     return [
       `CURRENT SPACE: ${String(body.space?.name || 'Memory Space')}`,
-      body.space?.description ? `SPACE PURPOSE: ${String(body.space.description)}` : '',
+      body.space?.description ? `PURPOSE: ${String(body.space.description).slice(0, 500)}` : '',
       '',
-      String(body.context || '').slice(0, 12000),
+      String(body.context || '').slice(0, 4500),
       '',
       history ? `RECENT CHAT:\n${history}` : 'RECENT CHAT: none',
       '',
-      `USER MESSAGE:\n${String(body.message || '').slice(0, 3500)}`,
+      `USER MESSAGE:\n${String(body.message || '').slice(0, 1600)}`,
       '',
-      'If the user merely greets you, reply normally and propose no memory.'
+      'For a greeting, just greet the user and propose no memory.'
     ].filter(Boolean).join('\n');
   }
 
@@ -217,14 +214,14 @@
   function validateOutput(value) {
     const proposals = Array.isArray(value?.proposals) ? value.proposals.slice(0, 3) : [];
     return {
-      reply: String(value?.reply || 'I could not produce a reply.').slice(0, 6000),
+      reply: String(value?.reply || 'I could not produce a reply.').slice(0, 4000),
       usedMemoryTitles: Array.isArray(value?.usedMemoryTitles) ? value.usedMemoryTitles.slice(0, 8).map(String) : [],
       proposals: proposals.map((proposal) => ({
         title: String(proposal?.title || 'Proposed memory').slice(0, 100),
-        content: String(proposal?.content || '').slice(0, 1200),
+        content: String(proposal?.content || '').slice(0, 900),
         type: ['decision', 'fact', 'goal', 'question', 'note'].includes(proposal?.type) ? proposal.type : 'note',
         importance: ['critical', 'high', 'normal', 'low'].includes(proposal?.importance) ? proposal.importance : 'normal',
-        reason: String(proposal?.reason || 'The AI considered this useful future context.').slice(0, 240)
+        reason: String(proposal?.reason || 'The AI considered this useful future context.').slice(0, 220)
       })).filter((proposal) => proposal.content)
     };
   }
@@ -253,14 +250,14 @@
         if (availability === 'available') setProviderStatus('Chrome AI · on-device', 'local');
         else if (availability === 'downloadable') setProviderStatus('Chrome AI · ready to download', 'local');
         else if (availability === 'downloading') setProviderStatus('Downloading Chrome AI…', 'busy');
-        else if (navigator.gpu) setProviderStatus('Browser AI · ready', 'local');
+        else if (navigator.gpu) setProviderStatus('Mobile AI · ready', 'local');
         else setProviderStatus('Local AI unavailable', 'error');
         return;
       } catch {}
     }
 
     if (navigator.gpu) {
-      setProviderStatus('Browser AI · ready', 'local');
+      setProviderStatus('Mobile AI · ready', 'local');
     } else {
       setProviderStatus('Local AI unavailable', 'error');
     }
