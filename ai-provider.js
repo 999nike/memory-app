@@ -2,7 +2,9 @@
   'use strict';
 
   const ACTIVE_PROVIDER_KEY = 'memory-ai-provider-v1';
+  const WORKSPACE_KEY = 'memory-space-v1';
   const CHAT_PATH = '/api/chat';
+  const MAX_CONTEXT_MEMORIES = 12;
   const transportFetch = window.fetch.bind(window);
   const providers = new Map();
 
@@ -122,6 +124,88 @@
     });
   }
 
+  function tokenize(value) {
+    return [...new Set(String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .split(/\s+/)
+      .filter((word) => word.length >= 3))]
+      .slice(0, 40);
+  }
+
+  function focusRequestContext(request) {
+    let workspace;
+    try {
+      workspace = JSON.parse(localStorage.getItem(WORKSPACE_KEY) || 'null');
+    } catch {
+      return request;
+    }
+    if (!workspace || !Array.isArray(workspace.spaces) || !Array.isArray(workspace.memories)) return request;
+
+    const requestedSpaceId = String(request?.space?.id || workspace.activeSpaceId || '');
+    const space = workspace.spaces.find((item) => String(item.id) === requestedSpaceId)
+      || workspace.spaces.find((item) => item.id === workspace.activeSpaceId)
+      || workspace.spaces[0];
+    if (!space) return request;
+
+    const memories = workspace.memories.filter((memory) =>
+      memory.spaceId === space.id && String(memory.status || 'confirmed') === 'confirmed'
+    );
+    if (!memories.length || memories.length <= MAX_CONTEXT_MEMORIES) return request;
+
+    const query = [
+      request?.message || '',
+      ...(Array.isArray(request?.history) ? request.history.slice(-3).map((item) => item?.content || '') : [])
+    ].join(' ');
+    const terms = tokenize(query);
+    const phrase = String(request?.message || '').trim().toLowerCase();
+    const importanceScore = { critical: 240, high: 100, normal: 30, low: 5 };
+
+    const scored = memories.map((memory, index) => {
+      const title = String(memory.title || '').toLowerCase();
+      const content = String(memory.content || '').toLowerCase();
+      const source = String(memory.source || '').toLowerCase();
+      let score = importanceScore[String(memory.importance || 'normal')] || 0;
+      if (memory.locked) score += 1000;
+      if (memory.type === 'decision' || memory.type === 'goal') score += 20;
+      if (phrase && title.includes(phrase)) score += 80;
+      for (const term of terms) {
+        if (title.includes(term)) score += 30;
+        if (content.includes(term)) score += 8;
+        if (source.includes(term)) score += 3;
+      }
+      return { memory, score, index };
+    });
+
+    scored.sort((a, b) => b.score - a.score || a.index - b.index);
+    const selected = scored.slice(0, MAX_CONTEXT_MEMORIES).map((item) => item.memory);
+
+    const lines = [
+      `SPACE: ${space.name}`,
+      `PURPOSE: ${space.description || ''}`,
+      '',
+      `FOCUSED CONFIRMED MEMORY (${selected.length}/${memories.length} selected):`
+    ];
+    for (const memory of selected) {
+      lines.push(`- [${String(memory.importance || 'normal').toUpperCase()}] [${String(memory.type || 'note').toUpperCase()}] ${memory.title}`);
+      lines.push(`  ${memory.content}`);
+      if (memory.source) lines.push(`  Source: ${memory.source}`);
+      if (memory.locked) lines.push('  Locked by user: yes');
+    }
+    lines.push('', 'CONTEXT RULE: This is a focused subset selected locally from current confirmed memory. Search/read more memory when the task needs it. Never treat a proposal as confirmed until the user approves it.');
+
+    return {
+      ...request,
+      context: lines.join('\n'),
+      contextSelection: {
+        strategy: 'deterministic-v1',
+        totalConfirmed: memories.length,
+        selected: selected.length,
+        selectedMemoryIds: selected.map((memory) => memory.id)
+      }
+    };
+  }
+
   registerProvider({
     id: 'browser-local',
     name: 'On-device browser',
@@ -163,7 +247,8 @@
     }
 
     try {
-      const result = await generate(body);
+      const focusedBody = focusRequestContext(body);
+      const result = await generate(focusedBody);
       return jsonResponse(200, result);
     } catch (error) {
       console.error('AI provider failed:', error);
@@ -182,7 +267,8 @@
     getActiveProviderId,
     listProviders,
     generate,
-    transportFetch
+    transportFetch,
+    focusRequestContext
   });
 
   function mountProviderSelector() {
