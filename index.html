@@ -9,6 +9,7 @@
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
   <link rel="stylesheet" href="./phase2.css">
+  <link rel="stylesheet" href="./memory-lifecycle.css?v=1">
 </head>
 <body>
   <div class="app-shell">
@@ -198,11 +199,11 @@
     <div class="modal-header">
       <div>
         <p class="eyebrow">Context builder</p>
-        <h2>What the local AI receives</h2>
+        <h2>What the active AI receives</h2>
       </div>
       <button class="icon-button" type="button" data-close-dialog="contextDialog" aria-label="Close">×</button>
     </div>
-    <p class="context-explainer">This preview is generated from the current visible space. On supported desktop Chrome, the AI runs on-device and this context does not leave the browser.</p>
+    <p class="context-explainer">This preview contains current confirmed memory only. Superseded and archived versions remain in history but are excluded from active AI context.</p>
     <pre id="contextPreview" class="context-preview"></pre>
     <div class="modal-actions">
       <button class="ghost-button" type="button" data-close-dialog="contextDialog">Close</button>
@@ -213,9 +214,11 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="./app.js" defer></script>
+  <script src="./memory-lifecycle.js?v=1" defer></script>
   <script src="./local-ai.js?v=6" defer></script>
   <script src="./memory-normalize.js?v=2" defer></script>
   <script src="./memory-controller-plus.js?v=2" defer></script>
+  <script src="./ai-provider.js?v=1" defer></script>
   <script src="./phase2.js?v=2" defer></script>
   <script src="./tap-fix.js" defer></script>
 </body>
