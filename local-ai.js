@@ -45,6 +45,9 @@
     }
 
     try {
+      const memoryResponse = runMemoryController(body);
+      if (memoryResponse) return memoryResponse;
+
       if (globalThis.LanguageModel) return await runChromeNative(body);
       if (navigator.gpu) return await runTransformersFallback(body);
 
@@ -60,6 +63,48 @@
       });
     }
   };
+
+  function runMemoryController(body) {
+    const userText = String(body.message || '').trim();
+    const context = String(body.context || '');
+
+    if (isGreeting(userText)) {
+      setReadyStatus();
+      return jsonResponse(200, {
+        reply: 'Hi. I’m here in this Memory Space. What do you want to work on?',
+        usedMemoryTitles: [],
+        proposals: [],
+        model: 'local/memory-controller',
+        local: true
+      });
+    }
+
+    const proposals = buildObviousProposal(userText, context);
+    if (proposals.length) {
+      setReadyStatus();
+      return jsonResponse(200, {
+        reply: 'I’ve prepared that as a memory proposal. Review it below; it will only become confirmed memory if you approve it.',
+        usedMemoryTitles: [],
+        proposals,
+        model: 'local/memory-controller',
+        local: true
+      });
+    }
+
+    const recalled = recallFromConfirmedMemory(userText, context);
+    if (recalled) {
+      setReadyStatus();
+      return jsonResponse(200, {
+        reply: recalled.reply,
+        usedMemoryTitles: recalled.usedMemoryTitles,
+        proposals: [],
+        model: 'local/memory-controller',
+        local: true
+      });
+    }
+
+    return null;
+  }
 
   async function runChromeNative(body) {
     const LanguageModelApi = globalThis.LanguageModel;
@@ -97,18 +142,6 @@
 
   async function runTransformersFallback(body) {
     const userText = String(body.message || '').trim();
-
-    // Do not wake a few-hundred-MB model just to answer a greeting.
-    if (isGreeting(userText)) {
-      setProviderStatus('Mobile AI · ready', 'local');
-      return jsonResponse(200, {
-        reply: 'Hi. I’m here in this Memory Space. What do you want to work on?',
-        usedMemoryTitles: [],
-        proposals: [],
-        model: 'local/greeting-fast-path',
-        local: true
-      });
-    }
 
     setProviderStatus('Mobile AI · loading', 'busy');
     const generator = await getFallbackGenerator();
@@ -175,7 +208,7 @@
     return jsonResponse(200, {
       reply,
       usedMemoryTitles: findUsedMemoryTitles(body.context || '', reply),
-      proposals: buildObviousProposal(userText),
+      proposals: [],
       model: `${FALLBACK_MODEL}/${FALLBACK_DTYPE}-webgpu`,
       local: true
     });
@@ -265,29 +298,152 @@
       .slice(0, 1200);
   }
 
-  function buildObviousProposal(text) {
-    const value = String(text || '').trim();
-    if (!value || value.length < 8) return [];
+  function buildObviousProposal(text, context) {
+    const raw = String(text || '').trim();
+    if (!raw || raw.length < 8) return [];
 
-    const lower = value.toLowerCase();
+    const lower = raw.toLowerCase();
     const explicitMemory = /\b(remember|save this|keep this|important to remember|don['’]?t forget)\b/.test(lower);
     const decision = /\b(i decided|we decided|decision is|must always|must never)\b/.test(lower);
     const goal = /\b(my goal is|our goal is|the goal is|i want to build|we want to build)\b/.test(lower);
-    const personalFact = /\b(my favourite|my favorite|i prefer|i always use|my number is)\b/.test(lower);
+    const personalFact = /\b(my favourite|my favorite|i prefer|i always use|my number is|my name is)\b/.test(lower);
 
     if (!(explicitMemory || decision || goal || personalFact)) return [];
 
+    const content = normaliseProposedContent(raw);
+    if (!content || memoryAlreadyExists(content, context)) return [];
+
     const type = decision ? 'decision' : goal ? 'goal' : 'fact';
     const importance = explicitMemory || decision ? 'high' : 'normal';
-    const title = type === 'decision' ? 'User decision' : type === 'goal' ? 'User goal' : 'User fact';
 
     return [{
-      title,
-      content: value.slice(0, 900),
+      title: deriveProposalTitle(content, type),
+      content: content.slice(0, 900),
       type,
       importance,
-      reason: 'The user phrased this as durable information. Review it before saving.'
+      reason: explicitMemory
+        ? 'You explicitly asked for this to be remembered. Review it before saving.'
+        : 'This looks like durable information that may matter later. Review it before saving.'
     }];
+  }
+
+  function normaliseProposedContent(value) {
+    let text = String(value || '').trim();
+    text = text
+      .replace(/^(please\s+)?remember(?:\s+this)?(?:\s+that)?\s*[:,;-]?\s*/i, '')
+      .replace(/^(please\s+)?save\s+this(?:\s+that)?\s*[:,;-]?\s*/i, '')
+      .replace(/^(please\s+)?keep\s+this(?:\s+that)?\s*[:,;-]?\s*/i, '')
+      .replace(/^(please\s+)?don['’]?t\s+forget(?:\s+that)?\s*[:,;-]?\s*/i, '')
+      .trim();
+
+    if (!text) return '';
+    text = text.charAt(0).toUpperCase() + text.slice(1);
+    if (!/[.!?]$/.test(text)) text += '.';
+    return text;
+  }
+
+  function deriveProposalTitle(content, type) {
+    const lower = String(content || '').toLowerCase();
+    if (/\b(favourite|favorite)\s+number\b/.test(lower)) return 'Favourite number';
+    if (/\bmy\s+name\s+is\b/.test(lower)) return 'Name';
+    if (/\bi\s+prefer\b|\bmy\s+preference\b/.test(lower)) return 'Preference';
+    if (type === 'decision') return 'User decision';
+    if (type === 'goal') return 'User goal';
+
+    const words = String(content || '').replace(/[.!?]+$/g, '').split(/\s+/).filter(Boolean);
+    if (words.length <= 6) return words.join(' ');
+    return `${words.slice(0, 6).join(' ')}…`;
+  }
+
+  function memoryAlreadyExists(content, context) {
+    const candidate = tokenSet(content);
+    if (!candidate.size) return false;
+    return extractMemoriesFromContext(context).some((memory) => {
+      const existing = tokenSet(`${memory.title} ${memory.content}`);
+      const overlap = [...candidate].filter((token) => existing.has(token)).length;
+      return overlap >= Math.min(3, candidate.size) && overlap / candidate.size >= 0.6;
+    });
+  }
+
+  function recallFromConfirmedMemory(question, context) {
+    const query = String(question || '').trim();
+    if (!looksLikeRecallQuestion(query)) return null;
+
+    const queryTokens = tokenSet(query);
+    if (!queryTokens.size) return null;
+
+    const ranked = extractMemoriesFromContext(context)
+      .map((memory) => ({ memory, score: scoreMemory(queryTokens, memory) }))
+      .filter((item) => item.score >= 2)
+      .sort((a, b) => b.score - a.score);
+
+    if (!ranked.length) return null;
+
+    const best = ranked[0].memory;
+    return {
+      reply: `I have this in confirmed memory: ${best.content}`,
+      usedMemoryTitles: [best.title]
+    };
+  }
+
+  function looksLikeRecallQuestion(value) {
+    const text = String(value || '').toLowerCase().trim();
+    return /\?|\b(what|which|who|when|where|remember|recall|tell me|do you know|what['’]?s|whats)\b/.test(text);
+  }
+
+  function extractMemoriesFromContext(context) {
+    const lines = String(context || '').split('\n');
+    const memories = [];
+    let current = null;
+
+    for (const line of lines) {
+      const header = line.match(/^- \[([^\]]+)\] \[([^\]]+)\] (.+)$/);
+      if (header) {
+        if (current) memories.push(current);
+        current = {
+          importance: header[1].trim().toLowerCase(),
+          type: header[2].trim().toLowerCase(),
+          title: header[3].trim(),
+          content: ''
+        };
+        continue;
+      }
+
+      if (!current) continue;
+      const trimmed = line.trim();
+      if (!trimmed || /^Source:/i.test(trimmed) || /^Locked by user:/i.test(trimmed) || /^MEMORY RULE:/i.test(trimmed)) continue;
+      if (!current.content) current.content = trimmed;
+    }
+
+    if (current) memories.push(current);
+    return memories.filter((memory) => memory.title && memory.content);
+  }
+
+  function scoreMemory(queryTokens, memory) {
+    const titleTokens = tokenSet(memory.title);
+    const contentTokens = tokenSet(memory.content);
+    let score = 0;
+
+    for (const token of queryTokens) {
+      if (titleTokens.has(token)) score += 3;
+      else if (contentTokens.has(token)) score += 2;
+    }
+
+    if (String(memory.importance || '').toLowerCase() === 'critical') score += 0.25;
+    if (String(memory.importance || '').toLowerCase() === 'high') score += 0.1;
+    return score;
+  }
+
+  function tokenSet(value) {
+    const stop = new Set([
+      'a', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'but', 'by', 'do', 'does', 'for', 'from',
+      'have', 'i', 'in', 'is', 'it', 'me', 'my', 'of', 'on', 'or', 'our', 'that', 'the', 'this', 'to',
+      'was', 'we', 'were', 'what', 'which', 'who', 'with', 'you', 'your', 'remember', 'recall', 'tell'
+    ]);
+
+    return new Set((String(value || '').toLowerCase().match(/[a-z0-9']+/g) || [])
+      .map((token) => token === 'favorite' ? 'favourite' : token)
+      .filter((token) => token.length > 1 && !stop.has(token)));
   }
 
   function isGreeting(text) {
@@ -332,13 +488,11 @@
 
   function findUsedMemoryTitles(context, reply) {
     const result = [];
-    const replyWords = new Set((String(reply || '').toLowerCase().match(/[a-z0-9']{4,}/g) || []));
-    const titlePattern = /^- \[[^\]]+\] \[[^\]]+\] (.+)$/gm;
-    let match;
-    while ((match = titlePattern.exec(String(context || ''))) && result.length < 6) {
-      const title = match[1].trim();
-      const titleWords = (title.toLowerCase().match(/[a-z0-9']{4,}/g) || []);
-      if (titleWords.some((word) => replyWords.has(word))) result.push(title);
+    const replyWords = tokenSet(reply);
+    for (const memory of extractMemoriesFromContext(context)) {
+      if (result.length >= 6) break;
+      const memoryWords = tokenSet(`${memory.title} ${memory.content}`);
+      if ([...memoryWords].some((word) => replyWords.has(word))) result.push(memory.title);
     }
     return result;
   }
@@ -393,13 +547,19 @@
         else if (availability === 'downloadable') setProviderStatus('Chrome AI · ready to download', 'local');
         else if (availability === 'downloading') setProviderStatus('Downloading Chrome AI…', 'busy');
         else if (navigator.gpu) setProviderStatus('Mobile AI · ready', 'local');
-        else setProviderStatus('Local AI unavailable', 'error');
+        else setProviderStatus('Memory controller · ready', 'local');
         return;
       } catch {}
     }
 
     if (navigator.gpu) setProviderStatus('Mobile AI · ready', 'local');
-    else setProviderStatus('Local AI unavailable', 'error');
+    else setProviderStatus('Memory controller · ready', 'local');
+  }
+
+  function setReadyStatus() {
+    if (globalThis.LanguageModel) setProviderStatus('Chrome AI · ready', 'local');
+    else if (navigator.gpu) setProviderStatus('Mobile AI · ready', 'local');
+    else setProviderStatus('Memory controller · ready', 'local');
   }
 
   function setProviderStatus(label, mode) {
