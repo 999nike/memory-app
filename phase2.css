@@ -320,3 +320,103 @@ html {
   .chat-message { max-width: 96%; }
   .proposal-actions { grid-template-columns: 1fr; }
 }
+
+/* Mobile workspace: let proposals take their natural space instead of being squeezed by a fixed chat-panel height. */
+@media (max-width: 800px) {
+  .phase2-chat-pane {
+    min-height: 0;
+    max-height: none;
+    grid-template-rows: auto auto auto auto 220px auto auto;
+  }
+
+  .proposal-section {
+    max-height: none;
+    overflow: visible;
+    padding: 10px 12px 12px;
+  }
+
+  .proposal-heading {
+    margin-bottom: 7px;
+  }
+
+  .proposal-list {
+    gap: 7px;
+  }
+
+  .proposal-card {
+    padding: 9px 10px;
+    border-radius: 11px;
+  }
+
+  .proposal-card-top {
+    margin-bottom: 5px;
+  }
+
+  .proposal-card > strong {
+    font-size: 0.78rem;
+  }
+
+  .proposal-card p {
+    margin: 4px 0;
+    font-size: 0.71rem;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .proposal-card small {
+    font-size: 0.62rem;
+    line-height: 1.3;
+  }
+
+  .proposal-actions,
+  .proposal-actions { grid-template-columns: 1fr 1fr 1fr; margin-top: 7px; }
+  .proposal-actions button { min-height: 29px; }
+
+  .chat-messages {
+    min-height: 220px;
+    max-height: 220px;
+    padding: 12px;
+  }
+
+  .phase2-memory-pane .memory-grid {
+    gap: 9px;
+  }
+
+  .phase2-memory-pane .memory-card {
+    min-height: 138px;
+    padding: 12px;
+    border-radius: 13px;
+  }
+
+  .phase2-memory-pane .type-badge,
+  .phase2-memory-pane .importance-badge,
+  .phase2-memory-pane .lock-badge {
+    min-height: 20px;
+    padding: 0 7px;
+    font-size: 0.6rem;
+  }
+
+  .phase2-memory-pane .memory-card h3 {
+    margin: 10px 0 5px;
+    font-size: 0.92rem;
+  }
+
+  .phase2-memory-pane .memory-card p {
+    margin-bottom: 8px;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    -webkit-line-clamp: 2;
+  }
+
+  .phase2-memory-pane .card-footer {
+    padding-top: 9px;
+    font-size: 0.65rem;
+  }
+}
+
+@media (max-width: 430px) {
+  .proposal-actions { grid-template-columns: 1fr 1fr 1fr; }
+}
