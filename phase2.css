@@ -235,7 +235,10 @@
   outline: 0;
   background: #080b0f;
   color: var(--text);
+  font-size: 16px !important;
   line-height: 1.45;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 .chat-form textarea:focus { border-color: rgb(199 255 86 / 0.55); }
@@ -280,7 +283,7 @@
   .phase2-chat-pane { border-radius: 15px; min-height: 510px; max-height: 680px; }
   .proposal-actions { grid-template-columns: 1fr 1fr 1fr; }
 
-  /* Keep form focus at the user's current page zoom. Do not disable pinch/screen zoom. */
+  /* Prevent browser focus enlargement while preserving user pinch zoom. */
   .chat-form textarea,
   .search-field input,
   .modal input,
