@@ -84,29 +84,31 @@
 
     document.querySelectorAll('.memory-card[data-memory-id]').forEach((card) => {
       const memory = byId.get(card.dataset.memoryId);
-      card.hidden = Boolean(memory && (memory.status || ACTIVE_STATUS) !== ACTIVE_STATUS);
+      const shouldHide = Boolean(memory && (memory.status || ACTIVE_STATUS) !== ACTIVE_STATUS);
+      if (card.hidden !== shouldHide) card.hidden = shouldHide;
     });
 
-    const visibleCount = document.getElementById('visibleCount');
-    if (visibleCount) visibleCount.textContent = String(active.length);
-
-    const spaceMeta = document.getElementById('spaceMeta');
-    if (spaceMeta) spaceMeta.textContent = `${active.length} ${active.length === 1 ? 'memory' : 'memories'}`;
+    setText(document.getElementById('visibleCount'), String(active.length));
+    setText(document.getElementById('spaceMeta'), `${active.length} ${active.length === 1 ? 'memory' : 'memories'}`);
 
     const summary = document.getElementById('summaryStats');
     if (summary) {
       const locked = active.filter((memory) => memory.locked).length;
       const critical = active.filter((memory) => memory.importance === 'critical').length;
-      summary.innerHTML = `
-        <div class="stat"><strong>${active.length}</strong><span>Active</span></div>
-        <div class="stat"><strong>${locked}</strong><span>Locked</span></div>
-        <div class="stat"><strong>${critical}</strong><span>Critical</span></div>`;
+      const summaryKey = `${active.length}:${locked}:${critical}`;
+      if (summary.dataset.lifecycleSnapshot !== summaryKey) {
+        summary.dataset.lifecycleSnapshot = summaryKey;
+        summary.innerHTML = `
+          <div class="stat"><strong>${active.length}</strong><span>Active</span></div>
+          <div class="stat"><strong>${locked}</strong><span>Locked</span></div>
+          <div class="stat"><strong>${critical}</strong><span>Critical</span></div>`;
+      }
     }
 
     document.querySelectorAll('.space-item[data-space-id]').forEach((button) => {
       const count = confirmedMemories(workspace, button.dataset.spaceId).length;
       const badge = button.querySelector('.space-memory-count');
-      if (badge) badge.textContent = String(count);
+      setText(badge, String(count));
     });
 
     decorateInspector(workspace);
@@ -227,15 +229,19 @@
     if (!memory) return;
 
     const deleteButton = detail.querySelector('[data-action="delete"]');
-    if (deleteButton) deleteButton.textContent = 'Archive';
-
-    const existingHistory = detail.querySelector('[data-memory-history]');
-    existingHistory?.remove();
+    if (deleteButton && deleteButton.textContent !== 'Archive') deleteButton.textContent = 'Archive';
 
     const groupId = memory.revisionGroupId || memory.id;
     const revisions = workspace.memories
       .filter((item) => (item.revisionGroupId || item.id) === groupId)
       .sort((a, b) => Number(b.revisionNumber || 1) - Number(a.revisionNumber || 1));
+
+    const historyKey = revisions.map((item) => `${item.id}:${item.status}:${item.updatedAt}`).join('|');
+    const existingHistory = detail.querySelector('[data-memory-history]');
+    if (existingHistory && detail.dataset.memoryHistoryKey === historyKey) return;
+
+    existingHistory?.remove();
+    detail.dataset.memoryHistoryKey = historyKey;
 
     const block = document.createElement('div');
     block.className = 'detail-block memory-history-block';
@@ -282,8 +288,12 @@
     lines.push('', 'RULE: Superseded and archived memories are history only and must not be treated as current truth.');
 
     const preview = document.getElementById('contextPreview');
-    if (preview) preview.textContent = lines.join('\n');
+    setText(preview, lines.join('\n'));
     document.getElementById('contextDialog')?.showModal();
+  }
+
+  function setText(element, value) {
+    if (element && element.textContent !== value) element.textContent = value;
   }
 
   function toast(message) {
