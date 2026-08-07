@@ -27,6 +27,25 @@
 
 .memory-bridge-dialog input[type="password"] { letter-spacing: 0.04em; }
 
+@media (max-width: 800px) {
+  .memory-bridge-dialog {
+    width: calc(100% - 16px);
+    max-height: calc(100dvh - 16px);
+    top: max(8px, env(safe-area-inset-top));
+    bottom: auto;
+    margin: 0 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .memory-bridge-dialog .connection-form input,
+  .memory-bridge-dialog .connection-form select,
+  .memory-bridge-dialog .connection-form textarea {
+    font-size: 16px;
+    line-height: 1.4;
+  }
+}
+
 @media (max-width: 600px) {
   .memory-bridge-entry { grid-template-columns: 1fr; }
   .memory-bridge-entry button { width: 100%; }
