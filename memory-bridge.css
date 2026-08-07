@@ -26,6 +26,10 @@
 }
 
 .memory-bridge-dialog input[type="password"] { letter-spacing: 0.04em; }
+.memory-bridge-dialog .connection-row-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 
 @media (max-width: 800px) {
   .memory-bridge-dialog {
@@ -49,4 +53,6 @@
 @media (max-width: 600px) {
   .memory-bridge-entry { grid-template-columns: 1fr; }
   .memory-bridge-entry button { width: 100%; }
+  .memory-bridge-dialog .connection-row { grid-template-columns: 1fr; }
+  .memory-bridge-dialog .connection-row-actions { justify-content: flex-start; }
 }
