@@ -270,6 +270,18 @@ html {
   .phase2-layout { grid-template-columns: minmax(0, 1fr) 350px; }
 }
 
+/* Desktop workspace: memory and AI are peers instead of a wide board plus tiny chat rail. */
+@media (min-width: 1200px) {
+  .phase2-layout {
+    grid-template-columns: minmax(0, 65fr) minmax(420px, 35fr);
+    gap: 24px;
+  }
+
+  .phase2-chat-pane {
+    min-width: 0;
+  }
+}
+
 @media (max-width: 1050px) {
   .phase2-layout { grid-template-columns: 1fr; }
   .phase2-chat-pane {
