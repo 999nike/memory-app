@@ -1,4 +1,14 @@
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 .phase2-layout {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 410px);
   gap: 18px;
@@ -8,6 +18,9 @@
 .phase2-memory-pane { min-width: 0; }
 
 .phase2-chat-pane {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   position: sticky;
   top: 92px;
   min-height: 620px;
@@ -147,6 +160,7 @@
 }
 
 .chat-messages {
+  min-width: 0;
   min-height: 0;
   overflow: auto;
   padding: 16px;
@@ -219,13 +233,20 @@
 }
 
 .chat-form {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 12px;
   border-top: 1px solid var(--line);
   background: #0b0f14;
+  overflow: hidden;
 }
 
 .chat-form textarea {
+  display: block;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 76px;
   max-height: 180px;
   resize: vertical;
@@ -245,6 +266,9 @@
 .chat-form textarea::placeholder { color: #697383; }
 
 .chat-form-footer {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -253,6 +277,7 @@
 }
 
 .chat-clear {
+  min-width: 0;
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -261,7 +286,10 @@
   font-weight: 700;
 }
 
-.chat-form .primary-button { min-height: 36px; }
+.chat-form .primary-button {
+  flex: 0 0 auto;
+  min-height: 36px;
+}
 .chat-form .primary-button:disabled { opacity: 0.6; cursor: wait; transform: none; }
 
 @media (max-width: 1280px) {
@@ -279,6 +307,15 @@
 }
 
 @media (max-width: 800px) {
+  .phase2-layout,
+  .phase2-chat-pane,
+  .chat-form,
+  .chat-form-footer {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
   .phase2-layout { gap: 14px; }
   .phase2-chat-pane { border-radius: 15px; min-height: 510px; max-height: 680px; }
   .proposal-actions { grid-template-columns: 1fr 1fr 1fr; }
@@ -290,7 +327,7 @@
   .modal textarea,
   .modal select,
   .ai-provider-select {
-    font-size: 16px;
+    font-size: 16px !important;
   }
 }
 
