@@ -3,6 +3,7 @@
 
   const BRIDGE_STORAGE_KEY = 'memory-ai-bridges-v1';
   const PROTOCOL_VERSION = '2026-07-28';
+  const CLIENT_INFO = { name: 'memory-space-browser-self-test', version: '1.1.0' };
 
   function loadBridges() {
     try {
@@ -32,16 +33,29 @@
     const token = String(bridge?.token || '');
     if (!baseUrl || !token) throw new Error('Bridge URL or pairing token is missing');
 
+    const headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'X-Memory-Bridge-Protocol': 'memory-space-bridge/1',
+      'MCP-Protocol-Version': PROTOCOL_VERSION,
+      'Mcp-Method': method
+    };
+    if (method === 'tools/call' && params?.name) headers['Mcp-Name'] = String(params.name);
+
+    const bodyParams = {
+      ...params,
+      _meta: {
+        ...(params?._meta || {}),
+        'io.modelcontextprotocol/clientInfo': CLIENT_INFO
+      }
+    };
+
     const response = await fetch(`${baseUrl}/mcp`, {
       method: 'POST',
       cache: 'no-store',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'X-Memory-Bridge-Protocol': 'memory-space-bridge/1'
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', id, method, params })
+      headers,
+      body: JSON.stringify({ jsonrpc: '2.0', id, method, params: bodyParams })
     });
 
     const data = await response.json().catch(() => ({}));
@@ -60,15 +74,10 @@
     const original = button.textContent;
     button.disabled = true;
     button.textContent = 'MCP…';
-    setStatus(row, 'MCP self-test · authenticating and discovering tools…');
+    setStatus(row, 'MCP self-test · stateless discovery and tools…');
 
     try {
-      const initialized = await rpc(bridge, 1, 'initialize', {
-        protocolVersion: PROTOCOL_VERSION,
-        capabilities: {},
-        clientInfo: { name: 'memory-space-browser-self-test', version: '1.0.0' }
-      });
-
+      const discovered = await rpc(bridge, 1, 'server/discover', {});
       const toolsResult = await rpc(bridge, 2, 'tools/list', {});
       const tools = Array.isArray(toolsResult?.tools) ? toolsResult.tools : [];
       if (!tools.length) throw new Error('MCP connected but returned no tools');
@@ -80,7 +89,7 @@
       const text = contextResult?.content?.find?.((item) => item?.type === 'text')?.text || '';
       if (!text.includes('SPACE:')) throw new Error('MCP tools work, but no shared workspace context was returned');
 
-      const protocol = initialized?.protocolVersion || PROTOCOL_VERSION;
+      const protocol = discovered?.protocolVersion || PROTOCOL_VERSION;
       setStatus(row, `MCP verified · ${tools.length} tools · shared workspace readable · ${protocol}`, 'success');
       button.textContent = 'Passed';
     } catch (error) {
