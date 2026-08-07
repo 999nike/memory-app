@@ -1,3 +1,8 @@
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 .phase2-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 410px);
@@ -280,14 +285,12 @@
   .phase2-chat-pane { border-radius: 15px; min-height: 510px; max-height: 680px; }
   .proposal-actions { grid-template-columns: 1fr 1fr 1fr; }
 
-  /* Keep form focus at the user's current page zoom. Do not disable pinch/screen zoom. */
-  .chat-form textarea,
-  .search-field input,
-  .modal input,
-  .modal textarea,
-  .modal select,
-  .ai-provider-select {
-    font-size: 16px;
+  /* Mobile browsers may focus-zoom editable controls below 16 CSS px.
+     Enforce one app-wide floor so current and future forms behave consistently. */
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    font-size: 16px !important;
   }
 }
 
