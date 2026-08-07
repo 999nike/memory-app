@@ -1,14 +1,51 @@
 # Memory App
 
-A private, visible, long-term workspace that a human and an AI build together.
+A private, visible, long-term workspace that a human and AI systems build together.
+
+The central product is **Memory Space itself**. The AI model is not the owner of the memory and is not the permanent centre of the product. Models are replaceable workers that receive controlled access to user-owned context.
+
+A user should be able to use ChatGPT/OpenAI one day, Gemini or Claude another day, a local Ollama model when privacy matters, and future AI systems later without rebuilding the workspace or losing continuity.
+
+The rule is simple:
+
+**The AI can change. The workspace does not.**
 
 This is not ordinary hidden chatbot memory and it is not a dump of every conversation. The product gives the user a dedicated virtual space where important facts, project decisions, plans, files, relationships, and history can be deliberately preserved, inspected, corrected, linked, and removed.
 
 The AI can suggest what may be worth remembering. The user remains the final authority over what becomes trusted long-term memory.
 
+## Product architecture in one picture
+
+```text
+                         MEMORY SPACE
+                    user-owned source of truth
+                              |
+                     controlled context/tools
+                              |
+          +-------------------+-------------------+
+          |                   |                   |
+       OpenAI              Gemini              Claude
+          |                   |                   |
+          +-------------------+-------------------+
+                              |
+                         Local models
+                              |
+                     Memory Bridge / Ollama
+                              |
+                         Future AI systems
+```
+
+The long-term goal is not merely provider switching inside this web app. Memory Space should expose controlled tools so compatible external AI clients can enter the same workspace, read approved context, search it, continue previous work, and propose new memories without owning or silently rewriting the user's long-term memory.
+
+Every future chat should be able to **pick up from the workspace and leave useful proposed context behind**. The persistent continuity belongs to Memory Space, not to whichever model happened to be used for that conversation.
+
 ## Current prototype status — 7 Aug 2026
 
-The core product loop is proven. Memory Bridge is also proven from the phone to the HP at the network/pairing layer. The remaining bridge proof is the first normal in-app chat request through the paired HP model, which is currently blocked by an open mobile chat focus-zoom regression.
+The core product loop is proven, and the first remote-local model path is now proven end to end.
+
+A Samsung phone running the Vercel-hosted Memory App successfully sent a normal in-app chat request through the public Memory Bridge route to the HP Windows server, where the request reached Ollama and `gemma3:1b`, used Memory Space context, and returned a reply to the phone.
+
+This proves an important architectural point: the workspace can remain independent while inference is supplied by a model running on another physical machine.
 
 ### Proven working
 
@@ -37,8 +74,10 @@ The core product loop is proven. Memory Bridge is also proven from the phone to 
 - Mobile Send/touch handling fixed
 - HP external-local runtime proof: standalone Ollama is running `gemma3:1b` and answered a direct local prompt
 - HP bridge local proof: authenticated `/v1/info` and `/v1/chat` succeeded on `http://127.0.0.1:8787`
-- Public bridge proof: authenticated `/v1/info` succeeded through `https://bridge.w-i-z-z-lab-studios.com`
-- Phone pairing proof: the Samsung phone successfully paired Memory Space with `WIZZ HP Bridge`
+- Public bridge proof through `https://bridge.w-i-z-z-lab-studios.com`
+- Phone pairing proof with `WIZZ HP Bridge`
+- **End-to-end phone -> public tunnel -> HP Memory Bridge -> Ollama -> `gemma3:1b` -> phone chat proof**
+- **Confirmed Memory Space context successfully reached the remote-local model and influenced its reply**
 
 ### HP / Cloudflare test state
 
@@ -53,38 +92,17 @@ Current first bridge machine is the HP Windows server PC.
 - The pairing token is stored privately by the user and must never be committed to the repository
 - Existing Cloudflare tunnel remains in use
 - Existing media route remains `media.w-i-z-z-lab-studios.com -> http://127.0.0.1:8081`
-- New bridge route is `bridge.w-i-z-z-lab-studios.com -> http://127.0.0.1:8787`
+- Bridge route is `bridge.w-i-z-z-lab-studios.com -> http://127.0.0.1:8787`
 - The public bridge hostname is reachable and token authentication works
-- The phone has already saved/paired the bridge connection
+- The phone has saved/paired the bridge connection
+- Normal in-app chat through the bridge has succeeded
 - Ollama and Memory Bridge are currently being run from PowerShell windows; persistence across reboot has not yet been configured
-
-### Open blocker — mobile chat focus zoom
-
-**OPEN. Do not mark this fixed until it is verified on the phone again.**
-
-The main chat textarea automatically zooms the page when it receives focus on the Samsung S24 Ultra in Chrome. This behaviour had previously been fixed and was confirmed good at commit `4617cb1a5bfd4ad0ce233f05d715263370c5f3f6` (`Restore normal mobile viewport behavior`), but it has regressed during later bridge work.
-
-User requirement is explicit:
-
-- Manual pinch zoom must remain available
-- Tapping/focusing the normal chat typing box must not change page scale
-- Do not disable pinch zoom
-- Do not use `maximum-scale=1` or `user-scalable=no`
-- Do not add `visualViewport` resizing/scrolling hacks
-- Do not add document-wide `zoom`, `transform: scale()`, or width compensation
-- Do not rewrite the viewport dynamically in JavaScript
-
-The intended viewport remains:
-
-`width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content`
-
-Recent attempts around the regression include commits `1927e829`, `74168080`, `a96d7077`, and `395163db`. They did not resolve the main chat focus zoom on the phone. The next debugging pass should compare the actual known-good mobile state at `4617cb1...` with current runtime/computed behaviour and avoid stacking more zoom workarounds.
 
 ### Architecture already in place
 
-Memory Space owns the long-term truth. Models are replaceable workers.
+**Memory Space owns the long-term truth. Models are replaceable workers.**
 
-Current provider path:
+Current in-app provider path:
 
 `Memory Space -> context firewall -> provider interface -> selected AI`
 
@@ -100,7 +118,30 @@ Current provider types:
 - Generic OpenAI-compatible local server
 - Memory Bridge remote-local provider
 
-The browser-local model is only the prototype inference engine. It does not own memory and can be replaced without changing the workspace.
+The browser-local model is only one inference engine. It does not own memory and can be replaced without changing the workspace.
+
+### Target external-AI path
+
+The next major architectural proof is to let AI clients outside the Memory App use Memory Space as a controlled source of context.
+
+Target path:
+
+`ChatGPT / Claude / Gemini / other compatible client -> Memory Space tools -> user-approved workspace memory`
+
+The intended tool contract should allow an external AI to do things such as:
+
+- list spaces
+- search memory
+- read a memory
+- get current space context
+- get current decisions or goals
+- inspect provenance
+- propose a new memory
+- propose an update or supersede action
+
+External AIs must **not** receive an unrestricted approve/write/delete capability. Permanent trust decisions remain controlled by the user in Memory Space.
+
+This is where MCP or another open tool protocol becomes important. The protocol is an interface; the Memory Space remains the source of truth.
 
 ### Important product rules now enforced
 
@@ -112,26 +153,28 @@ The browser-local model is only the prototype inference engine. It does not own 
 - The Memory Bridge requires explicit pairing and does not store the workspace
 - No silent cloud fallback
 - Approved memories are not silently rewritten after approval
+- Model/provider changes must not require rebuilding the workspace
+- Long-term continuity belongs to Memory Space, not to an AI provider
 
 ### Next build order
 
-1. **Fix the mobile main-chat focus zoom regression**
-   - Restore the previously verified behaviour: keyboard opens, page scale stays unchanged
-   - Preserve manual pinch zoom
-   - Verify on the Samsung phone before marking closed
-
-2. **Complete the real external-local provider test**
-   - Phone is already paired to `WIZZ HP Bridge`
-   - Send the first normal Memory Space chat request through the bridge to HP `gemma3:1b`
-   - Ask a question that requires an existing confirmed memory
-   - Confirm only current confirmed context is transmitted
-   - Confirm provider switching preserves the same Memory Space
-   - After the proof succeeds, make Ollama and Memory Bridge persistent across HP reboot
-
-3. **MCP interface**
+1. **MCP / controlled external-AI interface**
    - Expose Memory Space as controlled tools for compatible AI clients
-   - Initial tools: search memory, get current space context, read a memory, propose a memory, list spaces, get current decisions
-   - Approval remains human-only; external AIs do not receive an unrestricted write/approve tool
+   - Initial tools: list spaces, search memory, get current space context, read a memory, get current decisions, inspect provenance, propose a memory
+   - Keep approval human-only
+   - Prove that an external AI client can enter an existing workspace, retrieve approved memory, and continue work without importing a separate copy
+
+2. **Provider portability proof inside the app**
+   - Use the same Memory Space with at least two different inference providers
+   - Confirm provider switching preserves the exact same trusted workspace
+   - Confirm each model receives only the context permitted by the firewall
+   - Confirm useful new information returns as proposals rather than silent memory writes
+
+3. **Make HP inference services persistent**
+   - Start Ollama automatically after reboot
+   - Start Memory Bridge automatically after reboot
+   - Keep the public Cloudflare route stable
+   - Preserve token/authentication boundaries
 
 4. **Memory lifecycle improvements**
    - Contradiction detection
@@ -160,15 +203,17 @@ We do not need the user to retest every internal patch. Testing is required at m
 - persistence/lifecycle changes
 - provider connection to a real model/runtime
 - privacy/context-firewall boundaries
+- external-AI tool permissions
+- provider switching while preserving the same workspace
 - import/export recovery
 
 Small internal refactors can proceed with build/read-back verification and be recorded here.
 
 ## Core idea
 
-Most AI assistants begin each conversation with incomplete context. Existing memory systems help, but the stored information is often invisible, difficult to correct, and mixed together across unrelated work.
+Most AI assistants begin each conversation with incomplete context. Existing memory systems help, but the stored information is often invisible, difficult to correct, tied to a provider, or mixed together across unrelated work.
 
-Memory App turns long-term context into a visible product surface.
+Memory App turns long-term context into a visible product surface that belongs to the user rather than to the inference engine.
 
 A user opens a space such as:
 
@@ -182,9 +227,9 @@ A user opens a space such as:
 - A house renovation
 - Any long-running area where continuity matters
 
-Inside that space, the human and AI share the same structured memory. The AI can understand what the space is, what has already happened, which decisions were made, what must not be forgotten, and what remains unresolved.
+Inside that space, the human and whichever AI they choose share the same structured memory. The AI can understand what the space is, what has already happened, which decisions were made, what must not be forgotten, and what remains unresolved.
 
-The experience should feel like the AI is returning to the same room rather than meeting the user again from scratch.
+The experience should feel like every AI is entering the same room rather than forcing the user to rebuild the room for every provider.
 
 ## Product promise
 
@@ -198,13 +243,17 @@ Memory App should provide:
 - Complete editing, export, and deletion
 - Local-first storage
 - Model portability
+- Provider independence
+- Controlled external-AI access
 - Clear explanations of why a memory was used
 
 ## What makes it different
 
 A notes app stores information.
 
-Memory App helps maintain a living context system.
+A chatbot may remember information for itself.
+
+Memory App maintains a **living user-owned context system that multiple AI workers can use**.
 
 The AI should be able to:
 
@@ -217,13 +266,15 @@ The AI should be able to:
 - Surface unresolved questions
 - Assemble the right context for a new conversation
 - Explain where each memory came from
+- Continue work started with another AI provider
 
 The user should be able to:
 
 - Approve, edit, reject, lock, move, or delete a proposed memory
-- See every trusted memory the AI can use
+- See every trusted memory an AI can use
 - Control which spaces an AI or model can access
 - Inspect the original source of a memory
+- Change AI providers without losing the workspace
 - Export the complete workspace in a portable format
 - Wipe a space completely
 
@@ -442,6 +493,8 @@ For each AI request, the client builds a focused context package from:
 
 The user should be able to inspect this package through the context inspector.
 
+For external AI clients, the same principle applies through tools: give the AI only the workspace data necessary for the current task rather than unrestricted database access.
+
 ## Local-first architecture
 
 The first version does not need Pinecone, Upstash, or a hosted vector database.
@@ -450,16 +503,15 @@ The project should begin with local storage and simple retrieval.
 
 ### Web prototype
 
-Because this repository is connected to Vercel, the first usable version can be a local-first web application where:
+The current proof-of-concept is a static JavaScript/CSS web application served through Vercel while workspace data remains in browser storage.
 
-- The interface is served by Vercel
-- User memory remains in the browser
-- IndexedDB stores spaces, memories, conversations, and settings
-- A service worker enables offline use
+The direction remains:
+
+- Interface served by Vercel or another replaceable static host
+- User memory stored locally by default
+- Larger state moved toward IndexedDB as needed
 - Export and import protect against browser data loss
-- No server database is required
-
-This allows the product and interaction model to be proven before introducing infrastructure.
+- No central server database required for the private single-user product loop
 
 ### Private desktop version
 
@@ -476,16 +528,18 @@ The desktop version can use:
 
 ### AI providers
 
-The memory system should not belong to one model provider.
+The memory system must not belong to one model provider.
 
 Possible model modes:
 
 - User-supplied cloud API key
 - Server-mediated cloud model, only when explicitly enabled
 - Local model through Ollama
+- Remote-local model through Memory Bridge
+- External AI client through controlled tools/MCP
 - No-AI mode for manual workspace management
 
-The model is replaceable. The user-owned context is the long-term asset.
+The model is replaceable. **The user-owned context is the long-term asset.**
 
 ## Privacy and security principles
 
@@ -499,12 +553,14 @@ The model is replaceable. The user-owned context is the long-term asset.
 - Ask before allowing one space or agent to read another
 - Show what context was sent to a model
 - Avoid placing raw private content in analytics
+- Give external AI clients controlled tools rather than unrestricted database access
+- Keep approval of trusted long-term memory under user control
 
 The distinction between local storage and local inference must remain clear. A user may store memory locally while still choosing to send selected context to a cloud model.
 
 ## Recommended first stack
 
-The exact framework should be confirmed after the initial repository setup, but a practical route is:
+The original heavier-stack option remains available after the interaction model is stable:
 
 - Next.js with TypeScript
 - Vercel for the hosted web shell
@@ -516,13 +572,13 @@ The exact framework should be confirmed after the initial repository setup, but 
 - Vitest for unit tests
 - Playwright for end-to-end tests
 
-Do not add cloud databases, authentication systems, queues, or vector infrastructure until the local product loop works.
+Do not add cloud databases, authentication systems, queues, or vector infrastructure until the local product loop demonstrates a real need.
 
-> **Prototype note:** the current proof-of-concept intentionally uses a simpler static JavaScript/CSS web shell and browser storage. The heavier stack above remains an option after the interaction model is stable; it is not a requirement for the prototype.
+> **Prototype note:** the current proof-of-concept intentionally uses a simpler static JavaScript/CSS web shell and browser storage. The heavier stack above remains an option, not a requirement.
 
 ## MVP
 
-The first MVP should prove one complete loop:
+The first MVP loop has now substantially been proven:
 
 1. Create a space
 2. Add a confirmed memory manually
@@ -534,6 +590,9 @@ The first MVP should prove one complete loop:
 8. Use the approved memory in a later conversation
 9. Show why that memory was retrieved
 10. Export and restore the space
+11. Change the inference engine without changing the trusted workspace
+
+The next proof extends this beyond the app itself: connect an external AI client to the same workspace through controlled tools.
 
 ### MVP screens
 
@@ -591,18 +650,28 @@ This phase works without any AI model.
 - Record source and provenance
 - Add the context inspector
 - Add Memory Bridge v1 protocol/client/companion for remote-local inference
+- Prove real phone-to-remote-local-model chat through the bridge
 
-### Phase 3 — Continuity and trust — in progress
+### Phase 3 — Model independence and external access — next major proof
 
+- MCP / controlled Memory Space tool interface — next
+- External AI reads an existing workspace — pending
+- External AI searches and reads approved memories — pending
+- External AI proposes memory without approving it — pending
+- Provider switching inside the app while preserving one workspace — pending formal test
 - Memory version history — implemented
 - Superseded relationships — implemented at lifecycle level
 - Current-memory context firewall — implemented
-- Contradiction warnings — next
-- Timeline view — pending
-- Improve retrieval scoring — pending
-- Add clear explanations for every retrieved memory — basic `Used:` provenance works; richer explanation pending
 
-### Phase 4 — Private desktop/native app — planned
+### Phase 4 — Continuity and trust — in progress/planned
+
+- Contradiction warnings
+- Timeline view
+- Improve retrieval scoring only when needed
+- Richer explanation for every retrieved memory
+- Better lifecycle/history UI
+
+### Phase 5 — Private desktop/native app — planned
 
 - Package with Tauri
 - Move primary storage to SQLite
@@ -613,7 +682,7 @@ This phase works without any AI model.
 
 The Memory Bridge and provider work is intentionally being built before packaging so the same provider contract can be reused by browser, desktop, and native clients.
 
-### Phase 5 — Optional sync and collaboration — intentionally deferred
+### Phase 6 — Optional sync and collaboration — intentionally deferred
 
 Only after the private single-user product works:
 
@@ -652,19 +721,38 @@ The first implementation will likely need:
 - Building a complex agent swarm
 - Allowing the AI to silently rewrite critical memories
 - Locking the product to one AI provider
+- Creating separate incompatible memory copies for every AI provider
 
 ## First success test
 
-The prototype succeeds when a user can save an important project decision, close the app, return later, open the same space, and have the AI correctly use that decision while showing the user exactly what it remembered and why.
+The original prototype succeeds when a user can save an important project decision, close the app, return later, open the same space, and have the AI correctly use that decision while showing the user exactly what it remembered and why.
 
 A simple example is an important number such as ten. The value itself is not the product. The product is that the user can see that ten was saved, understand why it matters, control where it applies, correct or remove it, and verify when the AI uses it.
 
 **Status:** this success test has been passed on the current prototype. A favourite-number memory was approved, chat history was cleared, and a later conversation recalled the current confirmed value while identifying the memory that supplied it.
 
+A second success test has now also passed: a phone used the same Memory Space context while inference was performed by `gemma3:1b` on a separate HP PC through the public Memory Bridge.
+
+## Next defining success test
+
+The project reaches its next important milestone when:
+
+1. An external compatible AI client connects to Memory Space through controlled tools.
+2. The AI can discover/select an existing space.
+3. It can read/search the user's approved current memory.
+4. It can continue a project using context created by another AI.
+5. It can propose a useful new memory after the conversation.
+6. The user remains the only authority that approves that proposal into trusted long-term memory.
+7. A different AI can later enter the same workspace and continue from that updated state.
+
+That is the proof that Memory Space is genuinely independent of the model provider.
+
 ## Guiding principle
 
 The memory is not generated about the user behind the scenes.
 
-It is created with the user in a space they can see, understand, and control.
+It is created **with** the user in a space they can see, understand, and control.
 
-That shared space is the product.
+The AI is a worker. The provider is replaceable. The bridge is infrastructure.
+
+**The shared Memory Space is the product.**
