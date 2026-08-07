@@ -1,0 +1,33 @@
+.memory-bridge-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  margin: -8px 0 20px;
+  padding: 12px;
+  border: 1px solid rgb(199 255 86 / 0.18);
+  border-radius: 12px;
+  background: rgb(199 255 86 / 0.045);
+}
+
+.memory-bridge-entry strong,
+.memory-bridge-entry small { display: block; }
+.memory-bridge-entry small { margin-top: 4px; color: var(--muted); line-height: 1.4; }
+
+.memory-bridge-entry button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgb(199 255 86 / 0.3);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.memory-bridge-dialog input[type="password"] { letter-spacing: 0.04em; }
+
+@media (max-width: 600px) {
+  .memory-bridge-entry { grid-template-columns: 1fr; }
+  .memory-bridge-entry button { width: 100%; }
+}
