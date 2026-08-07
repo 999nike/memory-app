@@ -61,7 +61,7 @@ export function createMemoryBridgeOAuth({
       'Content-Type': 'text/html; charset=utf-8',
       'Content-Length': Buffer.byteLength(html),
       'Cache-Control': 'no-store',
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
       'X-Frame-Options': 'DENY'
     });
     res.end(html);
@@ -177,7 +177,6 @@ export function createMemoryBridgeOAuth({
     const target = new URL(request.redirectUri);
     target.searchParams.set('code', code);
     if (request.state) target.searchParams.set('state', request.state);
-    target.searchParams.set('iss', issuer);
     return target.toString();
   }
 
