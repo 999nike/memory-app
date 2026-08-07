@@ -8,7 +8,7 @@ The AI can suggest what may be worth remembering. The user remains the final aut
 
 ## Current prototype status — 7 Aug 2026
 
-The core product loop is now proven on a Samsung S24 Ultra in Chrome.
+The core product loop is proven. Memory Bridge is also proven from the phone to the HP at the network/pairing layer. The remaining bridge proof is the first normal in-app chat request through the paired HP model, which is currently blocked by an open mobile chat focus-zoom regression.
 
 ### Proven working
 
@@ -35,7 +35,50 @@ The core product loop is now proven on a Samsung S24 Ultra in Chrome.
 - Bridge pairing test that sends no workspace memory
 - Bridge protocol documented in `bridge/README.md`
 - Mobile Send/touch handling fixed
-- Mobile chat now remains at normal page scale when the keyboard opens
+- HP external-local runtime proof: standalone Ollama is running `gemma3:1b` and answered a direct local prompt
+- HP bridge local proof: authenticated `/v1/info` and `/v1/chat` succeeded on `http://127.0.0.1:8787`
+- Public bridge proof: authenticated `/v1/info` succeeded through `https://bridge.w-i-z-z-lab-studios.com`
+- Phone pairing proof: the Samsung phone successfully paired Memory Space with `WIZZ HP Bridge`
+
+### HP / Cloudflare test state
+
+Current first bridge machine is the HP Windows server PC.
+
+- Ollama lives under `E:\WIZZ-Server\ollama`
+- Model storage is `E:\WIZZ-Server\ollama\models`
+- First model is `gemma3:1b`
+- Memory App repo is cloned at `E:\WIZZ-Server\workspaces\memory-app`
+- Memory Bridge listens locally on `127.0.0.1:8787`
+- Ollama listens locally on `127.0.0.1:11434`
+- The pairing token is stored privately by the user and must never be committed to the repository
+- Existing Cloudflare tunnel remains in use
+- Existing media route remains `media.w-i-z-z-lab-studios.com -> http://127.0.0.1:8081`
+- New bridge route is `bridge.w-i-z-z-lab-studios.com -> http://127.0.0.1:8787`
+- The public bridge hostname is reachable and token authentication works
+- The phone has already saved/paired the bridge connection
+- Ollama and Memory Bridge are currently being run from PowerShell windows; persistence across reboot has not yet been configured
+
+### Open blocker — mobile chat focus zoom
+
+**OPEN. Do not mark this fixed until it is verified on the phone again.**
+
+The main chat textarea automatically zooms the page when it receives focus on the Samsung S24 Ultra in Chrome. This behaviour had previously been fixed and was confirmed good at commit `4617cb1a5bfd4ad0ce233f05d715263370c5f3f6` (`Restore normal mobile viewport behavior`), but it has regressed during later bridge work.
+
+User requirement is explicit:
+
+- Manual pinch zoom must remain available
+- Tapping/focusing the normal chat typing box must not change page scale
+- Do not disable pinch zoom
+- Do not use `maximum-scale=1` or `user-scalable=no`
+- Do not add `visualViewport` resizing/scrolling hacks
+- Do not add document-wide `zoom`, `transform: scale()`, or width compensation
+- Do not rewrite the viewport dynamically in JavaScript
+
+The intended viewport remains:
+
+`width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content`
+
+Recent attempts around the regression include commits `1927e829`, `74168080`, `a96d7077`, and `395163db`. They did not resolve the main chat focus zoom on the phone. The next debugging pass should compare the actual known-good mobile state at `4617cb1...` with current runtime/computed behaviour and avoid stacking more zoom workarounds.
 
 ### Architecture already in place
 
@@ -72,35 +115,40 @@ The browser-local model is only the prototype inference engine. It does not own 
 
 ### Next build order
 
-1. **Real external-local provider test**
-   - Run Memory Bridge on a trusted machine with Ollama or LM Studio
-   - Give the bridge an HTTPS route reachable from the phone
-   - Pair from Memory Space using a token
-   - Confirm provider switching preserves the same Memory Space
-   - Confirm only current confirmed context is transmitted
-   - Confirm a bridge connection test sends no memory
+1. **Fix the mobile main-chat focus zoom regression**
+   - Restore the previously verified behaviour: keyboard opens, page scale stays unchanged
+   - Preserve manual pinch zoom
+   - Verify on the Samsung phone before marking closed
 
-2. **MCP interface**
+2. **Complete the real external-local provider test**
+   - Phone is already paired to `WIZZ HP Bridge`
+   - Send the first normal Memory Space chat request through the bridge to HP `gemma3:1b`
+   - Ask a question that requires an existing confirmed memory
+   - Confirm only current confirmed context is transmitted
+   - Confirm provider switching preserves the same Memory Space
+   - After the proof succeeds, make Ollama and Memory Bridge persistent across HP reboot
+
+3. **MCP interface**
    - Expose Memory Space as controlled tools for compatible AI clients
    - Initial tools: search memory, get current space context, read a memory, propose a memory, list spaces, get current decisions
    - Approval remains human-only; external AIs do not receive an unrestricted write/approve tool
 
-3. **Memory lifecycle improvements**
+4. **Memory lifecycle improvements**
    - Contradiction detection
    - Explicit supersede proposals
    - Better history UI
    - Timeline view
 
-4. **Storage hardening**
+5. **Storage hardening**
    - Move larger browser state toward IndexedDB
    - Add backup/versioned export manifest
    - Add optional client-side encryption experiments
 
-5. **Native/desktop routes**
+6. **Native/desktop routes**
    - Android/native bridge for local device models such as AICore/ML Kit or bundled runtimes
    - Desktop packaging later with Tauri + SQLite
 
-6. **Retrieval improvements only when needed**
+7. **Retrieval improvements only when needed**
    - Start with deterministic/full-text retrieval
    - Add semantic/vector search only after the current approach demonstrates a real limitation
 
