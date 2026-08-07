@@ -8,6 +8,7 @@
   <title>Memory Space</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./phase2.css">
 </head>
 <body>
   <div class="app-shell">
@@ -201,7 +202,7 @@
       </div>
       <button class="icon-button" type="button" data-close-dialog="contextDialog" aria-label="Close">×</button>
     </div>
-    <p class="context-explainer">This preview is generated only from the current visible space. No AI connection exists yet.</p>
+    <p class="context-explainer">This preview is generated only from the current visible space. The AI chat sends this confirmed context and recent local chat history.</p>
     <pre id="contextPreview" class="context-preview"></pre>
     <div class="modal-actions">
       <button class="ghost-button" type="button" data-close-dialog="contextDialog">Close</button>
@@ -212,5 +213,6 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="./app.js" defer></script>
+  <script src="./phase2.js" defer></script>
 </body>
 </html>
