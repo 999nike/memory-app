@@ -4,6 +4,7 @@
   const STORAGE_KEY = 'memory-ai-bridges-v1';
   const WORKSPACE_KEY = 'memory-space-v1';
   const CHAT_KEY = 'memory-space-chat-v1';
+  const bridgeStatuses = new Map();
   let restoreStarted = false;
 
   function loadBridges() {
@@ -52,6 +53,14 @@
     }
   }
 
+  function setBridgeStatus(dialog, bridgeId, message, tone = 'neutral') {
+    bridgeStatuses.set(bridgeId, { message, tone });
+    const el = dialog?.querySelector(`[data-bridge-status="${CSS.escape(bridgeId)}"]`);
+    if (!el) return;
+    el.textContent = message;
+    el.dataset.tone = tone;
+  }
+
   function buildSharedActiveSpace() {
     let workspace;
     try {
@@ -79,6 +88,7 @@
 
   async function shareActiveSpace(bridge, button) {
     if (!ready()) return;
+    const dialog = button?.closest('dialog');
     const original = button?.textContent || 'Share';
     if (button) {
       button.disabled = true;
@@ -87,7 +97,10 @@
     try {
       const workspace = buildSharedActiveSpace();
       const result = await globalThis.MemoryBridge.publishWorkspace(bridge, workspace);
-      toast(`Shared ${result.memoryCount ?? workspace.memories.length} confirmed memories · RAM only`);
+      const count = result.memoryCount ?? workspace.memories.length;
+      const spaceName = workspace.spaces[0]?.name || workspace.activeSpaceId;
+      setBridgeStatus(dialog, bridge.id, `Shared ${spaceName} · ${count} confirmed memories · MCP ready`, 'success');
+      toast(`Shared ${count} confirmed memories · RAM only`);
       if (button) button.textContent = 'Shared';
       setTimeout(() => {
         if (button) {
@@ -97,6 +110,7 @@
       }, 1600);
     } catch (error) {
       console.error('Could not share active Memory Space:', error);
+      setBridgeStatus(dialog, bridge.id, error?.message || 'Could not share active Memory Space', 'error');
       toast(error?.message || 'Could not share active Memory Space');
       if (button) {
         button.disabled = false;
@@ -144,6 +158,7 @@
 
   async function pullExternalProposals(bridge, button) {
     if (!ready()) return;
+    const dialog = button?.closest('dialog');
     const original = button?.textContent || 'Pull';
     if (button) {
       button.disabled = true;
@@ -153,6 +168,7 @@
       const result = await globalThis.MemoryBridge.pullExternalProposals(bridge);
       const added = mergeExternalProposals(result.proposals);
       if (!added) {
+        setBridgeStatus(dialog, bridge.id, 'MCP connected · no new external AI proposals', 'success');
         toast('No new external AI proposals');
         if (button) {
           button.disabled = false;
@@ -160,15 +176,30 @@
         }
         return;
       }
+      setBridgeStatus(dialog, bridge.id, `${added} external AI proposal${added === 1 ? '' : 's'} pulled for review`, 'success');
       toast(`${added} external AI proposal${added === 1 ? '' : 's'} added for review`);
       setTimeout(() => location.reload(), 650);
     } catch (error) {
       console.error('Could not pull external proposals:', error);
+      setBridgeStatus(dialog, bridge.id, error?.message || 'Could not pull external proposals', 'error');
       toast(error?.message || 'Could not pull external proposals');
       if (button) {
         button.disabled = false;
         button.textContent = original;
       }
+    }
+  }
+
+  async function copyMcpUrl(bridge, button) {
+    const dialog = button?.closest('dialog');
+    const url = `${String(bridge.baseUrl || '').replace(/\/+$/, '')}/mcp`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setBridgeStatus(dialog, bridge.id, `MCP URL copied · ${url}`, 'success');
+      toast('MCP URL copied');
+    } catch (error) {
+      console.error('Could not copy MCP URL:', error);
+      setBridgeStatus(dialog, bridge.id, `MCP endpoint · ${url}`, 'neutral');
     }
   }
 
@@ -264,6 +295,7 @@
 
   async function testPairing(bridge, button) {
     if (!ready()) return false;
+    const dialog = button?.closest('dialog');
     const original = button?.textContent || 'Test pairing';
     if (button) {
       button.disabled = true;
@@ -271,6 +303,7 @@
     }
     try {
       const info = await globalThis.MemoryBridge.testBridge(bridge);
+      setBridgeStatus(dialog, bridge.id, `Paired · ${info.model || 'model ready'} · MCP ${String(bridge.baseUrl || '').replace(/\/+$/, '')}/mcp`, 'success');
       toast(`Paired with ${info.name || 'Memory Bridge'} · ${info.model || 'model ready'}`);
       if (button) button.textContent = 'Passed';
       setTimeout(() => {
@@ -282,6 +315,7 @@
       return true;
     } catch (error) {
       console.error('Memory Bridge test failed:', error);
+      setBridgeStatus(dialog, bridge.id, error?.message || 'Memory Bridge pairing failed', 'error');
       toast(error?.message || 'Memory Bridge pairing failed');
       if (button) {
         button.disabled = false;
@@ -347,6 +381,13 @@
       return;
     }
 
+    const copyMcp = event.target.closest('[data-bridge-copy-mcp]');
+    if (copyMcp) {
+      const bridge = loadBridges().find((item) => item.id === copyMcp.dataset.bridgeCopyMcp);
+      if (bridge) copyMcpUrl(bridge, copyMcp);
+      return;
+    }
+
     const use = event.target.closest('[data-bridge-use]');
     if (use) {
       const bridge = loadBridges().find((item) => item.id === use.dataset.bridgeUse);
@@ -366,6 +407,7 @@
         globalThis.MemoryAI.setActiveProvider('browser-local');
       }
       saveBridges(loadBridges().filter((item) => item.id !== id));
+      bridgeStatuses.delete(id);
       renderBridgeList(dialog);
       toast('Memory Bridge removed');
     }
@@ -379,20 +421,28 @@
       container.innerHTML = '<div class="connection-empty">No Memory Bridges paired on this browser yet.</div>';
       return;
     }
-    container.innerHTML = items.map((bridge) => `
-      <div class="connection-row">
-        <div>
-          <strong>${escapeHtml(bridge.name)}</strong>
-          <small>${escapeHtml(bridge.baseUrl)}</small>
-        </div>
-        <div class="connection-row-actions">
-          <button type="button" data-bridge-test="${escapeHtml(bridge.id)}">Test</button>
-          <button type="button" data-bridge-use="${escapeHtml(bridge.id)}">Use</button>
-          <button type="button" data-bridge-share="${escapeHtml(bridge.id)}">Share</button>
-          <button type="button" data-bridge-pull="${escapeHtml(bridge.id)}">Pull</button>
-          <button type="button" class="danger" data-bridge-remove="${escapeHtml(bridge.id)}">Remove</button>
-        </div>
-      </div>`).join('');
+    container.innerHTML = items.map((bridge) => {
+      const status = bridgeStatuses.get(bridge.id) || {
+        message: `MCP endpoint · ${String(bridge.baseUrl || '').replace(/\/+$/, '')}/mcp`,
+        tone: 'neutral'
+      };
+      return `
+        <div class="connection-row memory-bridge-row">
+          <div>
+            <strong>${escapeHtml(bridge.name)}</strong>
+            <small>${escapeHtml(bridge.baseUrl)}</small>
+          </div>
+          <div class="connection-row-actions">
+            <button type="button" data-bridge-test="${escapeHtml(bridge.id)}">Test</button>
+            <button type="button" data-bridge-use="${escapeHtml(bridge.id)}">Use</button>
+            <button type="button" data-bridge-share="${escapeHtml(bridge.id)}">Share</button>
+            <button type="button" data-bridge-pull="${escapeHtml(bridge.id)}">Pull</button>
+            <button type="button" data-bridge-copy-mcp="${escapeHtml(bridge.id)}">MCP URL</button>
+            <button type="button" class="danger" data-bridge-remove="${escapeHtml(bridge.id)}">Remove</button>
+          </div>
+          <div class="memory-bridge-status" data-bridge-status="${escapeHtml(bridge.id)}" data-tone="${escapeHtml(status.tone)}">${escapeHtml(status.message)}</div>
+        </div>`;
+    }).join('');
   }
 
   function toast(message) {
