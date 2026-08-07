@@ -6,6 +6,107 @@ This is not ordinary hidden chatbot memory and it is not a dump of every convers
 
 The AI can suggest what may be worth remembering. The user remains the final authority over what becomes trusted long-term memory.
 
+## Current prototype status — 7 Aug 2026
+
+The core product loop is now proven on a Samsung S24 Ultra in Chrome.
+
+### Proven working
+
+- Local-first workspace stored in the browser
+- Separate memory spaces
+- Create, edit, lock, archive, export, and import memory
+- Shared chat inside the active space
+- On-device browser inference using a small local WebGPU model
+- Deterministic memory controller for important facts and project statements
+- AI memory proposals with user approval before permanent storage
+- Proven persistence test: approve a memory, clear chat, ask again, and recall from confirmed memory
+- Proven source display through `Used: <memory title>` on recall
+- Memory provenance from the original chat statement
+- Memory version history
+- Superseded memories retained as history rather than silently overwritten
+- Context firewall: only current confirmed memories enter active AI context
+- Provider registry so the memory system is not tied to one model
+- Local provider connection UI for Ollama, LM Studio, and OpenAI-compatible local servers
+- Safe provider connection test that sends no Memory Space context
+- Mobile Send/touch handling fixed
+- Mobile chat now remains at normal page scale when the keyboard opens
+
+### Architecture already in place
+
+Memory Space owns the long-term truth. Models are replaceable workers.
+
+Current provider path:
+
+`Memory Space -> context firewall -> provider interface -> selected AI`
+
+Current provider types:
+
+- On-device browser model
+- Ollama connection definition
+- LM Studio connection definition
+- Generic OpenAI-compatible local server
+
+The browser-local model is only the prototype inference engine. It does not own memory and can be replaced without changing the workspace.
+
+### Important product rules now enforced
+
+- No permanent AI memory without user approval
+- A proposed memory is not treated as confirmed memory
+- Locked/current memory is visible to the user
+- Superseded and archived history stays available but is excluded from current model context
+- Provider connection tests receive no private workspace context
+- No silent cloud fallback
+- Approved memories are not silently rewritten after approval
+
+### Next build order
+
+1. **Memory Bridge protocol**
+   - Allow a phone/browser Memory Space to reach an AI runtime on another trusted machine
+   - Keep the model on that machine rather than turning Memory Space into a cloud inference service
+   - Add explicit pairing/permission rather than open LAN access
+   - Keep the context firewall at the browser boundary
+
+2. **Real external-local provider test**
+   - Test against Ollama or LM Studio on a machine running an actual model
+   - Confirm provider switching preserves the same Memory Space
+   - Confirm only current confirmed context is transmitted
+
+3. **MCP interface**
+   - Expose Memory Space as controlled tools for compatible AI clients
+   - Initial tools: search memory, get current space context, read a memory, propose a memory, list spaces, get current decisions
+   - Approval remains human-only; external AIs do not receive an unrestricted write/approve tool
+
+4. **Memory lifecycle improvements**
+   - Contradiction detection
+   - Explicit supersede proposals
+   - Better history UI
+   - Timeline view
+
+5. **Storage hardening**
+   - Move larger browser state toward IndexedDB
+   - Add backup/versioned export manifest
+   - Add optional client-side encryption experiments
+
+6. **Native/desktop routes**
+   - Android/native bridge for local device models such as AICore/ML Kit or bundled runtimes
+   - Desktop packaging later with Tauri + SQLite
+
+7. **Retrieval improvements only when needed**
+   - Start with deterministic/full-text retrieval
+   - Add semantic/vector search only after the current approach demonstrates a real limitation
+
+### Test policy
+
+We do not need the user to retest every internal patch. Testing is required at meaningful boundaries:
+
+- visible mobile/UI behaviour
+- persistence/lifecycle changes
+- provider connection to a real model/runtime
+- privacy/context-firewall boundaries
+- import/export recovery
+
+Small internal refactors can proceed with build/read-back verification and be recorded here.
+
 ## Core idea
 
 Most AI assistants begin each conversation with incomplete context. Existing memory systems help, but the stored information is often invisible, difficult to correct, and mixed together across unrelated work.
@@ -360,6 +461,8 @@ The exact framework should be confirmed after the initial repository setup, but 
 
 Do not add cloud databases, authentication systems, queues, or vector infrastructure until the local product loop works.
 
+> **Prototype note:** the current proof-of-concept intentionally uses a simpler static JavaScript/CSS web shell and browser storage. The heavier stack above remains an option after the interaction model is stable; it is not a requirement for the prototype.
+
 ## MVP
 
 The first MVP should prove one complete loop:
@@ -401,7 +504,7 @@ The first MVP should prove one complete loop:
 
 ## Build phases
 
-### Phase 0 — Product foundation
+### Phase 0 — Product foundation — substantially complete
 
 - Confirm product language and naming
 - Define the memory schema
@@ -410,7 +513,7 @@ The first MVP should prove one complete loop:
 - Establish local-first and privacy requirements
 - Create basic application structure
 
-### Phase 1 — Manual local workspace
+### Phase 1 — Manual local workspace — working prototype complete
 
 - Create, rename, and delete spaces
 - Create, edit, lock, archive, and delete memory items
@@ -419,9 +522,9 @@ The first MVP should prove one complete loop:
 - Add export and import
 - Add basic full-text search
 
-This phase should work without any AI model.
+This phase works without any AI model.
 
-### Phase 2 — AI-assisted memory
+### Phase 2 — AI-assisted memory — core loop proven
 
 - Add a provider interface
 - Add chat inside a selected space
@@ -431,16 +534,17 @@ This phase should work without any AI model.
 - Record source and provenance
 - Add the context inspector
 
-### Phase 3 — Continuity and trust
+### Phase 3 — Continuity and trust — in progress
 
-- Add memory version history
-- Add superseded relationships
-- Add contradiction warnings
-- Add timeline view
-- Improve retrieval scoring
-- Add clear explanations for every retrieved memory
+- Memory version history — implemented
+- Superseded relationships — implemented at lifecycle level
+- Current-memory context firewall — implemented
+- Contradiction warnings — next
+- Timeline view — pending
+- Improve retrieval scoring — pending
+- Add clear explanations for every retrieved memory — basic `Used:` provenance works; richer explanation pending
 
-### Phase 4 — Private desktop app
+### Phase 4 — Private desktop/native app — planned
 
 - Package with Tauri
 - Move primary storage to SQLite
@@ -449,7 +553,9 @@ This phase should work without any AI model.
 - Add local-model integration
 - Add backup and restore
 
-### Phase 5 — Optional sync and collaboration
+The Memory Bridge and provider work is intentionally being built before packaging so the same provider contract can be reused by browser, desktop, and native clients.
+
+### Phase 5 — Optional sync and collaboration — intentionally deferred
 
 Only after the private single-user product works:
 
@@ -494,6 +600,8 @@ The first implementation will likely need:
 The prototype succeeds when a user can save an important project decision, close the app, return later, open the same space, and have the AI correctly use that decision while showing the user exactly what it remembered and why.
 
 A simple example is an important number such as ten. The value itself is not the product. The product is that the user can see that ten was saved, understand why it matters, control where it applies, correct or remove it, and verify when the AI uses it.
+
+**Status:** this success test has been passed on the current prototype. A favourite-number memory was approved, chat history was cleared, and a later conversation recalled the current confirmed value while identifying the memory that supplied it.
 
 ## Guiding principle
 
