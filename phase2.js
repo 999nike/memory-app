@@ -94,7 +94,6 @@
 
     const memoryPane = document.createElement('div');
     memoryPane.className = 'phase2-memory-pane';
-
     while (memorySection.firstChild) memoryPane.appendChild(memorySection.firstChild);
 
     const chatPane = document.createElement('aside');
@@ -106,7 +105,7 @@
           <p class="eyebrow">AI workspace</p>
           <h3>Shared chat</h3>
         </div>
-        <div class="ai-status" id="aiStatus"><span></span> Ready</div>
+        <div class="ai-status" id="aiStatus"><span></span> Checking local AI…</div>
       </div>
 
       <div class="proposal-section" id="proposalSection" hidden>
@@ -122,6 +121,8 @@
 
       <div class="chat-messages" id="chatMessages"></div>
 
+      <div class="chat-notice" id="chatNotice" hidden></div>
+
       <form class="chat-form" id="chatForm">
         <textarea id="chatInput" rows="3" maxlength="5000" placeholder="Talk to the AI inside this space…" required></textarea>
         <div class="chat-form-footer">
@@ -132,8 +133,8 @@
 
     layout.append(memoryPane, chatPane);
     memorySection.appendChild(layout);
-
     bindEvents();
+    syncProviderStatus();
     renderPhase2();
   }
 
@@ -142,13 +143,8 @@
     document.getElementById('clearChatButton')?.addEventListener('click', clearChat);
     document.getElementById('proposalList')?.addEventListener('click', handleProposalAction);
 
-    document.getElementById('spaceList')?.addEventListener('click', () => {
-      setTimeout(renderPhase2, 0);
-    });
-
-    document.getElementById('newSpaceButton')?.addEventListener('click', () => {
-      setTimeout(renderPhase2, 0);
-    });
+    document.getElementById('spaceList')?.addEventListener('click', () => setTimeout(renderPhase2, 0));
+    document.getElementById('newSpaceButton')?.addEventListener('click', () => setTimeout(renderPhase2, 0));
 
     document.getElementById('memoryForm')?.addEventListener('submit', () => {
       if (!reviewingProposalId) return;
@@ -163,11 +159,21 @@
     });
   }
 
+  function syncProviderStatus() {
+    const current = globalThis.__memoryAIStatus;
+    if (!current) return;
+    const status = document.getElementById('aiStatus');
+    if (!status) return;
+    status.classList.toggle('busy', current.mode === 'busy');
+    status.classList.toggle('local-provider', current.mode === 'local');
+    status.classList.toggle('provider-error', current.mode === 'error');
+    status.innerHTML = `<span></span> ${escapeHtml(current.label)}`;
+  }
+
   function renderPhase2() {
     const workspace = loadWorkspace();
     const space = getActiveSpace(workspace);
     if (!workspace || !space) return;
-
     renderMessages(space.id);
     renderProposals(space.id);
   }
@@ -244,35 +250,26 @@
     if (!workspace || !space) return;
 
     const context = buildContext(workspace, space);
-    const priorHistory = messagesForSpace(space.id).slice(-10).map((message) => ({
-      role: message.role,
-      content: message.content
-    }));
+    const priorHistory = messagesForSpace(space.id).slice(-10).map((message) => ({ role: message.role, content: message.content }));
 
     chatState.messages.push({
-      id: uid('msg'),
-      spaceId: space.id,
-      role: 'user',
-      content: text,
-      createdAt: now()
+      id: uid('msg'), spaceId: space.id, role: 'user', content: text, createdAt: now()
     });
     saveChatState();
     input.value = '';
     renderMessages(space.id);
+    showNotice('Message sent. Local AI is preparing a reply. The first mobile run may need to download the model.');
 
     isSending = true;
     sendButton.disabled = true;
-    sendButton.textContent = 'Thinking…';
+    sendButton.textContent = 'Working…';
     status.classList.add('busy');
-    status.innerHTML = '<span></span> Thinking';
+    status.innerHTML = '<span></span> Preparing local AI';
 
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Memory-Client': 'workspace-v1'
-        },
+        headers: { 'Content-Type': 'application/json', 'X-Memory-Client': 'workspace-v1' },
         body: JSON.stringify({
           message: text,
           space: { id: space.id, name: space.name, description: space.description },
@@ -311,25 +308,41 @@
       }
 
       saveChatState();
+      hideNotice();
       renderPhase2();
     } catch (error) {
+      const message = error?.message || 'Unknown local AI error';
       chatState.messages.push({
         id: uid('msg'),
         spaceId: space.id,
         role: 'assistant',
-        content: `AI connection error: ${error.message}. Your local memory was not changed.`,
+        content: `Local AI error: ${message}`,
         createdAt: now()
       });
       saveChatState();
       renderMessages(space.id);
+      showNotice(message, true);
+      toast('Local AI could not answer — see the chat message');
     } finally {
       isSending = false;
       sendButton.disabled = false;
       sendButton.textContent = 'Send';
-      status.classList.remove('busy');
-      status.innerHTML = '<span></span> Ready';
+      syncProviderStatus();
       input?.focus();
     }
+  }
+
+  function showNotice(message, isError = false) {
+    const el = document.getElementById('chatNotice');
+    if (!el) return;
+    el.hidden = false;
+    el.classList.toggle('error', isError);
+    el.textContent = message;
+  }
+
+  function hideNotice() {
+    const el = document.getElementById('chatNotice');
+    if (el) el.hidden = true;
   }
 
   function handleProposalAction(event) {
@@ -346,15 +359,8 @@
       toast('Proposal rejected');
       return;
     }
-
-    if (action === 'approve') {
-      approveProposal(proposal);
-      return;
-    }
-
-    if (action === 'review') {
-      reviewProposal(proposal);
-    }
+    if (action === 'approve') return approveProposal(proposal);
+    if (action === 'review') reviewProposal(proposal);
   }
 
   function approveProposal(proposal) {
@@ -406,6 +412,7 @@
     chatState.proposals = chatState.proposals.filter((proposal) => proposal.spaceId !== space.id);
     saveChatState();
     renderPhase2();
+    hideNotice();
     toast('Chat cleared');
   }
 
@@ -418,11 +425,8 @@
   }
 
   function formatTime(value) {
-    try {
-      return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
-    } catch {
-      return '';
-    }
+    try { return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(value)); }
+    catch { return ''; }
   }
 
   function formatMessage(value) {
@@ -438,9 +442,7 @@
       .replaceAll("'", '&#039;');
   }
 
-  function escapeAttr(value) {
-    return escapeHtml(value);
-  }
+  function escapeAttr(value) { return escapeHtml(value); }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectLayout, { once: true });
