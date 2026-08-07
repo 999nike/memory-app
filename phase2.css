@@ -279,6 +279,16 @@
   .phase2-layout { gap: 14px; }
   .phase2-chat-pane { border-radius: 15px; min-height: 510px; max-height: 680px; }
   .proposal-actions { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* Keep form focus at the user's current page zoom. Do not disable pinch/screen zoom. */
+  .chat-form textarea,
+  .search-field input,
+  .modal input,
+  .modal textarea,
+  .modal select,
+  .ai-provider-select {
+    font-size: 16px;
+  }
 }
 
 @media (max-width: 430px) {
