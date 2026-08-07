@@ -3,6 +3,7 @@
 
   let installed = false;
   let lastTriggerAt = 0;
+  let directSenderPromise = null;
 
   function installTapFix() {
     const button = document.getElementById('chatSendButton');
@@ -21,7 +22,7 @@
     button.style.userSelect = 'none';
     button.style.webkitUserSelect = 'none';
 
-    const submitChat = (event) => {
+    const submitChat = async (event) => {
       const input = document.getElementById('chatInput');
       if (!input?.value.trim()) return;
 
@@ -36,16 +37,25 @@
       if (notice) {
         notice.hidden = false;
         notice.classList.remove('error');
-        notice.textContent = 'Tap received — handing message to chat…';
+        notice.textContent = 'Tap received — calling chat directly…';
       }
 
       button.textContent = 'Sending…';
 
-      const submitEvent = typeof SubmitEvent === 'function'
-        ? new SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: button })
-        : new Event('submit', { bubbles: true, cancelable: true });
-
-      form.dispatchEvent(submitEvent);
+      try {
+        directSenderPromise ||= import('./send-direct.js?v=1');
+        const module = await directSenderPromise;
+        await module.sendDirect();
+      } catch (error) {
+        console.error('Direct send failed:', error);
+        if (notice) {
+          notice.hidden = false;
+          notice.classList.add('error');
+          notice.textContent = `Direct send error: ${error?.message || 'unknown error'}`;
+        }
+        button.disabled = false;
+        button.textContent = 'Send';
+      }
     };
 
     button.addEventListener('click', submitChat, true);
