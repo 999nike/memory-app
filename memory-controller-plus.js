@@ -55,27 +55,11 @@
     const raw = String(body?.message || '').trim();
     if (!raw || raw.length < 8) return null;
 
-    const patterns = [
-      /\bmy\s+(?:new\s+)?project\s+is\s+([^,.!?]+)(.*)$/i,
-      /\bmy\s+(?:new\s+)?game\s+is\s+([^,.!?]+)(.*)$/i,
-      /\bmy\s+(?:new\s+)?app\s+is\s+([^,.!?]+)(.*)$/i,
-      /\bi\s+am\s+building\s+([^,.!?]+)(.*)$/i,
-      /\bi['’]?m\s+building\s+([^,.!?]+)(.*)$/i,
-      /\bi\s+am\s+working\s+on\s+([^,.!?]+)(.*)$/i,
-      /\bi['’]?m\s+working\s+on\s+([^,.!?]+)(.*)$/i
-    ];
+    const cleaned = cleanMemoryStatement(raw);
+    const projectNameRaw = extractProjectName(cleaned);
+    if (!projectNameRaw) return null;
 
-    let match = null;
-    for (const pattern of patterns) {
-      match = raw.match(pattern);
-      if (match) break;
-    }
-    if (!match) return null;
-
-    const projectNameRaw = String(match[1] || '').trim();
-    if (!projectNameRaw || projectNameRaw.split(/\s+/).length > 10) return null;
-
-    const content = normalizeSentence(raw);
+    const content = normalizeSentence(cleaned);
     const context = String(body?.context || '');
     if (alreadyInContext(projectNameRaw, content, context)) return null;
 
@@ -88,6 +72,60 @@
     };
   }
 
+  function extractProjectName(value) {
+    let text = String(value || '').trim();
+    if (!text) return '';
+
+    const explicitPrefix = text.match(/^(?:my\s+(?:new\s+)?(?:project|game|app)\s+is|i\s+am\s+building|i['’]?m\s+building|i\s+am\s+working\s+on|i['’]?m\s+working\s+on)\s+(.+)$/i);
+    let candidate = explicitPrefix ? explicitPrefix[1].trim() : text;
+
+    const hasProjectSignal = Boolean(explicitPrefix)
+      || /\ban\s+indie\b/i.test(candidate)
+      || /\b(?:game|app|project)\b.*\b(?:i['’]?m|im|i\s+am)\s+working\s+on\b/i.test(candidate);
+    if (!hasProjectSignal) return '';
+
+    candidate = candidate
+      .split(/\s*,\s*(?=(?:an?|the)\s+(?:indie\s+)?(?:game|app|project)\b)/i)[0]
+      .split(/\s+an\s+indie\b/i)[0]
+      .split(/\s+(?:which|that)\s+/i)[0]
+      .trim();
+
+    candidate = stripTrailingInstruction(candidate)
+      .replace(/[,:;.!?-]+$/g, '')
+      .trim();
+
+    const words = candidate.split(/\s+/).filter(Boolean);
+    if (!words.length || words.length > 10) return '';
+    return candidate;
+  }
+
+  function cleanMemoryStatement(value) {
+    let text = String(value || '').trim()
+      .replace(/^(?:hi|hello|hey|hiya|yo|good\s+(?:morning|afternoon|evening))\b[\s,!.:;-]*/i, '')
+      .trim();
+
+    text = stripTrailingInstruction(text);
+    return text.trim();
+  }
+
+  function stripTrailingInstruction(value) {
+    let text = String(value || '').trim();
+    const patterns = [
+      /(?:[,;:.!?-]+\s*)?(?:please\s+)?(?:save|store|keep)\s+(?:it|this|that)(?:\s+for\s+later)?[.!?]*$/i,
+      /(?:[,;:.!?-]+\s*)?(?:please\s+)?remember\s+(?:it|this|that)(?:\s+for\s+later)?[.!?]*$/i,
+      /(?:[,;:.!?-]+\s*)?(?:please\s+)?don['’]?t\s+forget\s+(?:it|this|that)[.!?]*$/i,
+      /(?:[,;:.!?-]+\s*)?(?:please\s+)?add\s+(?:it|this|that)\s+to\s+(?:memory|my\s+memory|the\s+memory)[.!?]*$/i
+    ];
+
+    let previous;
+    do {
+      previous = text;
+      for (const pattern of patterns) text = text.replace(pattern, '').trim();
+    } while (text !== previous);
+
+    return text;
+  }
+
   function alreadyInContext(projectName, content, context) {
     const haystack = normalizeForMatch(context);
     const name = normalizeForMatch(projectName);
@@ -98,8 +136,7 @@
   }
 
   function normalizeSentence(value) {
-    let text = String(value || '').trim()
-      .replace(/^(?:hi|hello|hey|hiya|yo|good\s+(?:morning|afternoon|evening))\b[\s,!.:;-]*/i, '');
+    let text = String(value || '').trim();
     if (!text) return '';
     text = text.charAt(0).toUpperCase() + text.slice(1);
     if (!/[.!?]$/.test(text)) text += '.';
