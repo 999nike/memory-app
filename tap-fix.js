@@ -43,7 +43,7 @@
       button.textContent = 'Sending…';
 
       try {
-        directSenderPromise ||= import('./send-direct.js?v=1');
+        directSenderPromise ||= import('./send-direct.js?v=2');
         const module = await directSenderPromise;
         await module.sendDirect();
       } catch (error) {
