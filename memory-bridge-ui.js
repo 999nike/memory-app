@@ -2,6 +2,8 @@
   'use strict';
 
   const STORAGE_KEY = 'memory-ai-bridges-v1';
+  const WORKSPACE_KEY = 'memory-space-v1';
+  const CHAT_KEY = 'memory-space-chat-v1';
   let restoreStarted = false;
 
   function loadBridges() {
@@ -47,6 +49,126 @@
     } catch (error) {
       console.error('Could not register Memory Bridge:', error);
       toast(error?.message || 'Could not register Memory Bridge');
+    }
+  }
+
+  function buildSharedActiveSpace() {
+    let workspace;
+    try {
+      workspace = JSON.parse(localStorage.getItem(WORKSPACE_KEY) || 'null');
+    } catch {
+      workspace = null;
+    }
+    if (!workspace || !Array.isArray(workspace.spaces) || !Array.isArray(workspace.memories)) {
+      throw new Error('Memory Space workspace is unavailable');
+    }
+    const space = workspace.spaces.find((item) => item.id === workspace.activeSpaceId) || workspace.spaces[0];
+    if (!space) throw new Error('No active Memory Space to share');
+
+    const memories = workspace.memories.filter((memory) =>
+      memory.spaceId === space.id && String(memory.status || 'confirmed') === 'confirmed'
+    );
+
+    return {
+      version: Number(workspace.version || 1),
+      activeSpaceId: space.id,
+      spaces: [{ ...space }],
+      memories: memories.map((memory) => ({ ...memory }))
+    };
+  }
+
+  async function shareActiveSpace(bridge, button) {
+    if (!ready()) return;
+    const original = button?.textContent || 'Share';
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Sharing…';
+    }
+    try {
+      const workspace = buildSharedActiveSpace();
+      const result = await globalThis.MemoryBridge.publishWorkspace(bridge, workspace);
+      toast(`Shared ${result.memoryCount ?? workspace.memories.length} confirmed memories · RAM only`);
+      if (button) button.textContent = 'Shared';
+      setTimeout(() => {
+        if (button) {
+          button.disabled = false;
+          button.textContent = original;
+        }
+      }, 1600);
+    } catch (error) {
+      console.error('Could not share active Memory Space:', error);
+      toast(error?.message || 'Could not share active Memory Space');
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Failed';
+        setTimeout(() => { button.textContent = original; }, 1800);
+      }
+    }
+  }
+
+  function mergeExternalProposals(proposals) {
+    if (!Array.isArray(proposals) || !proposals.length) return 0;
+    let chatState;
+    try {
+      chatState = JSON.parse(localStorage.getItem(CHAT_KEY) || 'null');
+    } catch {
+      chatState = null;
+    }
+    if (!chatState || !Array.isArray(chatState.messages) || !Array.isArray(chatState.proposals)) {
+      chatState = { version: 1, messages: [], proposals: [] };
+    }
+
+    const existing = new Set(chatState.proposals.map((item) => item.id));
+    let added = 0;
+    for (const proposal of proposals) {
+      if (!proposal?.id || existing.has(proposal.id)) continue;
+      chatState.proposals.push({
+        id: proposal.id,
+        spaceId: proposal.spaceId,
+        title: String(proposal.title || 'External AI proposal'),
+        content: String(proposal.content || ''),
+        type: proposal.type || 'note',
+        importance: proposal.importance || 'normal',
+        reason: proposal.reason || 'External AI suggested this as durable context.',
+        sourceMessage: 'External MCP client proposal',
+        sourceKind: 'external-mcp',
+        status: 'pending',
+        createdAt: proposal.createdAt || new Date().toISOString()
+      });
+      existing.add(proposal.id);
+      added += 1;
+    }
+    localStorage.setItem(CHAT_KEY, JSON.stringify(chatState));
+    return added;
+  }
+
+  async function pullExternalProposals(bridge, button) {
+    if (!ready()) return;
+    const original = button?.textContent || 'Pull';
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Pulling…';
+    }
+    try {
+      const result = await globalThis.MemoryBridge.pullExternalProposals(bridge);
+      const added = mergeExternalProposals(result.proposals);
+      if (!added) {
+        toast('No new external AI proposals');
+        if (button) {
+          button.disabled = false;
+          button.textContent = original;
+        }
+        return;
+      }
+      toast(`${added} external AI proposal${added === 1 ? '' : 's'} added for review`);
+      setTimeout(() => location.reload(), 650);
+    } catch (error) {
+      console.error('Could not pull external proposals:', error);
+      toast(error?.message || 'Could not pull external proposals');
+      if (button) {
+        button.disabled = false;
+        button.textContent = original;
+      }
     }
   }
 
@@ -104,7 +226,7 @@
           </label>
 
           <div class="connection-help">
-            <strong>Privacy boundary:</strong> Test sends no workspace memory. During real chat, only the current context package already approved by the Memory Space firewall is sent to this bridge. The bridge does not become the owner of your workspace.
+            <strong>Privacy boundary:</strong> Pairing sends no workspace memory. Chat sends only the focused context package. Sharing with external AI tools is a separate explicit action and publishes only the active space's current confirmed memories to bridge RAM; the bridge does not write that snapshot to disk.
           </div>
 
           <div class="connection-form-actions">
@@ -211,6 +333,20 @@
       return;
     }
 
+    const share = event.target.closest('[data-bridge-share]');
+    if (share) {
+      const bridge = loadBridges().find((item) => item.id === share.dataset.bridgeShare);
+      if (bridge) shareActiveSpace(bridge, share);
+      return;
+    }
+
+    const pull = event.target.closest('[data-bridge-pull]');
+    if (pull) {
+      const bridge = loadBridges().find((item) => item.id === pull.dataset.bridgePull);
+      if (bridge) pullExternalProposals(bridge, pull);
+      return;
+    }
+
     const use = event.target.closest('[data-bridge-use]');
     if (use) {
       const bridge = loadBridges().find((item) => item.id === use.dataset.bridgeUse);
@@ -252,6 +388,8 @@
         <div class="connection-row-actions">
           <button type="button" data-bridge-test="${escapeHtml(bridge.id)}">Test</button>
           <button type="button" data-bridge-use="${escapeHtml(bridge.id)}">Use</button>
+          <button type="button" data-bridge-share="${escapeHtml(bridge.id)}">Share</button>
+          <button type="button" data-bridge-pull="${escapeHtml(bridge.id)}">Pull</button>
           <button type="button" class="danger" data-bridge-remove="${escapeHtml(bridge.id)}">Remove</button>
         </div>
       </div>`).join('');
