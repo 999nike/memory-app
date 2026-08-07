@@ -1,0 +1,61 @@
+.external-proposal-check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 16px 12px;
+  padding: 12px 14px;
+  border: 1px solid rgb(120 184 255 / 0.2);
+  border-radius: 12px;
+  background: rgb(120 184 255 / 0.05);
+}
+
+.external-proposal-check strong,
+.external-proposal-check small {
+  display: block;
+}
+
+.external-proposal-check small {
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.external-proposal-check small[data-kind="ok"] { color: var(--accent); }
+.external-proposal-check small[data-kind="error"] { color: var(--danger); }
+
+.external-proposal-check button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 11px;
+  border: 1px solid rgb(120 184 255 / 0.3);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--info);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.external-proposal-check button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.external-proposal-source {
+  margin: 8px 0 10px;
+  color: var(--info);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 600px) {
+  .external-proposal-check {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .external-proposal-check button {
+    width: 100%;
+  }
+}
