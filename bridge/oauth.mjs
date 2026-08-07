@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 const DEFAULT_SCOPES = ['memory.read', 'memory.propose'];
 const CODE_TTL_MS = 5 * 60 * 1000;
 const TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
+const DCR_MAX_CLIENTS = 64;
 
 export function createMemoryBridgeOAuth({
   publicUrl,
@@ -13,6 +14,7 @@ export function createMemoryBridgeOAuth({
   const issuer = String(publicUrl || '').replace(/\/+$/, '');
   const authorizationCodes = new Map();
   const accessTokens = new Map();
+  const dynamicClients = new Map();
 
   if (!issuer.startsWith('https://')) throw new Error('OAuth publicUrl must be HTTPS');
   if (!pairingToken) throw new Error('OAuth pairingToken is required');
@@ -88,6 +90,11 @@ export function createMemoryBridgeOAuth({
     return new URLSearchParams(text);
   }
 
+  async function readJson(req) {
+    const text = await readText(req);
+    return text ? JSON.parse(text) : {};
+  }
+
   function redirectUriAllowed(value) {
     try {
       const url = new URL(String(value || ''));
@@ -102,6 +109,52 @@ export function createMemoryBridgeOAuth({
     const requested = String(value || '').split(/\s+/).filter(Boolean);
     const scopes = requested.length ? requested : DEFAULT_SCOPES;
     return scopes.filter((scope) => DEFAULT_SCOPES.includes(scope));
+  }
+
+  function registeredRedirectAllowed(requestedClientId, redirectUri) {
+    if (requestedClientId === clientId) return redirectUriAllowed(redirectUri);
+    const registration = dynamicClients.get(requestedClientId);
+    return Boolean(registration && registration.redirectUris.includes(String(redirectUri || '')));
+  }
+
+  function validateRegistrationRequest(body) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      throw new Error('OAuth client registration body must be a JSON object');
+    }
+
+    const redirectUris = Array.isArray(body.redirect_uris)
+      ? [...new Set(body.redirect_uris.map((value) => String(value || '').trim()).filter(Boolean))]
+      : [];
+    if (!redirectUris.length) throw new Error('redirect_uris is required');
+    if (!redirectUris.every(redirectUriAllowed)) {
+      throw new Error('One or more OAuth redirect_uris are not allowed');
+    }
+
+    const tokenAuthMethod = String(body.token_endpoint_auth_method || 'none');
+    if (tokenAuthMethod !== 'none') throw new Error('Only token_endpoint_auth_method=none is supported');
+
+    const grantTypes = Array.isArray(body.grant_types) && body.grant_types.length
+      ? body.grant_types.map(String)
+      : ['authorization_code'];
+    if (grantTypes.some((value) => value !== 'authorization_code')) {
+      throw new Error('Only authorization_code grant type is supported');
+    }
+
+    const responseTypes = Array.isArray(body.response_types) && body.response_types.length
+      ? body.response_types.map(String)
+      : ['code'];
+    if (responseTypes.some((value) => value !== 'code')) {
+      throw new Error('Only response_type=code is supported');
+    }
+
+    return {
+      redirectUris,
+      tokenAuthMethod,
+      grantTypes,
+      responseTypes,
+      clientName: String(body.client_name || 'External MCP client').slice(0, 120),
+      applicationType: String(body.application_type || 'web').slice(0, 32)
+    };
   }
 
   function cleanup() {
@@ -122,8 +175,12 @@ export function createMemoryBridgeOAuth({
     const codeChallengeMethod = params.get('code_challenge_method');
 
     if (responseType !== 'code') throw new Error('response_type=code is required');
-    if (requestedClientId !== clientId) throw new Error('Unknown OAuth client_id');
-    if (!redirectUriAllowed(redirectUri)) throw new Error('OAuth redirect_uri is not allowed');
+    if (requestedClientId !== clientId && !dynamicClients.has(requestedClientId)) {
+      throw new Error('Unknown OAuth client_id');
+    }
+    if (!registeredRedirectAllowed(requestedClientId, redirectUri)) {
+      throw new Error('OAuth redirect_uri is not allowed for this client');
+    }
     if (!codeChallenge || codeChallengeMethod !== 'S256') throw new Error('PKCE S256 is required');
 
     return {
@@ -213,12 +270,60 @@ export function createMemoryBridgeOAuth({
         issuer,
         authorization_endpoint: `${issuer}/authorize`,
         token_endpoint: `${issuer}/token`,
+        registration_endpoint: `${issuer}/register`,
         response_types_supported: ['code'],
         grant_types_supported: ['authorization_code'],
         code_challenge_methods_supported: ['S256'],
         token_endpoint_auth_methods_supported: ['none'],
         scopes_supported: DEFAULT_SCOPES
       });
+      return true;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/register') {
+      try {
+        if (dynamicClients.size >= DCR_MAX_CLIENTS) {
+          log('registration rejected', 'capacity-reached');
+          sendJson(res, 503, {
+            error: 'temporarily_unavailable',
+            error_description: 'OAuth client registration capacity reached; restart the bridge or remove stale registrations.'
+          });
+          return true;
+        }
+
+        const registration = validateRegistrationRequest(await readJson(req));
+        const dynamicClientId = `memory-space-dcr-${randomToken(18)}`;
+        dynamicClients.set(dynamicClientId, {
+          redirectUris: registration.redirectUris,
+          tokenAuthMethod: registration.tokenAuthMethod,
+          grantTypes: registration.grantTypes,
+          responseTypes: registration.responseTypes,
+          clientName: registration.clientName,
+          applicationType: registration.applicationType,
+          createdAt: Date.now()
+        });
+
+        log(
+          'client registered',
+          `client=${dynamicClientId} redirectHosts=${registration.redirectUris.map((value) => new URL(value).hostname).join(',')}`
+        );
+        sendJson(res, 201, {
+          client_id: dynamicClientId,
+          client_id_issued_at: Math.floor(Date.now() / 1000),
+          redirect_uris: registration.redirectUris,
+          token_endpoint_auth_method: registration.tokenAuthMethod,
+          grant_types: registration.grantTypes,
+          response_types: registration.responseTypes,
+          client_name: registration.clientName,
+          application_type: registration.applicationType
+        });
+      } catch (error) {
+        log('registration rejected', error?.message || 'invalid request');
+        sendJson(res, 400, {
+          error: 'invalid_client_metadata',
+          error_description: error?.message || 'Invalid OAuth client registration request'
+        });
+      }
       return true;
     }
 
@@ -318,6 +423,7 @@ export function createMemoryBridgeOAuth({
     issuer,
     authorizationEndpoint: `${issuer}/authorize`,
     tokenEndpoint: `${issuer}/token`,
+    registrationEndpoint: `${issuer}/register`,
     protectedResourceMetadata: `${issuer}/.well-known/oauth-protected-resource/mcp`,
     isAuthorized,
     handle,
