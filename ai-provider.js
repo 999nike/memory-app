@@ -206,10 +206,18 @@
 
     const select = control.querySelector('select');
     if (!select) return;
+    const available = listProviders();
     const active = getActiveProviderId();
-    select.innerHTML = listProviders().map((provider) =>
-      `<option value="${escapeHtml(provider.id)}" ${provider.id === active ? 'selected' : ''}>${escapeHtml(provider.name)}</option>`
-    ).join('');
+    const providerKey = available.map((provider) => `${provider.id}:${provider.name}`).join('|');
+
+    if (control.dataset.providerKey !== providerKey) {
+      control.dataset.providerKey = providerKey;
+      select.innerHTML = available.map((provider) =>
+        `<option value="${escapeHtml(provider.id)}">${escapeHtml(provider.name)}</option>`
+      ).join('');
+    }
+
+    if (active && select.value !== active) select.value = active;
   }
 
   function isChatRequest(url, method) {
