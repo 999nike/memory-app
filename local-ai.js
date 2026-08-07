@@ -4,7 +4,8 @@
   const nativeFetch = window.fetch.bind(window);
   const CHAT_PATH = '/api/chat';
   const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1';
-  const FALLBACK_MODEL = 'onnx-community/SmolLM2-135M-Instruct-ONNX-MHA';
+  const FALLBACK_MODEL = 'onnx-community/SmolLM2-360M-Instruct-ONNX';
+  const FALLBACK_DTYPE = 'q4f16';
   let fallbackGeneratorPromise = null;
 
   const responseSchema = {
@@ -44,13 +45,8 @@
     }
 
     try {
-      if (globalThis.LanguageModel) {
-        return await runChromeNative(body);
-      }
-
-      if (navigator.gpu) {
-        return await runTransformersFallback(body);
-      }
+      if (globalThis.LanguageModel) return await runChromeNative(body);
+      if (navigator.gpu) return await runTransformersFallback(body);
 
       setProviderStatus('No local AI engine', 'error');
       return jsonResponse(503, {
@@ -100,71 +96,87 @@
   }
 
   async function runTransformersFallback(body) {
+    const userText = String(body.message || '').trim();
+
+    // Do not wake a few-hundred-MB model just to answer a greeting.
+    if (isGreeting(userText)) {
+      setProviderStatus('Mobile AI · ready', 'local');
+      return jsonResponse(200, {
+        reply: 'Hi. I’m here in this Memory Space. What do you want to work on?',
+        usedMemoryTitles: [],
+        proposals: [],
+        model: 'local/greeting-fast-path',
+        local: true
+      });
+    }
+
     setProviderStatus('Mobile AI · loading', 'busy');
     const generator = await getFallbackGenerator();
     setProviderStatus('Mobile AI · thinking', 'busy');
 
-    const userText = String(body.message || '').trim();
     const context = compactContext(body.context || '');
     const history = compactHistory(body.history || []);
-
     const messages = [
       {
         role: 'system',
-        content: 'You are a friendly concise assistant inside a private memory workspace. Reply naturally in one or two short sentences. Do not output JSON, labels, headings, placeholders, or repeated words.'
+        content: [
+          'You are the assistant inside a private user-owned memory workspace.',
+          'Answer the user directly and naturally.',
+          'Use relevant workspace context when it helps.',
+          'Be concise unless the user asks for detail.',
+          'Never output template labels, dataset markers, placeholder text, or meta-instructions.',
+          'Do not claim that memory was permanently saved; the user approves memory separately.'
+        ].join(' ')
       },
       {
         role: 'user',
         content: [
-          context ? `Useful workspace context:\n${context}` : '',
-          history ? `Recent conversation:\n${history}` : '',
-          `User says: ${userText}`,
-          'Reply directly to the user.'
+          context ? `Workspace memory:\n${context}` : '',
+          history ? `Recent chat:\n${history}` : '',
+          `Current user message:\n${userText}`
         ].filter(Boolean).join('\n\n')
       }
     ];
 
     const output = await generator(messages, {
-      max_new_tokens: 72,
+      max_new_tokens: 120,
       do_sample: true,
-      temperature: 0.72,
+      temperature: 0.65,
       top_p: 0.9,
       top_k: 40,
-      repetition_penalty: 1.18,
-      no_repeat_ngram_size: 3,
+      repetition_penalty: 1.14,
+      no_repeat_ngram_size: 4,
       return_full_text: false
     });
 
     let reply = cleanReply(extractGeneratedText(output));
+
     if (!reply || looksDegenerate(reply)) {
-      const retryMessages = [
-        { role: 'user', content: `Reply briefly and naturally to this message: ${userText || 'Hello'}` }
-      ];
-      const retry = await generator(retryMessages, {
-        max_new_tokens: 40,
-        do_sample: true,
-        temperature: 0.8,
-        top_p: 0.92,
-        repetition_penalty: 1.22,
-        no_repeat_ngram_size: 3,
+      console.warn('Blocked unusable local model output:', reply);
+      const retry = await generator([
+        { role: 'system', content: 'Answer plainly in one short sentence. Output only the answer.' },
+        { role: 'user', content: userText }
+      ], {
+        max_new_tokens: 56,
+        do_sample: false,
+        repetition_penalty: 1.18,
+        no_repeat_ngram_size: 4,
         return_full_text: false
       });
       reply = cleanReply(extractGeneratedText(retry));
     }
 
     if (!reply || looksDegenerate(reply)) {
-      reply = isGreeting(userText)
-        ? 'Hi. I’m running locally on this device and the shared memory space is available.'
-        : 'I’m running locally, but this tiny mobile model produced an unstable reply. Try a shorter message.';
+      reply = 'The local model produced an unusable reply, so I blocked it instead of showing template garbage. Try rephrasing that message.';
     }
 
     setProviderStatus('Mobile AI · on-device', 'local');
 
     return jsonResponse(200, {
       reply,
-      usedMemoryTitles: [],
+      usedMemoryTitles: findUsedMemoryTitles(body.context || '', reply),
       proposals: buildObviousProposal(userText),
-      model: `${FALLBACK_MODEL}/q4-webgpu`,
+      model: `${FALLBACK_MODEL}/${FALLBACK_DTYPE}-webgpu`,
       local: true
     });
   }
@@ -173,13 +185,13 @@
     if (fallbackGeneratorPromise) return fallbackGeneratorPromise;
 
     fallbackGeneratorPromise = (async () => {
-      setProviderStatus('Loading lightweight mobile AI…', 'busy');
+      setProviderStatus('Loading mobile AI…', 'busy');
       const { pipeline, env } = await import(TRANSFORMERS_URL);
       env.allowLocalModels = false;
       env.useBrowserCache = true;
 
       return pipeline('text-generation', FALLBACK_MODEL, {
-        dtype: 'q4',
+        dtype: FALLBACK_DTYPE,
         device: 'webgpu',
         progress_callback(progress) {
           if (!progress) return;
@@ -233,16 +245,24 @@
   function compactContext(value) {
     const text = String(value || '');
     const lines = text.split('\n').filter((line) => line.trim());
-    const useful = lines.filter((line) => !/^Source:/i.test(line.trim())).slice(0, 16);
-    return useful.join('\n').slice(0, 1800);
+    const useful = lines
+      .filter((line) => !/^Source:/i.test(line.trim()))
+      .filter((line) => !/^MEMORY RULE:/i.test(line.trim()))
+      .slice(0, 18);
+    return useful.join('\n').slice(0, 2200);
   }
 
   function compactHistory(history) {
     if (!Array.isArray(history)) return '';
-    return history.slice(-3).map((item) => {
-      const role = item?.role === 'assistant' ? 'AI' : 'User';
-      return `${role}: ${String(item?.content || '').slice(0, 280)}`;
-    }).join('\n').slice(0, 900);
+    return history
+      .filter((item) => !looksDegenerate(String(item?.content || '')))
+      .slice(-4)
+      .map((item) => {
+        const role = item?.role === 'assistant' ? 'AI' : 'User';
+        return `${role}: ${String(item?.content || '').slice(0, 320)}`;
+      })
+      .join('\n')
+      .slice(0, 1200);
   }
 
   function buildObviousProposal(text) {
@@ -278,23 +298,49 @@
     return String(text || '')
       .replace(/```[\s\S]*?```/g, '')
       .replace(/^\s*(assistant|ai)\s*:\s*/i, '')
-      .replace(/\[(replies?|response|assistant)\]/gi, '')
-      .replace(/(<\|im_(?:start|end)\|>)/g, '')
+      .replace(/\[(replies?|response|assistant|contented|content)\]/gi, '')
+      .replace(/<\|(?:im_start|im_end|endoftext)\|>/g, '')
       .replace(/\s{3,}/g, ' ')
       .trim()
-      .slice(0, 1200);
+      .slice(0, 1800);
   }
 
   function looksDegenerate(text) {
     const value = String(text || '').trim();
     if (!value) return true;
-    if (/\[(replies?|response)\]/i.test(value)) return true;
+
+    if (/\[(replies?|response|contented|content|assistant)\]/i.test(value)) return true;
+    if (/\b(format constraints?|enumeration format|continue your response|specific content style|responding briefly after)\b/i.test(value)) return true;
+    if ((value.match(/\[/g) || []).length >= 3) return true;
+
     const words = value.toLowerCase().match(/[a-z0-9']+/g) || [];
     if (words.length < 2) return false;
+
     const counts = new Map();
     for (const word of words) counts.set(word, (counts.get(word) || 0) + 1);
-    const max = Math.max(...counts.values());
-    return words.length >= 8 && max / words.length > 0.38;
+    const maxWordRatio = Math.max(...counts.values()) / words.length;
+    if (words.length >= 8 && maxWordRatio > 0.32) return true;
+
+    const trigrams = [];
+    for (let index = 0; index <= words.length - 3; index += 1) {
+      trigrams.push(words.slice(index, index + 3).join(' '));
+    }
+    if (trigrams.length >= 4 && new Set(trigrams).size / trigrams.length < 0.62) return true;
+
+    return false;
+  }
+
+  function findUsedMemoryTitles(context, reply) {
+    const result = [];
+    const replyWords = new Set((String(reply || '').toLowerCase().match(/[a-z0-9']{4,}/g) || []));
+    const titlePattern = /^- \[[^\]]+\] \[[^\]]+\] (.+)$/gm;
+    let match;
+    while ((match = titlePattern.exec(String(context || ''))) && result.length < 6) {
+      const title = match[1].trim();
+      const titleWords = (title.toLowerCase().match(/[a-z0-9']{4,}/g) || []);
+      if (titleWords.some((word) => replyWords.has(word))) result.push(title);
+    }
+    return result;
   }
 
   function extractGeneratedText(output) {
@@ -352,11 +398,8 @@
       } catch {}
     }
 
-    if (navigator.gpu) {
-      setProviderStatus('Mobile AI · ready', 'local');
-    } else {
-      setProviderStatus('Local AI unavailable', 'error');
-    }
+    if (navigator.gpu) setProviderStatus('Mobile AI · ready', 'local');
+    else setProviderStatus('Local AI unavailable', 'error');
   }
 
   function setProviderStatus(label, mode) {
