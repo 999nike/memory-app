@@ -198,11 +198,11 @@
     <div class="modal-header">
       <div>
         <p class="eyebrow">Context builder</p>
-        <h2>What an AI would receive</h2>
+        <h2>What the local AI receives</h2>
       </div>
       <button class="icon-button" type="button" data-close-dialog="contextDialog" aria-label="Close">×</button>
     </div>
-    <p class="context-explainer">This preview is generated only from the current visible space. The AI chat sends this confirmed context and recent local chat history.</p>
+    <p class="context-explainer">This preview is generated from the current visible space. On supported desktop Chrome, the AI runs on-device and this context does not leave the browser.</p>
     <pre id="contextPreview" class="context-preview"></pre>
     <div class="modal-actions">
       <button class="ghost-button" type="button" data-close-dialog="contextDialog">Close</button>
@@ -213,6 +213,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="./app.js" defer></script>
+  <script src="./local-ai.js" defer></script>
   <script src="./phase2.js" defer></script>
 </body>
 </html>
