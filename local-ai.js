@@ -102,30 +102,68 @@
   async function runTransformersFallback(body) {
     setProviderStatus('Mobile AI · loading', 'busy');
     const generator = await getFallbackGenerator();
-    setProviderStatus('Mobile AI · on-device', 'local');
+    setProviderStatus('Mobile AI · thinking', 'busy');
+
+    const userText = String(body.message || '').trim();
+    const context = compactContext(body.context || '');
+    const history = compactHistory(body.history || []);
 
     const messages = [
-      { role: 'system', content: systemInstruction() },
-      { role: 'user', content: `${buildPrompt(body)}\n\nReply as one JSON object with keys reply, usedMemoryTitles, proposals. If JSON is difficult, answer normally.` }
+      {
+        role: 'system',
+        content: 'You are a friendly concise assistant inside a private memory workspace. Reply naturally in one or two short sentences. Do not output JSON, labels, headings, placeholders, or repeated words.'
+      },
+      {
+        role: 'user',
+        content: [
+          context ? `Useful workspace context:\n${context}` : '',
+          history ? `Recent conversation:\n${history}` : '',
+          `User says: ${userText}`,
+          'Reply directly to the user.'
+        ].filter(Boolean).join('\n\n')
+      }
     ];
 
     const output = await generator(messages, {
-      max_new_tokens: 160,
-      do_sample: false,
-      repetition_penalty: 1.04,
+      max_new_tokens: 72,
+      do_sample: true,
+      temperature: 0.72,
+      top_p: 0.9,
+      top_k: 40,
+      repetition_penalty: 1.18,
+      no_repeat_ngram_size: 3,
       return_full_text: false
     });
 
-    const text = extractGeneratedText(output);
-    let parsed;
-    try {
-      parsed = parseJsonObject(text);
-    } catch {
-      parsed = { reply: text || 'I could not produce a reply.', usedMemoryTitles: [], proposals: [] };
+    let reply = cleanReply(extractGeneratedText(output));
+    if (!reply || looksDegenerate(reply)) {
+      const retryMessages = [
+        { role: 'user', content: `Reply briefly and naturally to this message: ${userText || 'Hello'}` }
+      ];
+      const retry = await generator(retryMessages, {
+        max_new_tokens: 40,
+        do_sample: true,
+        temperature: 0.8,
+        top_p: 0.92,
+        repetition_penalty: 1.22,
+        no_repeat_ngram_size: 3,
+        return_full_text: false
+      });
+      reply = cleanReply(extractGeneratedText(retry));
     }
 
+    if (!reply || looksDegenerate(reply)) {
+      reply = isGreeting(userText)
+        ? 'Hi. I’m running locally on this device and the shared memory space is available.'
+        : 'I’m running locally, but this tiny mobile model produced an unstable reply. Try a shorter message.';
+    }
+
+    setProviderStatus('Mobile AI · on-device', 'local');
+
     return jsonResponse(200, {
-      ...validateOutput(parsed),
+      reply,
+      usedMemoryTitles: [],
+      proposals: buildObviousProposal(userText),
       model: `${FALLBACK_MODEL}/q4-webgpu`,
       local: true
     });
@@ -192,6 +230,73 @@
     ].filter(Boolean).join('\n');
   }
 
+  function compactContext(value) {
+    const text = String(value || '');
+    const lines = text.split('\n').filter((line) => line.trim());
+    const useful = lines.filter((line) => !/^Source:/i.test(line.trim())).slice(0, 16);
+    return useful.join('\n').slice(0, 1800);
+  }
+
+  function compactHistory(history) {
+    if (!Array.isArray(history)) return '';
+    return history.slice(-3).map((item) => {
+      const role = item?.role === 'assistant' ? 'AI' : 'User';
+      return `${role}: ${String(item?.content || '').slice(0, 280)}`;
+    }).join('\n').slice(0, 900);
+  }
+
+  function buildObviousProposal(text) {
+    const value = String(text || '').trim();
+    if (!value || value.length < 8) return [];
+
+    const lower = value.toLowerCase();
+    const explicitMemory = /\b(remember|save this|keep this|important to remember|don['’]?t forget)\b/.test(lower);
+    const decision = /\b(i decided|we decided|decision is|must always|must never)\b/.test(lower);
+    const goal = /\b(my goal is|our goal is|the goal is|i want to build|we want to build)\b/.test(lower);
+    const personalFact = /\b(my favourite|my favorite|i prefer|i always use|my number is)\b/.test(lower);
+
+    if (!(explicitMemory || decision || goal || personalFact)) return [];
+
+    const type = decision ? 'decision' : goal ? 'goal' : 'fact';
+    const importance = explicitMemory || decision ? 'high' : 'normal';
+    const title = type === 'decision' ? 'User decision' : type === 'goal' ? 'User goal' : 'User fact';
+
+    return [{
+      title,
+      content: value.slice(0, 900),
+      type,
+      importance,
+      reason: 'The user phrased this as durable information. Review it before saving.'
+    }];
+  }
+
+  function isGreeting(text) {
+    return /^(hi|hello|hey|hiya|yo|good (morning|afternoon|evening))[.! ]*$/i.test(String(text || '').trim());
+  }
+
+  function cleanReply(text) {
+    return String(text || '')
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/^\s*(assistant|ai)\s*:\s*/i, '')
+      .replace(/\[(replies?|response|assistant)\]/gi, '')
+      .replace(/(<\|im_(?:start|end)\|>)/g, '')
+      .replace(/\s{3,}/g, ' ')
+      .trim()
+      .slice(0, 1200);
+  }
+
+  function looksDegenerate(text) {
+    const value = String(text || '').trim();
+    if (!value) return true;
+    if (/\[(replies?|response)\]/i.test(value)) return true;
+    const words = value.toLowerCase().match(/[a-z0-9']+/g) || [];
+    if (words.length < 2) return false;
+    const counts = new Map();
+    for (const word of words) counts.set(word, (counts.get(word) || 0) + 1);
+    const max = Math.max(...counts.values());
+    return words.length >= 8 && max / words.length > 0.38;
+  }
+
   function extractGeneratedText(output) {
     const value = output?.[0]?.generated_text;
     if (typeof value === 'string') return value.trim();
@@ -200,15 +305,6 @@
       return String(last?.content || '').trim();
     }
     return String(value || '').trim();
-  }
-
-  function parseJsonObject(text) {
-    const cleaned = String(text || '').replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
-    try { return JSON.parse(cleaned); } catch {}
-    const start = cleaned.indexOf('{');
-    const end = cleaned.lastIndexOf('}');
-    if (start >= 0 && end > start) return JSON.parse(cleaned.slice(start, end + 1));
-    throw new Error('Model did not return JSON');
   }
 
   function validateOutput(value) {
