@@ -33,19 +33,40 @@
     return data;
   }
 
-  async function testBridge(config) {
+  async function request(config, path, options = {}) {
     const transport = globalThis.MemoryAI?.transportFetch || window.fetch.bind(window);
     const baseUrl = assertSecureBridgeUrl(normalizeBaseUrl(config?.baseUrl));
-    const response = await transport(`${baseUrl}/v1/info`, {
-      method: 'GET',
-      headers: bridgeHeaders(config?.token),
-      cache: 'no-store'
+    const response = await transport(`${baseUrl}${path}`, {
+      cache: 'no-store',
+      ...options,
+      headers: {
+        ...bridgeHeaders(config?.token),
+        ...(options.headers || {})
+      }
     });
-    const data = await readJson(response);
+    return readJson(response);
+  }
+
+  async function testBridge(config) {
+    const data = await request(config, '/v1/info', { method: 'GET' });
     if (data?.protocol !== PROTOCOL || Number(data?.version) !== VERSION) {
       throw new Error('The server answered, but it is not a compatible Memory Bridge.');
     }
     return data;
+  }
+
+  async function publishWorkspace(config, workspace) {
+    return request(config, '/v1/workspace/snapshot', {
+      method: 'PUT',
+      body: JSON.stringify({ workspace })
+    });
+  }
+
+  async function pullExternalProposals(config) {
+    return request(config, '/v1/workspace/proposals/pull', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
   }
 
   function registerBridge(config) {
@@ -70,32 +91,7 @@
         protocolVersion: VERSION
       },
       async generate(request) {
-        const transport = memoryAI.transportFetch || window.fetch.bind(window);
-        const response = await transport(`${baseUrl}/v1/chat`, {
-          method: 'POST',
-          headers: bridgeHeaders(token),
-          cache: 'no-store',
-          body: JSON.stringify({
-            protocol: PROTOCOL,
-            version: VERSION,
-            requestId: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            message: String(request?.message || ''),
-            context: String(request?.context || ''),
-            history: Array.isArray(request?.history)
-              ? request.history.slice(-10).map((item) => ({
-                  role: String(item?.role || ''),
-                  content: String(item?.content || '')
-                }))
-              : [],
-            memoryPolicy: request?.memoryPolicy || {
-              currentOnly: true,
-              approvalRequired: true
-            }
-          })
-        });
-
-        const data = await readJson(response);
-        if (!data?.reply) throw new Error('Memory Bridge returned no reply');
+        const data = await requestBridgeChat({ baseUrl, token }, request);
         return {
           reply: String(data.reply),
           usedMemoryTitles: Array.isArray(data.usedMemoryTitles) ? data.usedMemoryTitles : [],
@@ -107,10 +103,37 @@
     });
   }
 
+  async function requestBridgeChat(config, chatRequest) {
+    const data = await request(config, '/v1/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        protocol: PROTOCOL,
+        version: VERSION,
+        requestId: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        message: String(chatRequest?.message || ''),
+        context: String(chatRequest?.context || ''),
+        history: Array.isArray(chatRequest?.history)
+          ? chatRequest.history.slice(-10).map((item) => ({
+              role: String(item?.role || ''),
+              content: String(item?.content || '')
+            }))
+          : [],
+        memoryPolicy: chatRequest?.memoryPolicy || {
+          currentOnly: true,
+          approvalRequired: true
+        }
+      })
+    });
+    if (!data?.reply) throw new Error('Memory Bridge returned no reply');
+    return data;
+  }
+
   globalThis.MemoryBridge = Object.freeze({
     protocol: PROTOCOL,
     version: VERSION,
     registerBridge,
-    testBridge
+    testBridge,
+    publishWorkspace,
+    pullExternalProposals
   });
 })();
