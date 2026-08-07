@@ -36,16 +36,16 @@
       if (notice) {
         notice.hidden = false;
         notice.classList.remove('error');
-        notice.textContent = 'Tap received — starting local AI…';
+        notice.textContent = 'Tap received — handing message to chat…';
       }
 
-      button.textContent = 'Tapped…';
+      button.textContent = 'Sending…';
 
-      if (typeof form.requestSubmit === 'function') {
-        form.requestSubmit();
-      } else {
-        form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-      }
+      const submitEvent = typeof SubmitEvent === 'function'
+        ? new SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: button })
+        : new Event('submit', { bubbles: true, cancelable: true });
+
+      form.dispatchEvent(submitEvent);
     };
 
     button.addEventListener('click', submitChat, true);
