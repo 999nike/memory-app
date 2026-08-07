@@ -15,6 +15,7 @@ Memory Bridge
     +-- ChatGPT
     +-- Claude
     +-- Gemini
+    +-- Grok
     +-- Cursor
     +-- VS Code
     +-- Windsurf
@@ -29,9 +30,73 @@ The long-term goal is not a ChatGPT-specific memory plugin. It is one user-owned
 
 This section is the handoff point for the next development chat. Read this before changing code. Keep it short and factual: build first, update the ledger after meaningful milestones.
 
+## MAJOR MILESTONE — independent Grok MCP loop proven end to end
+
+On **7 Aug 2026**, Grok was connected as a genuine independent third-party MCP client to the public Memory Bridge and the complete human-controlled memory round trip was verified.
+
+The verified path was:
+
+```text
+Phone Memory App
+      |
+      | explicit Share
+      v
+HP Memory Bridge
+      |
+      | OAuth 2.0 + PKCE
+      | public MCP /mcp
+      v
+Grok
+      |
+      | read confirmed Memory Space
+      | propose_memory
+      v
+Bridge proposal queue
+      |
+      v
+Phone Memory App
+      |
+      | Pull / review
+      | human Approve
+      v
+Confirmed Memory Space
+      |
+      | explicit Share again
+      v
+Grok reads the newly confirmed memory back
+```
+
+The test proved all of the following in one live external-client flow:
+
+1. Grok discovered the public MCP resource.
+2. OAuth metadata discovery completed.
+3. Grok opened the bridge authorization page.
+4. User pairing-token consent succeeded.
+5. OAuth authorization-code + PKCE exchange completed.
+6. The bridge issued Grok an access token.
+7. Grok discovered and used the Memory Space MCP tools.
+8. Grok read the explicitly shared `Memory App` space and its 6 confirmed memories.
+9. Grok called `propose_memory` and received a real external proposal ID.
+10. The phone pulled the external proposal from the HP bridge.
+11. The proposal appeared visibly in the Memory App with `Reject / Edit / Approve` controls.
+12. The user approved the proposal.
+13. The workspace increased from 6 to **7 confirmed memories**.
+14. The updated workspace was explicitly shared again.
+15. Grok read back the newly confirmed memory, including its memory ID, source/provenance, type, importance and confirmed status.
+
+Read-back proof included the confirmed memory:
+
+`First full loop with Grok`
+
+Grok reported it as `status: confirmed` after the user approval and re-share.
+
+This is the first verified proof of the intended product contract:
+
+**an independent external AI can read the same user-owned Memory Space, propose a change, remain unable to silently approve it, and later read the user-approved result back.**
+
 ## Current state
 
-The core local-first memory loop works and the remote bridge path is working end to end.
+The core local-first memory loop works and the remote bridge path is working end to end with a real third-party MCP client.
 
 The current production web app is hosted on Vercel while trusted workspace data remains in browser storage. The HP Windows PC runs Memory Bridge and Ollama. Cloudflare Tunnel exposes the bridge securely over HTTPS.
 
@@ -41,14 +106,28 @@ The phone has successfully:
 - chatted through the public bridge to Ollama `gemma3:1b`
 - sent confirmed Memory Space context to the remote-local model
 - explicitly shared the active Memory App space to the bridge
-- published **6 confirmed memories** into bridge RAM
+- published confirmed memories into bridge RAM
 - verified the public MCP endpoint through the in-app MCP self-test
+- pulled real external Grok proposals from the bridge
+- reviewed and approved an external proposal locally
+- reached **7 confirmed memories** after the first full Grok approval loop
 
-The bridge reports:
+The bridge self-test reports:
 
 `MCP verified · 7 tools · shared workspace readable · 2026-07-28`
 
-That proves the authenticated public MCP path can discover tools and read the explicitly shared workspace.
+The live Grok OAuth flow additionally produced:
+
+```text
+[oauth] protected-resource metadata /.well-known/oauth-protected-resource/mcp
+[oauth] authorization-server metadata
+[oauth] authorize page client=memory-space-grok redirectHost=grok.com
+[oauth] consent approved client=memory-space-grok redirectHost=grok.com
+[oauth] token request grant=authorization_code client=memory-space-grok redirect=present verifier=present
+[oauth] token issued client=memory-space-grok expiresIn=28800
+```
+
+That proves the authenticated public MCP path can be discovered and authorised by an external provider, then used to read and propose against the explicitly shared workspace.
 
 ## Architecture now proven
 
@@ -63,8 +142,11 @@ Cloudflare HTTPS route
 HP Memory Bridge :8787
         |
         +-- ephemeral shared workspace in RAM only
+        +-- OAuth 2.0 / PKCE authorization
         +-- MCP endpoint /mcp
         +-- external proposal queue
+        |
+        +------> external MCP clients (Grok proven)
         |
         v
 Ollama :11434 / gemma3:1b
@@ -84,7 +166,7 @@ Public route:
 
 `https://bridge.w-i-z-z-lab-studios.com/mcp`
 
-Authentication is bearer-token based. The private pairing token must never be committed or pasted into public documentation.
+The public bridge now supports OAuth 2.0 authorization-code flow with PKCE for external MCP clients. The private bridge pairing token is used at the consent boundary and must never be committed or pasted into public documentation.
 
 Current MCP tools:
 
@@ -104,9 +186,9 @@ A generic smoke-test client also exists at:
 
 The browser MCP self-test was updated to use the stateless MCP discovery path and currently passes against the live HP bridge.
 
-## External AI proposal loop
+## External AI proposal loop — VERIFIED
 
-Implemented in the app:
+Implemented and now proven with Grok:
 
 ```text
 External MCP AI
@@ -118,39 +200,51 @@ propose_memory
 HP bridge proposal queue
       |
       v
-Memory App -> Check proposals
+Memory App -> Pull / Check proposals
       |
       v
 Reject / Edit / Approve
       |
       v
 Confirmed Memory Space only after user approval
+      |
+      | explicit Share
+      v
+External AI can read the approved memory back
 ```
 
 The Shared Chat screen contains an **External AI inbox** with `Check proposals`.
 
-The full external-client round trip has **not yet been proven with a genuinely separate third-party MCP client**. That is the next defining test.
+The first live Grok test produced proposal ID:
 
-## Next defining test — do this next
+`external_b34d408b-77b0-42e4-918e-81ca95b14c9c`
 
-Connect a real independent MCP client to the public bridge and prove the complete loop.
+The proposal was pulled to the phone, displayed in the visible proposal UI, approved by the user, and became confirmed memory.
+
+The accepted memory was later read back by Grok as:
+
+- title: `First full loop with Grok`
+- type: `note`
+- importance: `normal`
+- status: `confirmed`
+- source: `AI proposal approved by user · Chat: External MCP client proposal`
+
+This completes the original defining external-MCP test.
+
+## Next defining test
+
+The next meaningful portability test is **two different external AI providers using the exact same workspace**.
 
 Success criteria:
 
-1. External client authenticates to the bridge.
-2. It discovers the 7 MCP tools.
-3. It reads the active shared Memory App workspace.
-4. It can search/read the 6 confirmed memories.
-5. It uses that context to answer a question.
-6. It calls `propose_memory` with a harmless test proposal.
-7. Phone Memory App pulls that proposal through **Check proposals**.
-8. User approves it.
-9. Re-share the updated workspace.
-10. A different AI/client can later read the newly approved memory.
+1. Keep the same Memory Space and bridge contract.
+2. Connect a second independent MCP-capable AI/provider.
+3. Let it read the same confirmed workspace without rebuilding context manually.
+4. Confirm it can see the Grok-approved memory.
+5. Have it submit a harmless proposal through the same human-review boundary.
+6. Verify no provider-specific fork of the memory database is required.
 
-That is the proof of the intended product:
-
-**Memory App -> Memory Bridge -> any compatible AI.**
+That would prove provider portability, not merely single-provider MCP compatibility.
 
 ## ChatGPT test status
 
@@ -158,7 +252,7 @@ ChatGPT Developer mode was enabled on the HP browser account, but the visible UI
 
 ChatGPT is one compatibility target, not the architecture.
 
-If ChatGPT's custom MCP UI becomes available, use the public `/mcp` endpoint. Otherwise test first with another independent MCP-capable client.
+If ChatGPT's custom MCP UI becomes available, use the public `/mcp` endpoint. Otherwise continue testing the generic MCP contract with independent clients.
 
 ## Context selection now implemented
 
@@ -174,7 +268,7 @@ A focused local selector now:
 
 Shared Chat now shows a **Context budget** trace so the user can see how many memories were selected.
 
-Current small workspace behaviour is expected to show all current memories, e.g. `6/6`.
+Current small workspace behaviour may still select the full current set when all items are relevant.
 
 ### Banked idea — not current priority
 
@@ -187,22 +281,31 @@ Later, expand Context Budget into a proper inspector with:
 - package preview
 - live rebuild after memory changes
 
-Do **not** let this distract from the external MCP round-trip test first.
+Do **not** let this distract from provider-portability testing and runtime hardening.
 
 ## UI state
 
 ### Mobile
 
-Mobile layout is currently the preferred layout and should be left alone unless a real mobile bug is found.
+Mobile is the primary tested layout.
 
-Stacked order remains approximately:
+Current stacked order remains approximately:
 
 ```text
 Purpose / Stats
 Search / filters
 AI Workspace
+  Bridge selector
+  External AI inbox
+  Context budget
+  Memory proposals when pending
+  Chat
 Shared Memory
 ```
+
+On 7 Aug 2026 the mobile AI panel was patched so pending external proposals are no longer hidden under the chat. The fixed mobile height cap was removed, proposal cards now take natural space, chat remains scrollable, and confirmed memory cards were compacted to reduce vertical waste.
+
+The first real Grok proposals were visibly reviewed on the phone with `Reject / Edit / Approve` controls.
 
 ### Desktop
 
@@ -229,13 +332,6 @@ Desktop target is roughly **65% Memory / 35% AI**, with the AI pane sticky while
 
 Mobile/tablet stacking remains controlled by the existing lower-width media queries.
 
-Latest desktop layout commits:
-
-- `14bf5b35` — desktop 65/35 Shared Memory / AI Workspace layout
-- `105494fc` — `phase2.css?v=6` cache bump
-
-This desktop layout still needs a visual confirmation screenshot after Vercel deploys.
-
 ## Recent important commits
 
 - `f498c59c` — external AI proposal inbox logic
@@ -243,24 +339,26 @@ This desktop layout still needs a visual confirmation screenshot after Vercel de
 - `df3aa087` — load external proposal phase
 - `5edae3e8` — initial MCP self-test UI
 - `38006f56` — focused context selector
-- `54cbf0d9` — provider cache bump
 - `a38ecf52` — context trace logic
-- `5b1e4956` — context trace mobile styling
-- `cf1eb035` — context trace wiring
 - `ff773b5f` — fix context-trace mutation/render loop regression
-- `36d45e61` — context trace cache bump
-- `04d0d1ff` — load context-trace CSS
 - `71d48539` — modern stateless MCP self-test
-- `bad2452a` — MCP self-test cache bump
 - `ba63e476` — generic MCP smoke-test client
 - `14bf5b35` — desktop 65/35 workspace layout
-- `105494fc` — desktop CSS cache bump
+- `8bf7e64` — bridge/MCP/OAuth groundwork pulled to HP during external-client setup
+- `302f09c` — MCP protected-resource metadata compatibility + OAuth diagnostics
+- `61591e80` — fix Grok OAuth callback redirect
+- `132c53dd` — fix mobile proposal visibility and compact memory cards
+- `79cecf1e` — final mobile CSS cache bump while preserving existing app wiring
 
-## Regression note
+## Regression / debugging notes
 
 A context-trace patch temporarily caused the Shared Chat UI to disappear because a `MutationObserver` repeatedly triggered its own render changes. This was fixed in `ff773b5f` by stopping the render loop and only observing until the panel exists.
 
+During Grok OAuth testing, repeated `consent approved` logs with no `/token` request exposed a callback-navigation compatibility bug. The OAuth consent page redirect/CSP path was corrected and Grok then completed token exchange successfully.
+
 If Shared Chat ever disappears again, inspect startup JavaScript before assuming Vercel or the phone is still loading.
+
+If OAuth reaches `consent approved` but never logs `token request`, inspect the browser callback/redirect boundary rather than the pairing token first.
 
 ## HP / Cloudflare runtime
 
@@ -279,6 +377,12 @@ The bridge server is currently started manually with Node from PowerShell. Ollam
 
 After bridge server code changes on GitHub, remember the HP clone needs `git pull` and the Node bridge process must be restarted. Pure frontend/Vercel patches do not require an HP restart.
 
+OAuth grants and the shared bridge workspace are currently held in RAM. Restarting the bridge clears that runtime state and requires the workspace to be explicitly shared again.
+
+## Security housekeeping
+
+The bridge pairing token appeared during live setup/screenshots and should be rotated after the milestone test. Do not place the replacement token in this README, Git history, screenshots, or chat logs.
+
 ## Product rules — do not break these
 
 - Memory Space owns the long-term truth.
@@ -292,7 +396,7 @@ After bridge server code changes on GitHub, remember the HP clone needs `git pul
 - Shared bridge workspace remains ephemeral RAM-only unless the product deliberately changes later.
 - No silent cloud fallback.
 - No provider-specific fork of the user's memory database.
-- Keep the bridge generic: ChatGPT, Claude, Gemini, Cursor, VS Code, Windsurf and future MCP clients should use the same contract.
+- Keep the bridge generic: ChatGPT, Claude, Gemini, Grok, Cursor, VS Code, Windsurf and future MCP clients should use the same contract.
 
 ## Development working rule
 
@@ -355,13 +459,14 @@ The user should be able to inspect what was selected and why.
 
 ## Roadmap after the external MCP proof
 
-1. Formal provider portability test with two different models using the exact same workspace.
+1. Formal provider portability test with two different external models using the exact same workspace.
 2. Make HP Ollama + Memory Bridge persistent across reboot.
-3. Contradiction detection and explicit supersede proposals.
-4. Better history/timeline UI.
-5. Storage hardening toward IndexedDB/versioned exports.
-6. Desktop/native packaging later with Tauri + SQLite.
-7. Semantic/vector retrieval only when deterministic/full-text retrieval demonstrates a real limitation.
+3. Rotate exposed development pairing credentials and tighten operational secret handling.
+4. Contradiction detection and explicit supersede proposals.
+5. Better history/timeline UI.
+6. Storage hardening toward IndexedDB/versioned exports.
+7. Desktop/native packaging later with Tauri + SQLite.
+8. Semantic/vector retrieval only when deterministic/full-text retrieval demonstrates a real limitation.
 
 ## Guiding principle
 
