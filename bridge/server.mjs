@@ -1,5 +1,6 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
+import { createMemoryBridgeOAuth } from './oauth.mjs';
 
 const PROTOCOL = 'memory-space-bridge';
 const VERSION = 1;
@@ -10,6 +11,12 @@ const TOKEN = process.env.MEMORY_BRIDGE_TOKEN || '';
 const BRIDGE_NAME = process.env.MEMORY_BRIDGE_NAME || 'Memory Bridge';
 const TARGET_ENDPOINT = process.env.MEMORY_BRIDGE_TARGET || 'http://127.0.0.1:11434/v1/chat/completions';
 const TARGET_MODEL = process.env.MEMORY_BRIDGE_MODEL || '';
+const PUBLIC_URL = String(process.env.MEMORY_BRIDGE_PUBLIC_URL || 'https://bridge.w-i-z-z-lab-studios.com').replace(/\/+$/, '');
+const OAUTH_CLIENT_ID = process.env.MEMORY_BRIDGE_OAUTH_CLIENT_ID || 'memory-space-grok';
+const OAUTH_REDIRECT_HOSTS = String(process.env.MEMORY_BRIDGE_OAUTH_REDIRECT_HOSTS || 'grok.com,x.ai')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
 const ALLOWED_ORIGINS = new Set(
   String(process.env.MEMORY_BRIDGE_ORIGINS || 'https://memory-app-ashy-one.vercel.app')
     .split(',')
@@ -26,6 +33,13 @@ if (!TARGET_MODEL) {
   console.error('MEMORY_BRIDGE_MODEL is required. Example: gemma3:4b');
   process.exit(1);
 }
+
+const oauth = createMemoryBridgeOAuth({
+  publicUrl: PUBLIC_URL,
+  pairingToken: TOKEN,
+  clientId: OAUTH_CLIENT_ID,
+  redirectHosts: OAUTH_REDIRECT_HOSTS
+});
 
 let publishedWorkspace = null;
 let publishedWorkspaceAt = null;
@@ -431,6 +445,9 @@ async function runLocalModel(body) {
 
 const server = http.createServer(async (req, res) => {
   const origin = String(req.headers.origin || '');
+  const requestUrl = new URL(req.url || '/', PUBLIC_URL);
+
+  if (await oauth.handle(req, res)) return;
 
   if (req.method === 'OPTIONS') {
     if (!isOriginAllowed(origin)) {
@@ -447,7 +464,13 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (!isAuthorized(req)) {
+  const mcpRequest = requestUrl.pathname === '/mcp';
+  if (mcpRequest) {
+    if (!isAuthorized(req) && !oauth.isAuthorized(req)) {
+      sendJson(res, 401, { error: 'MCP authorization required' }, origin, oauth.challengeHeaders);
+      return;
+    }
+  } else if (!isAuthorized(req)) {
     sendJson(res, 401, { error: 'Bridge pairing token is invalid' }, origin);
     return;
   }
@@ -466,7 +489,15 @@ const server = http.createServer(async (req, res) => {
           endpoint: '/mcp',
           protocolVersion: MCP_VERSION,
           workspacePublishedInMemory: Boolean(publishedWorkspace),
-          pendingProposals: pendingExternalProposals.length
+          pendingProposals: pendingExternalProposals.length,
+          oauth: {
+            enabled: true,
+            clientId: oauth.clientId,
+            authorizationEndpoint: oauth.authorizationEndpoint,
+            tokenEndpoint: oauth.tokenEndpoint,
+            tokenAuthMethod: 'none',
+            pkce: 'S256'
+          }
         }
       }, origin);
       return;
@@ -544,5 +575,6 @@ server.listen(PORT, HOST, () => {
   console.log(`Model: ${TARGET_MODEL}`);
   console.log(`Allowed origins: ${[...ALLOWED_ORIGINS].join(', ')}`);
   console.log(`MCP endpoint: http://${HOST}:${PORT}/mcp (${MCP_VERSION})`);
-  console.log('Workspace is only held in RAM after explicit sharing; it is not written to disk by the bridge.');
+  console.log(`OAuth: ${oauth.authorizationEndpoint} -> ${oauth.tokenEndpoint} client=${oauth.clientId} PKCE=S256`);
+  console.log('Workspace and OAuth grants are held in RAM only; they are not written to disk by the bridge.');
 });
