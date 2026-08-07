@@ -4,63 +4,8 @@
   let installed = false;
   let lastTriggerAt = 0;
   let directSenderPromise = null;
-  let viewportFixInstalled = false;
-
-  function installMobileViewportFix() {
-    if (viewportFixInstalled || !matchMedia('(max-width: 800px)').matches) return;
-    viewportFixInstalled = true;
-
-    const viewport = document.querySelector('meta[name="viewport"]');
-    if (viewport) {
-      viewport.setAttribute(
-        'content',
-        'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content'
-      );
-    }
-
-    const fitChat = () => {
-      const input = document.getElementById('chatInput');
-      const pane = document.querySelector('.phase2-chat-pane');
-      if (!input || !pane || document.activeElement !== input) return;
-
-      const visualHeight = window.visualViewport?.height || window.innerHeight;
-      const targetHeight = Math.max(300, Math.floor(visualHeight - 12));
-      pane.style.minHeight = '0';
-      pane.style.height = `${targetHeight}px`;
-      pane.style.maxHeight = `${targetHeight}px`;
-
-      requestAnimationFrame(() => {
-        document.getElementById('chatSendButton')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-      });
-    };
-
-    const restoreChat = () => {
-      const pane = document.querySelector('.phase2-chat-pane');
-      if (!pane) return;
-      pane.style.removeProperty('min-height');
-      pane.style.removeProperty('height');
-      pane.style.removeProperty('max-height');
-    };
-
-    document.addEventListener('focusin', (event) => {
-      if (event.target?.id !== 'chatInput') return;
-      requestAnimationFrame(fitChat);
-      setTimeout(fitChat, 120);
-      setTimeout(fitChat, 320);
-    });
-
-    document.addEventListener('focusout', (event) => {
-      if (event.target?.id !== 'chatInput') return;
-      setTimeout(restoreChat, 80);
-    });
-
-    window.visualViewport?.addEventListener('resize', fitChat);
-    window.visualViewport?.addEventListener('scroll', fitChat);
-  }
 
   function installTapFix() {
-    installMobileViewportFix();
-
     const button = document.getElementById('chatSendButton');
     const form = document.getElementById('chatForm');
     if (!button || !form) return false;
@@ -128,7 +73,6 @@
   }
 
   function start() {
-    installMobileViewportFix();
     if (installTapFix()) return;
 
     const observer = new MutationObserver(() => {
