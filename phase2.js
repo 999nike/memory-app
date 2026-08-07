@@ -366,6 +366,8 @@
   function approveProposal(proposal) {
     const workspace = loadWorkspace();
     if (!workspace) return;
+    const approvedAt = now();
+    const sourceMessage = String(proposal.sourceMessage || '').trim();
     workspace.memories.push({
       id: uid('memory'),
       spaceId: proposal.spaceId,
@@ -373,16 +375,23 @@
       content: proposal.content,
       type: proposal.type,
       importance: proposal.importance,
-      source: `AI proposal approved by user · ${proposal.reason || 'chat'}`,
+      source: sourceMessage
+        ? `AI proposal approved by user · Chat: ${sourceMessage.slice(0, 120)}`
+        : 'AI proposal approved by user',
+      sourceKind: 'ai-proposal',
+      sourceMessage,
+      proposalReason: proposal.reason || '',
+      approvedAt,
       locked: false,
       status: 'confirmed',
-      createdAt: now(),
-      updatedAt: now()
+      createdAt: approvedAt,
+      updatedAt: approvedAt
     });
     const space = workspace.spaces.find((item) => item.id === proposal.spaceId);
-    if (space) space.updatedAt = now();
+    if (space) space.updatedAt = approvedAt;
     saveWorkspace(workspace);
     proposal.status = 'approved';
+    proposal.approvedAt = approvedAt;
     saveChatState();
     toast('Memory approved');
     setTimeout(() => location.reload(), 350);
@@ -398,7 +407,10 @@
     document.getElementById('memoryContentInput').value = proposal.content;
     document.getElementById('memoryTypeInput').value = proposal.type;
     document.getElementById('memoryImportanceInput').value = proposal.importance;
-    document.getElementById('memorySourceInput').value = `AI proposal · ${proposal.reason || 'chat'}`;
+    const sourceMessage = String(proposal.sourceMessage || '').trim();
+    document.getElementById('memorySourceInput').value = sourceMessage
+      ? `AI proposal · Chat: ${sourceMessage.slice(0, 120)}`
+      : 'AI proposal · user reviewed';
     document.getElementById('memoryLockedInput').checked = false;
     dialog.showModal();
   }
