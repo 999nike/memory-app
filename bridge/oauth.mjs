@@ -17,6 +17,10 @@ export function createMemoryBridgeOAuth({
   if (!issuer.startsWith('https://')) throw new Error('OAuth publicUrl must be HTTPS');
   if (!pairingToken) throw new Error('OAuth pairingToken is required');
 
+  function log(event, detail = '') {
+    console.log(`[oauth] ${event}${detail ? ` ${detail}` : ''}`);
+  }
+
   function timingSafeEqualText(left, right) {
     const a = Buffer.from(String(left || ''));
     const b = Buffer.from(String(right || ''));
@@ -190,7 +194,11 @@ export function createMemoryBridgeOAuth({
     cleanup();
     const url = new URL(req.url || '/', issuer);
 
-    if (req.method === 'GET' && url.pathname === '/.well-known/oauth-protected-resource') {
+    if (req.method === 'GET' && (
+      url.pathname === '/.well-known/oauth-protected-resource' ||
+      url.pathname === '/.well-known/oauth-protected-resource/mcp'
+    )) {
+      log('protected-resource metadata', url.pathname);
       sendJson(res, 200, {
         resource: `${issuer}/mcp`,
         authorization_servers: [issuer],
@@ -201,6 +209,7 @@ export function createMemoryBridgeOAuth({
     }
 
     if (req.method === 'GET' && url.pathname === '/.well-known/oauth-authorization-server') {
+      log('authorization-server metadata');
       sendJson(res, 200, {
         issuer,
         authorization_endpoint: `${issuer}/authorize`,
@@ -217,8 +226,10 @@ export function createMemoryBridgeOAuth({
     if (req.method === 'GET' && url.pathname === '/authorize') {
       try {
         const request = validateAuthorizeParams(url.searchParams);
+        log('authorize page', `client=${request.clientId} redirectHost=${new URL(request.redirectUri).hostname}`);
         sendHtml(res, 200, consentPage(request));
       } catch (error) {
+        log('authorize rejected', error?.message || 'invalid request');
         sendHtml(res, 400, `<h1>OAuth request rejected</h1><p>${escapeHtml(error?.message || 'Invalid authorization request')}</p>`);
       }
       return true;
@@ -229,6 +240,7 @@ export function createMemoryBridgeOAuth({
         const params = await readParams(req);
         const request = validateAuthorizeParams(params);
         if (!timingSafeEqualText(params.get('pairing_token'), pairingToken)) {
+          log('consent denied', 'pairing-token-mismatch');
           sendHtml(res, 403, consentPage(request, 'Pairing token was not accepted.'));
           return true;
         }
@@ -238,9 +250,11 @@ export function createMemoryBridgeOAuth({
           ...request,
           expiresAt: Date.now() + CODE_TTL_MS
         });
+        log('consent approved', `client=${request.clientId} redirectHost=${new URL(request.redirectUri).hostname}`);
         res.writeHead(302, { Location: authorizeRedirect(request, code), 'Cache-Control': 'no-store' });
         res.end();
       } catch (error) {
+        log('authorization failed', error?.message || 'unknown');
         sendHtml(res, 400, `<h1>OAuth authorization failed</h1><p>${escapeHtml(error?.message || 'Authorization failed')}</p>`);
       }
       return true;
@@ -249,7 +263,9 @@ export function createMemoryBridgeOAuth({
     if (req.method === 'POST' && url.pathname === '/token') {
       try {
         const params = await readParams(req);
+        log('token request', `grant=${params.get('grant_type') || 'missing'} client=${params.get('client_id') || 'missing'} redirect=${params.get('redirect_uri') ? 'present' : 'missing'} verifier=${params.get('code_verifier') ? 'present' : 'missing'}`);
         if (params.get('grant_type') !== 'authorization_code') {
+          log('token rejected', 'unsupported_grant_type');
           sendJson(res, 400, { error: 'unsupported_grant_type' });
           return true;
         }
@@ -258,15 +274,18 @@ export function createMemoryBridgeOAuth({
         const record = authorizationCodes.get(code);
         authorizationCodes.delete(code);
         if (!record || record.expiresAt <= Date.now()) {
+          log('token rejected', 'invalid-or-expired-code');
           sendJson(res, 400, { error: 'invalid_grant' });
           return true;
         }
         if (params.get('client_id') !== record.clientId || params.get('redirect_uri') !== record.redirectUri) {
+          log('token rejected', 'client-or-redirect-mismatch');
           sendJson(res, 400, { error: 'invalid_grant' });
           return true;
         }
         const verifier = params.get('code_verifier') || '';
         if (!verifier || !timingSafeEqualText(sha256Base64Url(verifier), record.codeChallenge)) {
+          log('token rejected', 'pkce-verification-failed');
           sendJson(res, 400, { error: 'invalid_grant', error_description: 'PKCE verification failed' });
           return true;
         }
@@ -278,6 +297,7 @@ export function createMemoryBridgeOAuth({
           scope: record.scope,
           expiresAt: Date.now() + TOKEN_TTL_MS
         });
+        log('token issued', `client=${record.clientId} expiresIn=${expiresIn}`);
         sendJson(res, 200, {
           access_token: accessToken,
           token_type: 'Bearer',
@@ -285,6 +305,7 @@ export function createMemoryBridgeOAuth({
           scope: record.scope
         });
       } catch (error) {
+        log('token error', error?.message || 'unknown');
         sendJson(res, 400, { error: 'invalid_request', error_description: error?.message || 'Token request failed' });
       }
       return true;
@@ -298,11 +319,11 @@ export function createMemoryBridgeOAuth({
     issuer,
     authorizationEndpoint: `${issuer}/authorize`,
     tokenEndpoint: `${issuer}/token`,
-    protectedResourceMetadata: `${issuer}/.well-known/oauth-protected-resource`,
+    protectedResourceMetadata: `${issuer}/.well-known/oauth-protected-resource/mcp`,
     isAuthorized,
     handle,
     challengeHeaders: {
-      'WWW-Authenticate': `Bearer resource_metadata="${issuer}/.well-known/oauth-protected-resource"`
+      'WWW-Authenticate': `Bearer resource_metadata="${issuer}/.well-known/oauth-protected-resource/mcp"`
     }
   });
 }
