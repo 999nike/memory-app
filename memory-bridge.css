@@ -31,6 +31,35 @@
   justify-content: flex-end;
 }
 
+.memory-bridge-row {
+  align-items: start;
+}
+
+.memory-bridge-status {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.025);
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.memory-bridge-status[data-tone="success"] {
+  border-color: rgb(199 255 86 / 0.22);
+  background: rgb(199 255 86 / 0.05);
+  color: var(--accent);
+}
+
+.memory-bridge-status[data-tone="error"] {
+  border-color: rgb(255 123 132 / 0.25);
+  background: rgb(255 123 132 / 0.05);
+  color: var(--danger);
+}
+
 @media (max-width: 800px) {
   .memory-bridge-dialog {
     width: calc(100% - 16px);
