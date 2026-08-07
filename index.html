@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0d12">
+  <meta name="description" content="A private, visible memory workspace built by a human and AI together.">
+  <title>Memory Space</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-row">
+        <div class="brand-mark" aria-hidden="true">M</div>
+        <div>
+          <p class="eyebrow">Private workspace</p>
+          <h1>Memory Space</h1>
+        </div>
+        <button class="icon-button mobile-only" id="closeSidebarButton" aria-label="Close navigation">×</button>
+      </div>
+
+      <button class="primary-button full-width" id="newSpaceButton">+ New space</button>
+
+      <nav class="space-nav" aria-label="Memory spaces">
+        <div class="section-heading">
+          <span>Spaces</span>
+          <span class="count" id="spaceCount">0</span>
+        </div>
+        <div id="spaceList" class="space-list"></div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="ghost-button full-width" id="exportButton">Export workspace</button>
+        <label class="ghost-button full-width file-button">
+          Import workspace
+          <input id="importInput" type="file" accept="application/json" hidden>
+        </label>
+        <p class="privacy-note"><span class="status-dot"></span> Stored on this device</p>
+      </div>
+    </aside>
+
+    <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+
+    <main class="main-panel">
+      <header class="topbar">
+        <button class="icon-button mobile-only" id="openSidebarButton" aria-label="Open navigation">☰</button>
+        <div class="topbar-title">
+          <p class="eyebrow" id="spaceMeta">Workspace</p>
+          <h2 id="spaceTitle">Memory App</h2>
+        </div>
+        <div class="topbar-actions">
+          <button class="ghost-button" id="contextButton">Context view</button>
+          <button class="primary-button" id="newMemoryButton">+ Add memory</button>
+        </div>
+      </header>
+
+      <section class="workspace-summary" aria-label="Workspace summary">
+        <div>
+          <p class="summary-label">Purpose</p>
+          <p id="spaceDescription">A visible long-term context space controlled by the user.</p>
+        </div>
+        <div class="summary-stats" id="summaryStats"></div>
+      </section>
+
+      <section class="toolbar" aria-label="Memory filters">
+        <label class="search-field">
+          <span aria-hidden="true">⌕</span>
+          <input id="searchInput" type="search" placeholder="Search this space" autocomplete="off">
+        </label>
+        <div class="filter-row" id="filterRow">
+          <button class="filter-chip active" data-filter="all">All</button>
+          <button class="filter-chip" data-filter="decision">Decisions</button>
+          <button class="filter-chip" data-filter="fact">Facts</button>
+          <button class="filter-chip" data-filter="goal">Goals</button>
+          <button class="filter-chip" data-filter="question">Questions</button>
+          <button class="filter-chip" data-filter="note">Notes</button>
+        </div>
+      </section>
+
+      <section class="memory-section">
+        <div class="section-heading large">
+          <div>
+            <span>Shared memory</span>
+            <p>Confirmed information currently available to this space.</p>
+          </div>
+          <span class="count" id="visibleCount">0</span>
+        </div>
+        <div id="memoryGrid" class="memory-grid"></div>
+        <div id="emptyState" class="empty-state" hidden>
+          <div class="empty-icon" aria-hidden="true">◇</div>
+          <h3>No memories found</h3>
+          <p>Add the first memory or change the current filter.</p>
+          <button class="primary-button" id="emptyAddButton">Add memory</button>
+        </div>
+      </section>
+    </main>
+
+    <aside class="detail-panel" id="detailPanel" aria-label="Memory details">
+      <div class="detail-header">
+        <div>
+          <p class="eyebrow">Inspector</p>
+          <h2 id="detailTitle">Select a memory</h2>
+        </div>
+        <button class="icon-button" id="closeDetailButton" aria-label="Close inspector">×</button>
+      </div>
+      <div id="detailContent" class="detail-content">
+        <div class="inspector-placeholder">
+          <div class="empty-icon" aria-hidden="true">◇</div>
+          <p>Select a memory to see its status, source, history, and controls.</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <dialog id="memoryDialog" class="modal">
+    <form method="dialog" id="memoryForm">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Shared workspace</p>
+          <h2 id="memoryDialogTitle">Add memory</h2>
+        </div>
+        <button class="icon-button" type="button" data-close-dialog="memoryDialog" aria-label="Close">×</button>
+      </div>
+
+      <input type="hidden" id="memoryId">
+      <label>
+        Memory title
+        <input id="memoryTitleInput" maxlength="100" required placeholder="Example: Keep all data local">
+      </label>
+      <label>
+        Details
+        <textarea id="memoryContentInput" rows="5" maxlength="2000" required placeholder="Describe the fact, decision, goal, or important note."></textarea>
+      </label>
+      <div class="form-grid">
+        <label>
+          Type
+          <select id="memoryTypeInput">
+            <option value="decision">Decision</option>
+            <option value="fact">Fact</option>
+            <option value="goal">Goal</option>
+            <option value="question">Open question</option>
+            <option value="note">Note</option>
+          </select>
+        </label>
+        <label>
+          Importance
+          <select id="memoryImportanceInput">
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="normal" selected>Normal</option>
+            <option value="low">Low</option>
+          </select>
+        </label>
+      </div>
+      <label>
+        Source
+        <input id="memorySourceInput" maxlength="160" placeholder="User confirmed, meeting note, file name…">
+      </label>
+      <label class="checkbox-row">
+        <input id="memoryLockedInput" type="checkbox">
+        <span>Lock this memory against accidental changes</span>
+      </label>
+      <div class="modal-actions">
+        <button class="ghost-button" type="button" data-close-dialog="memoryDialog">Cancel</button>
+        <button class="primary-button" type="submit">Save memory</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="spaceDialog" class="modal small-modal">
+    <form method="dialog" id="spaceForm">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Workspace</p>
+          <h2>Create a space</h2>
+        </div>
+        <button class="icon-button" type="button" data-close-dialog="spaceDialog" aria-label="Close">×</button>
+      </div>
+      <label>
+        Space name
+        <input id="spaceNameInput" maxlength="60" required placeholder="Project, life area, research…">
+      </label>
+      <label>
+        Purpose
+        <textarea id="spaceDescriptionInput" rows="3" maxlength="300" required placeholder="What should the AI understand when it enters this space?"></textarea>
+      </label>
+      <div class="modal-actions">
+        <button class="ghost-button" type="button" data-close-dialog="spaceDialog">Cancel</button>
+        <button class="primary-button" type="submit">Create space</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="contextDialog" class="modal context-modal">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Context builder</p>
+        <h2>What an AI would receive</h2>
+      </div>
+      <button class="icon-button" type="button" data-close-dialog="contextDialog" aria-label="Close">×</button>
+    </div>
+    <p class="context-explainer">This preview is generated only from the current visible space. No AI connection exists yet.</p>
+    <pre id="contextPreview" class="context-preview"></pre>
+    <div class="modal-actions">
+      <button class="ghost-button" type="button" data-close-dialog="contextDialog">Close</button>
+      <button class="primary-button" type="button" id="copyContextButton">Copy context</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
