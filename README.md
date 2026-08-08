@@ -14,7 +14,7 @@ Memory Bridge
         |
         +-- Grok       VERIFIED
         +-- Mistral    VERIFIED
-        +-- Claude     next target
+        +-- Claude     VERIFIED
         +-- Cursor     next target
         +-- ChatGPT
         +-- Gemini
@@ -32,6 +32,86 @@ The bigger architecture is deliberately broader than memory alone: Memory Space 
 # Living project ledger — 8 Aug 2026
 
 This section is the handoff point for the next development chat. Read this before changing code. Keep it factual: build first, update the ledger after meaningful milestones.
+
+## MAJOR MILESTONE — Claude becomes third full-loop provider
+
+On **8 Aug 2026**, Claude was connected to the same public Memory Bridge and completed the full human-controlled Memory Space loop.
+
+The verified Claude path was:
+
+```text
+Claude
+   |
+   | OAuth discovery + DCR
+   | read Memory Space
+   v
+Memory Bridge
+   |
+   | list_spaces -> memoryCount 9
+   | get_current_space_context
+   v
+Claude reads the same 9 confirmed memories
+   |
+   | propose_memory
+   v
+Bridge proposal queue
+   |
+   v
+Phone Memory App
+   |
+   | Pull / visible review
+   | human Approve
+   v
+Confirmed Memory Space
+   |
+   | explicit Share again
+   v
+Claude reads its approved memory back
+   |
+   v
+memoryCount 10
+```
+
+Claude's first DCR attempt exposed a generic OAuth compatibility gap rather than a Memory Space problem. Claude registered with both `authorization_code` and `refresh_token`, while the bridge initially accepted only `authorization_code`.
+
+The bridge was extended with standards-compatible refresh-token support rather than a Claude-specific fork.
+
+Important commit:
+
+- `f68165eb` — support OAuth refresh tokens for MCP clients
+
+That patch added:
+
+- DCR support for `authorization_code` + `refresh_token`
+- authorization-server metadata advertising both grant types
+- refresh-token issuance for clients that register for it
+- refresh-token rotation on use
+- refresh-token expiry/cleanup in RAM
+- scope preservation/restriction during refresh
+- continued compatibility with the existing fixed Grok client and DCR clients that only need authorization code
+
+After the patch, Claude connected successfully and discovered all **7 MCP tools**. Claude's own UI classified **6 tools as read-only** and `propose_memory` as the single state-changing tool, with Claude-side `Needs approval` controls available on top of the bridge's own human-review boundary.
+
+Claude then:
+
+1. Called `list_spaces` and reported the exact `memoryCount: 9`.
+2. Read all 9 current confirmed memory titles, including the Mistral-created/human-approved `Purpose of Memory Space` memory.
+3. Called `propose_memory` for `First full loop with Claude`.
+4. The proposal appeared visibly on the phone under `Memory proposals` as `External AI via MCP · requires your approval`.
+5. The user approved it locally.
+6. The updated workspace was explicitly shared again.
+7. Claude called the connector again and reported `memoryCount: 10`.
+8. Claude confirmed `First full loop with Claude` was now present as a confirmed `[NORMAL] [NOTE]` with source `AI proposal approved by user`.
+
+The confirmed Claude test memory is:
+
+`First full loop with Claude`
+
+> Claude successfully connected to the same user-owned Memory Space and completed the external read → proposal → human approval → read-back test.
+
+This proves a third independent hosted AI can use the same generic Memory Space contract end to end without a provider-specific memory database.
+
+**Verified full-loop providers now: Grok, Mistral and Claude.**
 
 ## MAJOR MILESTONE — cross-provider Memory Space portability proven
 
@@ -151,36 +231,41 @@ That first Grok loop established the product contract; the later Mistral → hum
 
 The bridge originally supported the fixed Grok OAuth client. To support independent providers without adding provider-specific client configuration, OAuth Dynamic Client Registration was added.
 
-Important commit:
+Important commits:
 
 - `8d46c3c` — add OAuth dynamic client registration for MCP
+- `f68165eb` — support OAuth refresh tokens for MCP clients
 
-Current DCR behaviour:
+Current DCR/OAuth behaviour:
 
 - in-memory dynamic client registry
 - generated `memory-space-dcr-*` client IDs
 - `registration_endpoint` advertised in authorization-server metadata
 - `POST /register`
-- authorization-code flow only
-- PKCE / public-client model with `token_endpoint_auth_method=none`
+- authorization-code + PKCE public-client flow
+- optional `refresh_token` grant for clients that register for it
+- `token_endpoint_auth_method=none`
 - registered redirect URI must match exactly at authorization time
 - redirect hosts remain allow-listed by bridge configuration
-- dynamic registrations are RAM-only and disappear on bridge restart
+- access tokens, refresh tokens and dynamic registrations are RAM-only
+- refresh tokens rotate on use
+- bridge restart clears OAuth runtime state
 - legacy fixed Grok client remains supported
 
-Mistral's successful live connection validates the DCR path in a real external client.
+Mistral successfully validated the original DCR path. Claude then exposed and validated the refresh-token extension in a second independent DCR implementation.
 
 ## Current state
 
-The core product is now beyond a single-provider proof of concept.
+The core product is now beyond a single-provider proof of concept and has been exercised by three independent hosted AI clients.
 
 **Verified external providers:**
 
 - Grok — read, propose, human approve, re-share, read-back verified
 - Mistral — OAuth/DCR connection, read, propose, human approve, changed-state read-back verified
+- Claude — OAuth/DCR + refresh-token compatibility, read, propose, human approve, re-share, read-back verified
 - Cross-provider portability — Mistral-created/human-approved memory read back by Grok verified
 
-The current shared `Memory App` state used in the final portability test contained **9 confirmed memories**.
+The current shared `Memory App` state after the Claude loop contains **10 confirmed memories**.
 
 The current production web app is hosted on Vercel while trusted workspace data remains in browser storage. The HP Windows PC runs Memory Bridge and Ollama. Cloudflare Tunnel exposes the bridge securely over HTTPS.
 
@@ -192,11 +277,12 @@ The phone has successfully:
 - explicitly shared the active Memory App space to the bridge
 - published current confirmed memories into bridge RAM
 - verified the public MCP endpoint through the in-app MCP self-test
-- pulled real external AI proposals from the bridge
-- visibly reviewed, edited/rejected/approved proposal state
+- pulled real external AI proposals from Grok, Mistral and Claude through the same bridge contract
+- visibly reviewed and approved external proposals locally
 - archived an obsolete/duplicate memory locally
-- re-shared the changed source-of-truth state
-- proved that two independent providers see that changed state
+- re-shared changed source-of-truth state
+- proved that independent providers see the same changed state
+- reached **10 confirmed memories** after the Claude full-loop proof
 
 The bridge self-test reports:
 
@@ -222,19 +308,19 @@ The bridge self-test reports:
           +------------+-------------+
           |                          |
           | ephemeral shared state   | OAuth / DCR / MCP
-          | proposal queue in RAM    |
+          | proposal queue in RAM    | auth + refresh runtime in RAM
           |                          |
           +------------+-------------+
                        |
-             +---------+---------+
-             |                   |
-             v                   v
-           Grok                Mistral
-          VERIFIED             VERIFIED
+             +---------+---------+---------+
+             |                   |         |
+             v                   v         v
+           Grok                Mistral   Claude
+          VERIFIED             VERIFIED  VERIFIED
                        |
                        v
              future MCP clients
-          Claude / Cursor / others
+             Cursor / others
 ```
 
 Important distinction:
@@ -245,7 +331,7 @@ Important distinction:
 - Only current confirmed memories are published as trusted current memory.
 - Archived/superseded history does not silently re-enter current context.
 - External AI changes are proposals only; approval remains human-controlled.
-- OAuth grants and DCR registrations are runtime state and can require re-authentication after bridge restart.
+- OAuth grants, refresh tokens and DCR registrations are runtime state and can require re-authentication after bridge restart.
 
 ## MCP interface currently implemented
 
@@ -253,7 +339,7 @@ Public route:
 
 `https://bridge.w-i-z-z-lab-studios.com/mcp`
 
-The public bridge supports OAuth authorization-code + PKCE and Dynamic Client Registration for compatible external MCP clients. The private bridge pairing token is used at the consent boundary and must never be committed or pasted into public documentation.
+The public bridge supports OAuth authorization-code + PKCE, Dynamic Client Registration and refresh tokens for compatible external MCP clients. The private bridge pairing token is used at the consent boundary and must never be committed or pasted into public documentation.
 
 Current MCP tools:
 
@@ -303,20 +389,21 @@ Same AI or another authorised AI can read the approved state
 
 The Shared Chat screen contains an **External AI inbox** with visible proposal controls.
 
+Real external proposals from **Grok, Mistral and Claude** have now passed through the same phone-side human approval boundary.
+
 The verified rule remains:
 
 **External AIs can suggest durable state. They cannot silently make themselves the source of truth.**
 
-## Next provider tests — Claude, then Cursor
+## Next provider test — Cursor
 
-The original two-provider portability test is complete.
+The hosted-provider proof is now strong enough: **Grok, Mistral and Claude** have all used the same Memory Space contract, and all three have completed full human-controlled loops.
 
-The next useful compatibility targets are:
+The next useful compatibility target is:
 
-1. **Claude** — prove another independent hosted AI can consume the same remote MCP contract.
-2. **Cursor** — prove an IDE/coding agent can consume project memory through the same Memory Space rather than receiving a manually rebuilt prompt.
+1. **Cursor** — prove an IDE/coding agent can consume project memory through the same Memory Space rather than receiving a manually rebuilt prompt.
 
-After Claude and Cursor, stop chasing provider count for its own sake. The higher-value work becomes productisation: installer/startup reliability, AI-access UX, permission enforcement, secret handling, clearer status/re-auth flows and a normal-user setup path.
+After Cursor, stop chasing provider count for its own sake. The higher-value work becomes productisation: installer/startup reliability, AI-access UX, permission enforcement, secret handling, clearer status/re-auth flows and a normal-user setup path.
 
 ## ChatGPT test status
 
@@ -375,7 +462,7 @@ Shared Memory
 
 On 7 Aug 2026 the mobile AI panel was patched so pending external proposals are no longer hidden under the chat. Proposal cards take natural space, chat remains scrollable, and confirmed memory cards were compacted to reduce vertical waste.
 
-Real external Grok and Mistral proposals have now been reviewed through the human-controlled loop.
+Real external Grok, Mistral and Claude proposals have now been reviewed through the same human-controlled mobile loop.
 
 ### Desktop
 
@@ -417,6 +504,8 @@ Desktop target is roughly **65% Memory / 35% AI**, with the AI pane sticky while
 - `79cecf1e` — final mobile CSS cache bump while preserving existing app wiring
 - `ffc8b082` — record Grok full MCP round-trip milestone
 - `8d46c3c` — add OAuth dynamic client registration for MCP
+- `57e5a95f` — record multi-provider portability and workspace vision
+- `f68165eb` — support OAuth refresh tokens for MCP clients
 
 ## Regression / debugging notes
 
@@ -428,7 +517,13 @@ If Shared Chat ever disappears again, inspect startup JavaScript before assuming
 
 If OAuth reaches `consent approved` but never logs `token request`, inspect the browser callback/redirect boundary rather than the pairing token first.
 
-A bridge restart clears the current RAM-only OAuth grants, dynamic client registrations and shared workspace state. External providers may therefore show `Auth required` until the user re-authenticates and the workspace is explicitly shared again. This behaviour was observed and successfully recovered with Grok during the Mistral portability test.
+A bridge restart clears the current RAM-only OAuth grants, refresh tokens, dynamic client registrations and shared workspace state. External providers may therefore show `Auth required` until the user re-authenticates and the workspace is explicitly shared again. This behaviour was observed and successfully recovered with Grok during the Mistral portability test.
+
+Claude initially failed at DCR with:
+
+`[oauth] registration rejected Only authorization_code grant type is supported`
+
+That failure identified that Claude registered for `refresh_token` in addition to `authorization_code`. The generic bridge OAuth implementation was then extended in `f68165eb`, after which Claude registered and connected successfully. If another client fails at `/register`, inspect the exact DCR metadata before introducing provider-specific code.
 
 ## HP / Cloudflare runtime
 
@@ -447,7 +542,7 @@ The bridge server is currently started manually with Node from PowerShell. Ollam
 
 After bridge server code changes on GitHub, the HP clone needs `git pull` and the Node bridge process must be restarted. Pure frontend/Vercel patches do not require an HP restart.
 
-OAuth grants, dynamic registrations and the shared bridge workspace are currently held in RAM. Restarting the bridge clears that runtime state and requires re-authentication/re-sharing where applicable.
+OAuth grants, refresh tokens, dynamic registrations and the shared bridge workspace are currently held in RAM. Restarting the bridge clears that runtime state and requires re-authentication/re-sharing where applicable.
 
 ## Security / permission housekeeping
 
@@ -506,7 +601,7 @@ Memory App is not ordinary hidden chatbot memory and it is not a dump of every c
 
 The experience should feel like every authorised AI is entering the **same room**, rather than forcing the user to rebuild that room for each model provider.
 
-The current Grok + Mistral proof demonstrates that this room can persist while the AI changes.
+The current Grok + Mistral + Claude proof demonstrates that this room persists while the AI changes.
 
 ## Memory layers
 
@@ -686,21 +781,20 @@ The stable layer is the workspace, not any individual model.
 
 # Roadmap after the multi-provider proof
 
-1. Connect and verify **Claude** against the same generic Memory Space MCP contract.
-2. Connect and verify **Cursor** or another coding/IDE client using the same project memory.
-3. Then stop expanding provider count temporarily and focus on productisation.
-4. Make HP Ollama + Memory Bridge persistent across reboot.
-5. Rotate exposed development pairing credentials and tighten operational secret handling.
-6. Enforce OAuth scopes at individual MCP tool boundaries.
-7. Add a simple user-facing **AI Access** view: provider, Space, Read, Propose, Revoke.
-8. Replace developer-facing setup language with `Connect AI -> Authorize -> Connected` for normal users.
-9. Hide bridge URLs, tokens, DCR/OAuth details and MCP diagnostics behind Advanced/Developer controls.
-10. Add contradiction detection and explicit supersede proposals.
-11. Improve history/timeline and archive UX.
-12. Harden durable storage toward IndexedDB/versioned exports.
-13. Package local/private mode so normal users do not need Node, PowerShell, Cloudflare or manual token handling.
-14. Only after the core product is reliable, prototype Code Space / task-scoped sandboxes using the same permission model.
-15. Semantic/vector retrieval only when deterministic/full-text retrieval demonstrates a real limitation.
+1. Connect and verify **Cursor** or another coding/IDE client using the same project memory.
+2. Then stop expanding provider count temporarily and focus on productisation.
+3. Make HP Ollama + Memory Bridge persistent across reboot.
+4. Rotate exposed development pairing credentials and tighten operational secret handling.
+5. Enforce OAuth scopes at individual MCP tool boundaries.
+6. Add a simple user-facing **AI Access** view: provider, Space, Read, Propose, Revoke.
+7. Replace developer-facing setup language with `Connect AI -> Authorize -> Connected` for normal users.
+8. Hide bridge URLs, tokens, DCR/OAuth details and MCP diagnostics behind Advanced/Developer controls.
+9. Add contradiction detection and explicit supersede proposals.
+10. Improve history/timeline and archive UX.
+11. Harden durable storage toward IndexedDB/versioned exports.
+12. Package local/private mode so normal users do not need Node, PowerShell, Cloudflare or manual token handling.
+13. Only after the core product is reliable, prototype Code Space / task-scoped sandboxes using the same permission model.
+14. Semantic/vector retrieval only when deterministic/full-text retrieval demonstrates a real limitation.
 
 ## Productisation target
 
