@@ -57,6 +57,8 @@ Cursor's final proposal/read-back proof remains a useful regression test, but is
 
 ### 1. First-run experience
 
+Status: **implemented for the current browser build.**
+
 - fresh browser must not receive developer/sample project memories
 - show a plain-language welcome screen
 - create a blank first Space
@@ -73,17 +75,20 @@ Cursor's final proposal/read-back proof remains a useful regression test, but is
 
 ### 3. AI Access
 
-Build one normal-user control surface:
+Status: **product surface implemented; live OAuth grant visibility/revoke implemented in bridge code.**
+
+The normal-user control surface now replaces the old provider-first controls with `AI Access`. It shows the current Space, in-app AI choices, compatible external AI apps and keeps raw connection setup under Advanced.
+
+For a bridge running the current code, External AI Access now reads the bridge's real OAuth grant state instead of inventing provider badges. Each live client can show:
 
 ```text
-AI Access
-
-Claude    Connected    Read ✓   Propose ✓   Revoke
-Grok      Not connected                  Connect
-Cursor    Connected    Read ✓   Propose ✓   Revoke
+Claude    Connected    Read ✓   Propose ✓   Disconnect
+Cursor    Connected    Read ✓   Propose ✓   Disconnect
 ```
 
-Normal user language:
+`Disconnect` revokes that client's outstanding OAuth authorization codes, access tokens and refresh tokens. Dynamic registration is retained so the same client can request authorization again later instead of being permanently broken.
+
+Normal user language remains:
 
 ```text
 Connect AI -> Authorize -> Connected
@@ -93,7 +98,7 @@ Developer details remain available only under Advanced / Developer.
 
 ### 4. Remove manual bridge chores from the core loop
 
-Today the proof flow exposes Share, Pull, bridge pairing and restart behaviour. V1 should turn this into product behaviour:
+Today the proof flow still exposes Share, Pull, bridge pairing and restart behaviour. V1 should turn this into product behaviour:
 
 - authorised current confirmed state is refreshed without requiring the user to understand `Share`
 - new external proposals surface automatically or through an obvious notification
@@ -102,9 +107,11 @@ Today the proof flow exposes Share, Pull, bridge pairing and restart behaviour. 
 
 ### 5. Revoke correctly
 
-Disconnect must invalidate the provider's access, not merely hide a UI card.
+Status: **implemented for current live OAuth grants once the updated bridge is running.**
 
-Permissions remain per Space and eventually enforce `memory.read` and `memory.propose` at individual MCP tool boundaries.
+Disconnect invalidates the provider's actual OAuth access instead of merely hiding a UI card.
+
+Permissions remain per Space as a product goal and individual MCP tool scope enforcement remains to be completed. Current OAuth grants expose `memory.read` and `memory.propose` scope state to AI Access.
 
 ### 6. Persistence and recovery
 
