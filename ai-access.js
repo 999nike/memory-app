@@ -312,11 +312,16 @@
     const bridges = loadBridges();
 
     if (!bridges.length) {
-      if (status) {
-        status.classList.remove('ready');
-        status.textContent = 'First connect your private Memory Bridge. Open Advanced below to use the current setup screen.';
+      const oldButton = document.querySelector('.ai-connect-button');
+      if (!oldButton) {
+        if (status) {
+          status.classList.remove('ready');
+          status.textContent = 'Connection setup is still loading. Please try again.';
+        }
+        return;
       }
-      dialog?.querySelector('.ai-access-advanced')?.setAttribute('open', '');
+      dialog?.close();
+      oldButton.click();
       return;
     }
 
