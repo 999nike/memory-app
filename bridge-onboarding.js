@@ -13,6 +13,10 @@
     }
   }
 
+  function saveBridges(items) {
+    localStorage.setItem(BRIDGES_KEY, JSON.stringify(items));
+  }
+
   function toast(message) {
     const el = document.getElementById('toast');
     if (!el) return;
@@ -45,6 +49,73 @@
     }
 
     return { name, baseUrl, token };
+  }
+
+  function readConnection(dialog) {
+    const code = dialog.querySelector('#memoryBridgeAccessCode')?.value.trim();
+    if (code) return decodePrivateAccessCode(code);
+
+    const name = dialog.querySelector('#memoryBridgeName')?.value.trim();
+    const baseUrl = dialog.querySelector('#memoryBridgeUrl')?.value.trim().replace(/\/+$/, '');
+    const token = dialog.querySelector('#memoryBridgeToken')?.value;
+    if (!name || !baseUrl || !token) {
+      throw new Error('Paste your Private Access Code, or use Advanced manual setup.');
+    }
+    if (!baseUrl.startsWith('https://')) throw new Error('Advanced setup requires a secure HTTPS connection address.');
+    return { name, baseUrl, token };
+  }
+
+  async function connectBridge(dialog, submitButton) {
+    let values;
+    try {
+      values = readConnection(dialog);
+    } catch (error) {
+      toast(error?.message || 'Could not read connection details');
+      return;
+    }
+
+    if (!globalThis.MemoryBridge?.testBridge || !globalThis.MemoryBridge?.registerBridge || !globalThis.MemoryAI?.setActiveProvider) {
+      toast('Memory Bridge setup is still loading. Try again.');
+      return;
+    }
+
+    const bridge = {
+      id: crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      ...values,
+      createdAt: new Date().toISOString()
+    };
+    const providerId = `memory-bridge:${bridge.id}`;
+    const original = submitButton?.textContent || 'Connect';
+
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Connecting…';
+    }
+
+    try {
+      const info = await globalThis.MemoryBridge.testBridge(bridge);
+      const items = loadBridges();
+      items.push(bridge);
+      saveBridges(items);
+      globalThis.MemoryBridge.registerBridge({
+        id: providerId,
+        name: bridge.name,
+        baseUrl: bridge.baseUrl,
+        token: bridge.token
+      });
+      globalThis.MemoryAI.setActiveProvider(providerId);
+      dialog.close();
+      toast(`Connected to ${info?.name || bridge.name}`);
+      dispatchEvent(new CustomEvent('memory-bridge-connected', { detail: { id: bridge.id } }));
+    } catch (error) {
+      console.error('Memory Bridge connection failed:', error);
+      toast(error?.message || 'Could not connect to Memory Bridge');
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = original;
+      }
+    }
   }
 
   function prepareBridgeDialog(dialog) {
@@ -99,27 +170,9 @@
     if (submit) submit.textContent = 'Connect';
 
     form.addEventListener('submit', (event) => {
-      const code = dialog.querySelector('#memoryBridgeAccessCode')?.value.trim();
-      if (code) {
-        try {
-          const config = decodePrivateAccessCode(code);
-          nameInput.value = config.name;
-          urlInput.value = config.baseUrl;
-          tokenInput.value = config.token;
-          return;
-        } catch (error) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          toast(error?.message || 'Could not read that Private Access Code');
-          return;
-        }
-      }
-
-      if (!nameInput.value.trim() || !urlInput.value.trim() || !tokenInput.value) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        toast('Paste your Private Access Code, or use Advanced manual setup.');
-      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      connectBridge(dialog, submit);
     }, true);
   }
 
