@@ -49,9 +49,10 @@ Verified from a fresh browser/customer state:
 - AI Access leads into external connection setup
 - normal setup uses one packaged Private Access Code rather than raw bridge URL/token fields
 
-Known onboarding issue still to fix:
+Known onboarding issue still to verify/fix:
 
-- first manually created memory can be classified as **Critical + Locked** automatically; this default/classification behaviour is not considered finished
+- an earlier fresh-customer test showed the first manually created memory (`My name`) as **Critical + Locked**
+- current `app.js` explicitly defaults a new manual memory to **Normal + Unlocked**, so reproduce the issue on the current build before patching rather than guessing at an old/stale state
 
 ### Customer isolation
 
@@ -106,10 +107,11 @@ Verified live:
 - plumber browser inherited no owner external-AI authorisations
 - Claude authorised against the plumber scoped customer route
 - Claude read the correct plumber Space
-- Claude reported exactly **1 confirmed memory**
+- initial read reported exactly **1 confirmed memory**
 - returned memory matched the plumber/kitchen-fitting/3D-model-work test memory
 - Claude used `propose_memory`
 - proposal arrived pending for human approval instead of becoming trusted memory automatically
+- after approval the plumber Space showed **2 confirmed memories**
 
 This proves a fresh unrelated customer can perform:
 
@@ -123,19 +125,31 @@ scoped customer connection
 
 without inheriting the owner's current workspace/provider state.
 
+### Live plumber -> owner negative-read proof — PASSED 9 Aug 2026
+
+Using the real plumber Claude MCP connection, Claude deliberately attempted to retrieve an owner-only marker from the separate owner `Memory App` Space.
+
+Observed live:
+
+- `search_memory` for the owner-only `Purpose of Memory Space` marker returned **0 results**
+- `get_current_space_context` returned only `plummers memory`
+- the plumber connection still saw only its own two confirmed memories
+- no owner `Memory App` memories were returned
+
+This is a real tool-level negative read, not merely an absent UI listing. The live plumber customer connection cannot retrieve the tested owner-only memory.
+
 ---
 
 ## STILL TO VERIFY LIVE
 
 Do **not** mark these as passed until directly observed:
 
-1. ask plumber-Claude for an owner-only marker and prove it cannot read it
-2. ask owner path for a plumber-only marker and prove it cannot read it
-3. revoke the plumber connection
-4. prove plumber access is dead
-5. prove owner connection still works after plumber revoke
+1. ask the owner path for a plumber-only marker and prove it cannot read it
+2. revoke the plumber connection
+3. prove plumber access is dead
+4. prove owner connection still works after plumber revoke
 
-Automated regression already covers this class of isolation; this remaining task is the explicit real external-account proof.
+Automated regression already covers this class of isolation; these remaining tasks finish the explicit real external-account proof.
 
 ---
 
@@ -178,8 +192,8 @@ Current known callback support includes Claude after commit:
 
 Priority order:
 
-1. finish explicit live owner-vs-plumber cross-read + revoke proof
-2. fix first-memory Critical + Locked default/classification behaviour
+1. finish the remaining live owner -> plumber negative read + plumber revoke + owner-still-works proof
+2. reproduce the first-memory Critical + Locked report on the current build; patch only if it still occurs
 3. enforce `memory.read` and `memory.propose` at individual MCP tool boundaries
 4. rotate exposed development/master credentials before wider testing
 5. keep proposal -> human approval mandatory and add memory-poisoning review/audit hardening
