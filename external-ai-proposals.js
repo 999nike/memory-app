@@ -4,6 +4,7 @@
   const BRIDGE_STORAGE_KEY = 'memory-ai-bridges-v1';
   const CHAT_KEY = 'memory-space-chat-v1';
   let mounted = false;
+  let checking = false;
 
   function loadJson(key, fallback) {
     try {
@@ -70,39 +71,36 @@
     status.dataset.kind = kind;
   }
 
-  async function pullProposals(button) {
+  async function checkProposals() {
+    if (checking || document.hidden) return;
+
     const bridge = activeBridge();
     if (!bridge) {
-      setStatus('Pair a Memory Bridge first.', 'error');
+      setStatus('Connect an AI app to receive suggestions here.');
       return;
     }
     if (!globalThis.MemoryBridge?.pullExternalProposals) {
-      setStatus('Memory Bridge client is not ready.', 'error');
+      setStatus('External AI inbox is starting…');
       return;
     }
 
-    const original = button.textContent;
-    button.disabled = true;
-    button.textContent = 'Checking…';
-    setStatus('Checking the bridge for external AI proposals…');
-
+    checking = true;
     try {
       const result = await globalThis.MemoryBridge.pullExternalProposals(bridge);
       const added = mergeExternalProposals(result?.proposals || []);
       if (!added) {
-        setStatus('No new external AI proposals.', 'ok');
-        button.disabled = false;
-        button.textContent = original;
+        setStatus('Watching automatically for suggestions from connected AI apps.', 'ok');
         return;
       }
-      setStatus(`${added} external AI proposal${added === 1 ? '' : 's'} ready for your review.`, 'ok');
-      button.textContent = 'Added';
-      setTimeout(() => location.reload(), 700);
+
+      setStatus(`${added} new AI suggestion${added === 1 ? '' : 's'} ready for your approval.`, 'ok');
+      toast(`${added} new AI suggestion${added === 1 ? '' : 's'} ready to review`);
+      setTimeout(() => location.reload(), 550);
     } catch (error) {
-      console.error('Could not pull external AI proposals:', error);
-      setStatus(error?.message || 'Could not pull external AI proposals.', 'error');
-      button.disabled = false;
-      button.textContent = original;
+      console.debug('Automatic external proposal check is waiting for the bridge:', error?.message || error);
+      setStatus('External AI inbox will reconnect automatically when the bridge is available.');
+    } finally {
+      checking = false;
     }
   }
 
@@ -121,11 +119,23 @@
       if (!card || card.querySelector('.external-proposal-source')) return;
       const marker = document.createElement('div');
       marker.className = 'external-proposal-source';
-      marker.textContent = 'External AI via MCP · requires your approval';
+      marker.textContent = 'External AI suggestion · requires your approval';
       const actions = card.querySelector('.proposal-actions');
       if (actions) card.insertBefore(marker, actions);
       else card.appendChild(marker);
     });
+  }
+
+  function toast(message) {
+    const el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
+  function wake() {
+    checkProposals();
   }
 
   function mount() {
@@ -142,17 +152,24 @@
     panel.innerHTML = `
       <div>
         <strong>External AI inbox</strong>
-        <small id="externalProposalStatus">Pull proposals left by ChatGPT, Gemini, Claude, or another MCP client.</small>
-      </div>
-      <button type="button" id="externalProposalPullButton">Check proposals</button>`;
+        <small id="externalProposalStatus">Watching automatically for suggestions from connected AI apps.</small>
+      </div>`;
     header.insertAdjacentElement('afterend', panel);
-    panel.querySelector('#externalProposalPullButton')?.addEventListener('click', (event) => pullProposals(event.currentTarget));
 
     decorateProposalCards();
     const observer = new MutationObserver(decorateProposalCards);
     const proposalList = document.getElementById('proposalList');
     if (proposalList) observer.observe(proposalList, { childList: true, subtree: true });
+
+    setTimeout(checkProposals, 900);
   }
+
+  window.addEventListener('focus', wake);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) wake();
+  });
+
+  setInterval(checkProposals, 8000);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', mount, { once: true });
