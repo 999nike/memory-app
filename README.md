@@ -83,6 +83,38 @@ The first productisation slice is now defined as:
 
 This slice deliberately does **not** redesign the provider/OAuth path in the same patch. The next product slice is the normal-user **AI Access** surface.
 
+## MAJOR MILESTONE — clean new-customer setup reaches connected bridge
+
+On **8 Aug 2026**, the normal-user onboarding and simplified Memory Bridge connection were tested from a fresh HP browser as a new customer rather than through the existing phone workspace.
+
+The completed path was:
+
+```text
+Create Space
+    -> Add first memory
+    -> AI Access
+    -> Set up external access
+    -> Connect your Memory Bridge
+    -> paste one Private Access Code
+    -> Connected / In use
+```
+
+The test proved:
+
+- a fresh browser could create a new private Space without the developer workspace being inserted
+- the empty state led clearly to `Add first memory`
+- AI Access led to the external connection flow without requiring the user to understand MCP or OAuth
+- the Windows `Memory Bridge Setup` helper copied a single packaged code beginning `MSB1.`
+- the normal form accepted that one code and connected the new browser Space to the already-running `WIZZ HP Bridge`
+- the bridge URL and original 64-character pairing token remained hidden from the normal-user path
+- raw URL/token fields remained available only under `Advanced manual setup`
+
+**Result:** the simplified first-run + one-code bridge connection slice passed the clean customer test and is ready to keep as the normal V1 path.
+
+This does not mean the entire V1 loop is complete. The external-AI proposal/review/revoke/return-later sequence still needs its own clean-user pass.
+
+One issue was found and remains open: the first manually created memory (`My name`) was automatically classified as **Critical + Locked**. That default/classification behaviour must be corrected before calling the whole onboarding experience finished.
+
 ## MAJOR MILESTONE — ChatGPT completes OAuth/DCR connection; Plus account does not expose MCP actions
 
 On **8 Aug 2026**, ChatGPT was added as a custom Memory Space connector using the same public MCP endpoint as the other external clients:
