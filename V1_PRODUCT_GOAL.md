@@ -51,6 +51,7 @@ The interoperability layer is already proven strongly enough to stop chasing pro
 - Cursor — OAuth/DCR connected, 7 tools discovered, real 10-memory Space read verified
 - cross-provider portability — one AI's human-approved memory was read by another provider
 - **8 Aug 2026 automatic V1 loop proof** — Grok received the current Space without manual Share, proposed `V1 automatic inbox test`, Memory Space surfaced it without manual Check/Pull, the human approved it, automatic sync republished the confirmed state, and Grok read the approved memory back as `status: confirmed`
+- **8 Aug 2026 restart recovery proof** — the encrypted OAuth state file was created locally, the bridge was stopped and started again, startup restored `access=1 refresh=1`, Grok remained connected without Reauth, and Memory Space automatically republished the active Space with 11 confirmed memories into bridge RAM
 
 Cursor's final proposal/read-back proof remains a useful regression test, but is not a blocker for beginning productisation; its read session ended because the Cursor account hit its Agent usage limit, not because Memory Space failed.
 
@@ -128,14 +129,48 @@ Permissions remain per Space as a product goal and individual MCP tool scope enf
 
 ### 6. Persistence and recovery
 
-A normal user must be able to leave and come back.
+Status: **bridge OAuth restart recovery implemented and verified. Browser workspace remains the durable source of truth.**
 
-Required:
+Verified now:
 
-- browser workspace survives normal close/reopen
-- versioned export/import remains reliable
-- bridge runtime becomes persistent/recoverable without PowerShell
-- production path moves toward IndexedDB/versioned migrations before users trust it with years of data
+- browser-held Memory Space remains the source of truth; Memory Space contents are not persisted in the bridge OAuth file
+- OAuth client/access/refresh recovery state is encrypted locally at rest
+- a bridge restart restored a live Grok access token and refresh token without Reauth
+- after restart, the browser automatically republished the active 11-memory Space back into bridge RAM
+- current published Space snapshots and pending external proposals remain intentionally RAM-only
+
+Remaining V1 work:
+
+- make the bridge start/recover automatically so a normal user never needs PowerShell
+- keep versioned export/import reliable and regression-tested
+- move production browser persistence toward IndexedDB + versioned migrations before users trust it with years of data
+
+## Current V1 position — 8 Aug 2026
+
+The core product loop is now working rather than merely prototyped:
+
+```text
+Open / install Memory Space
+    -> use durable local Space
+    -> connect external AI
+    -> AI reads current confirmed memory
+    -> AI proposes durable memory
+    -> proposal appears automatically
+    -> human Approve / Edit / Reject
+    -> approved state republishes automatically
+    -> external AI reads the new confirmed truth
+    -> bridge can restart without losing the authorised AI grant
+```
+
+The next productisation focus is no longer MCP interoperability. It is removing the remaining technical setup around the companion runtime and making the first-use/install path simple enough for a non-technical user.
+
+Near-term priorities:
+
+1. bridge auto-start / no PowerShell in normal use
+2. in-app `Install Memory Space` experience where the browser supports it
+3. simplify Private Access Code / companion setup language
+4. persistence hardening and recovery UX
+5. stranger test
 
 ### 7. Stranger test
 
