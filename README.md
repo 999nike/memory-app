@@ -115,6 +115,53 @@ This does not mean the entire V1 loop is complete. The external-AI proposal/revi
 
 One issue was found and remains open: the first manually created memory (`My name`) was automatically classified as **Critical + Locked**. That default/classification behaviour must be corrected before calling the whole onboarding experience finished.
 
+## CRITICAL NEXT ARCHITECTURE — isolate each customer's Spaces at the bridge
+
+The clean HP customer-style test proved that a fresh Space can connect through the existing bridge and be read correctly by Claude. It did **not** prove that two unrelated customers can safely use the same bridge at the same time.
+
+### Confirmed current limitation
+
+The bridge currently has one shared published-workspace position. Memory Space browsers automatically publish their active Space into that shared position. If Nike and a second tester both use the same HP bridge, the most recently published Space can replace the previous one, and authorised external AIs can then read that shared current snapshot.
+
+This is a bridge-routing problem. It is **not** caused by Claude, by using the same AI provider, or by Spaces being incorrect in the app.
+
+### What the two bridge credentials currently mean
+
+- **64-character pairing token** — the underlying authentication secret for this HP bridge.
+- **`MSB1...` Private Access Code** — a convenient package containing the bridge name/address and that pairing credential for the normal customer onboarding form.
+- **Memory Bridge Setup** — the Windows helper that generates/copies the `MSB1...` package.
+
+The current `MSB1` code connects a browser installation to the bridge. It does **not** create a unique customer identity, private channel or isolated workspace slot. Do not treat different generated setup codes as proof of customer isolation.
+
+### Required fix before multi-customer use
+
+Replace the single shared workspace route with customer-bound routing:
+
+```text
+unique customer connection ID + unique revocable secret
+    -> that customer's authorised Space IDs
+    -> that customer's OAuth grants/tokens
+    -> only that customer's published Space and proposals
+```
+
+Every publish, OAuth authorization and MCP tool call must resolve the customer/connection from authenticated server-side state. A client must never gain access merely by supplying another `spaceId`.
+
+The original 64-character bridge token should remain an administrator/setup secret. Each customer-facing setup code must instead use its own revocable connection credential.
+
+### Mandatory regression test
+
+Before installing this as a shared customer service:
+
+1. Create two genuinely separate customer connections and two Spaces.
+2. Put `OWNER = NIKE` in one and `OWNER = PLUMBER` in the other.
+3. Connect each through separate AI accounts/connections.
+4. Run both simultaneously.
+5. Confirm each reads only its own marker.
+6. Ask each explicitly for the other marker; both requests must return no data/unauthorised.
+7. Revoke one connection and prove the other remains working.
+
+**Current release boundary:** the present bridge is suitable only for the existing single-owner proof flow. Do not onboard unrelated simultaneous customers onto one bridge until this isolation work and regression test pass. For a very small temporary beta, separate bridge instances/configurations per tester are the safe workaround.
+
 ## MAJOR MILESTONE — Claude reauthorisation after autostart exposes future-provider callback rule
 
 On **8 Aug 2026**, Claude was reauthorised successfully after the new Windows autostart/runtime setup exposed a configuration gap that could also affect future AI providers.
