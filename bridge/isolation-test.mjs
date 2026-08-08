@@ -133,7 +133,7 @@ async function issueOAuthToken(connection) {
     resource,
     pairing_token: connection.accessCode
   });
-  const authorize = await fetch(`${connectionBase(connection)}/authorize`, {
+  const authorize = await fetch(`${localBase}/authorize`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params,
