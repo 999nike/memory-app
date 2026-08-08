@@ -138,18 +138,32 @@ Observed live:
 
 This is a real tool-level negative read, not merely an absent UI listing. The live plumber customer connection cannot retrieve the tested owner-only memory.
 
+### Live owner -> plumber negative-read proof — PASSED 9 Aug 2026
+
+Using the real owner Grok MCP connection from the normal owner phone path, Grok deliberately searched for plumber-only markers.
+
+Observed live:
+
+- current Space reported as `Memory App`
+- current confirmed memory count reported as **11**
+- `search_memory` for `copper pipe` returned **0 results**
+- `search_memory` for `plummers memory` returned **0 results**
+- `search_memory` for `plumber` returned **0 results**
+- no plumber customer memories were returned
+
+Together with the plumber -> owner test, this gives a live bidirectional cross-customer negative-read proof: each real external AI connection can read its own customer workspace while the tested other-customer markers remain inaccessible.
+
 ---
 
 ## STILL TO VERIFY LIVE
 
 Do **not** mark these as passed until directly observed:
 
-1. ask the owner path for a plumber-only marker and prove it cannot read it
-2. revoke the plumber connection
-3. prove plumber access is dead
-4. prove owner connection still works after plumber revoke
+1. revoke the plumber connection
+2. prove plumber access is dead
+3. prove owner connection still works after plumber revoke
 
-Automated regression already covers this class of isolation; these remaining tasks finish the explicit real external-account proof.
+Automated regression already covers this class of isolation; these remaining revoke checks finish the explicit real external-account proof.
 
 ---
 
@@ -192,7 +206,7 @@ Current known callback support includes Claude after commit:
 
 Priority order:
 
-1. finish the remaining live owner -> plumber negative read + plumber revoke + owner-still-works proof
+1. finish plumber revoke + plumber-dead + owner-still-works live proof
 2. reproduce the first-memory Critical + Locked report on the current build; patch only if it still occurs
 3. enforce `memory.read` and `memory.propose` at individual MCP tool boundaries
 4. rotate exposed development/master credentials before wider testing
