@@ -4,6 +4,7 @@
   const WORKSPACE_KEY = 'memory-space-v1';
   const BRIDGES_KEY = 'memory-ai-bridges-v1';
   let observer;
+  let externalStatusRequest = 0;
 
   function loadJson(key, fallback) {
     try {
@@ -97,6 +98,7 @@
             <span>Grok</span><span>Mistral</span><span>Claude</span><span>Cursor</span>
           </div>
           <div class="ai-access-external-status" id="aiAccessExternalStatus"></div>
+          <div class="ai-access-list" id="aiAccessAuthorizedList"></div>
           <button type="button" class="primary-button" id="aiAccessConnectExternal">Connect AI app</button>
         </section>
 
@@ -111,6 +113,7 @@
 
     dialog.addEventListener('click', handleDialogClick);
     dialog.querySelector('#aiAccessProviderList')?.addEventListener('click', handleProviderClick);
+    dialog.querySelector('#aiAccessAuthorizedList')?.addEventListener('click', handleExternalClientClick);
     dialog.querySelector('#aiAccessConnectExternal')?.addEventListener('click', connectExternal);
     dialog.querySelector('#aiAccessOpenAdvanced')?.addEventListener('click', openAdvancedSetup);
     document.body.appendChild(dialog);
@@ -189,22 +192,79 @@
     };
   }
 
-  function renderExternalStatus(dialog) {
+  async function renderExternalStatus(dialog) {
     const status = dialog.querySelector('#aiAccessExternalStatus');
+    const list = dialog.querySelector('#aiAccessAuthorizedList');
     const button = dialog.querySelector('#aiAccessConnectExternal');
-    if (!status || !button) return;
+    if (!status || !list || !button) return;
 
+    const requestId = ++externalStatusRequest;
     const bridges = loadBridges();
-    if (bridges.length) {
-      status.classList.add('ready');
-      status.textContent = 'Private AI access is ready on this device. External AI apps can be authorised to the Space you choose.';
-      button.textContent = 'Connect AI app';
+    if (!bridges.length) {
+      status.classList.remove('ready');
+      status.textContent = 'External AI access has not been set up on this device yet. Your on-device AI still works normally.';
+      list.innerHTML = '';
+      button.textContent = 'Set up external access';
       return;
     }
 
-    status.classList.remove('ready');
-    status.textContent = 'External AI access has not been set up on this device yet. Your on-device AI still works normally.';
-    button.textContent = 'Set up external access';
+    status.classList.add('ready');
+    status.textContent = 'Checking which AI apps currently have access…';
+    list.innerHTML = '';
+    button.textContent = 'Connect AI app';
+
+    const bridge = bridges[0];
+    if (!globalThis.MemoryBridge?.listExternalClients) {
+      status.textContent = 'Private AI access is ready. Restart the updated Memory Bridge once to enable live permission controls.';
+      return;
+    }
+
+    try {
+      const clients = await globalThis.MemoryBridge.listExternalClients(bridge);
+      if (requestId !== externalStatusRequest) return;
+
+      if (!clients.length) {
+        status.textContent = 'Private AI access is ready. No external AI app is currently authorised.';
+        list.innerHTML = '';
+        return;
+      }
+
+      status.textContent = `${clients.length} external AI app${clients.length === 1 ? '' : 's'} currently authorised.`;
+      list.innerHTML = clients.map((client) => {
+        const name = friendlyExternalName(client.clientName);
+        const permissions = [
+          client.canRead ? 'Read ✓' : null,
+          client.canPropose ? 'Propose ✓' : null
+        ].filter(Boolean).join(' · ') || 'No active memory scope';
+        const durable = client.refreshTokenActive ? ' · stays connected' : '';
+        return `
+          <div class="ai-access-card">
+            <div class="ai-access-card-copy">
+              <strong>${escapeHtml(name)}</strong>
+              <small>${escapeHtml(permissions)}${escapeHtml(durable)}</small>
+            </div>
+            <div class="ai-access-card-actions">
+              <span class="ai-access-badge active">Connected</span>
+              <button type="button" data-ai-access-revoke="${escapeAttr(client.clientId)}" data-ai-access-client-name="${escapeAttr(name)}">Disconnect</button>
+            </div>
+          </div>`;
+      }).join('');
+    } catch (error) {
+      if (requestId !== externalStatusRequest) return;
+      console.error('Could not read external AI permissions:', error);
+      list.innerHTML = '';
+      status.textContent = 'Private AI access is ready, but live permission status is unavailable until the updated bridge is running.';
+    }
+  }
+
+  function friendlyExternalName(value) {
+    const name = String(value || 'External AI').trim();
+    const lower = name.toLowerCase();
+    if (lower.includes('cursor')) return 'Cursor';
+    if (lower.includes('claude')) return 'Claude';
+    if (lower.includes('mistral')) return 'Mistral';
+    if (lower.includes('grok') || lower.includes('x.ai')) return 'Grok';
+    return name || 'External AI';
   }
 
   function handleProviderClick(event) {
@@ -217,6 +277,32 @@
     } catch (error) {
       console.error(error);
       toast(error?.message || 'Could not change AI');
+    }
+  }
+
+  async function handleExternalClientClick(event) {
+    const button = event.target.closest('[data-ai-access-revoke]');
+    if (!button) return;
+
+    const dialog = event.currentTarget.closest('dialog');
+    const bridge = loadBridges()[0];
+    const clientId = button.dataset.aiAccessRevoke;
+    const name = button.dataset.aiAccessClientName || 'this AI app';
+    if (!bridge || !clientId || !globalThis.MemoryBridge?.revokeExternalClient) return;
+    if (!confirm(`Disconnect ${name} from Memory Space? It will need your approval again before it can access memory.`)) return;
+
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Disconnecting…';
+    try {
+      const result = await globalThis.MemoryBridge.revokeExternalClient(bridge, clientId);
+      toast(result?.disconnected ? `${name} disconnected` : `${name} had no live access left`);
+      await renderExternalStatus(dialog);
+    } catch (error) {
+      console.error('Could not disconnect external AI:', error);
+      toast(error?.message || `Could not disconnect ${name}`);
+      button.disabled = false;
+      button.textContent = original;
     }
   }
 
