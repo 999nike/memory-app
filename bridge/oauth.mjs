@@ -191,6 +191,99 @@ export function createMemoryBridgeOAuth({
     }
   }
 
+  function clientNameFor(clientIdValue) {
+    const registration = dynamicClients.get(clientIdValue);
+    if (registration?.clientName) return registration.clientName;
+    if (clientIdValue === clientId) return 'Grok';
+    return 'External AI';
+  }
+
+  function listAuthorizedClients() {
+    cleanup();
+    const clients = new Map();
+
+    function touch(record, kind) {
+      if (!record?.clientId) return;
+      let item = clients.get(record.clientId);
+      if (!item) {
+        const registration = dynamicClients.get(record.clientId);
+        item = {
+          clientId: record.clientId,
+          clientName: clientNameFor(record.clientId),
+          applicationType: registration?.applicationType || 'web',
+          registeredAt: registration?.createdAt || null,
+          scopes: new Set(),
+          accessTokenActive: false,
+          refreshTokenActive: false,
+          accessExpiresAt: null,
+          refreshExpiresAt: null
+        };
+        clients.set(record.clientId, item);
+      }
+      for (const scope of String(record.scope || '').split(/\s+/).filter(Boolean)) item.scopes.add(scope);
+      if (kind === 'access') {
+        item.accessTokenActive = true;
+        item.accessExpiresAt = Math.max(item.accessExpiresAt || 0, Number(record.expiresAt || 0));
+      } else {
+        item.refreshTokenActive = true;
+        item.refreshExpiresAt = Math.max(item.refreshExpiresAt || 0, Number(record.expiresAt || 0));
+      }
+    }
+
+    for (const record of accessTokens.values()) touch(record, 'access');
+    for (const record of refreshTokens.values()) touch(record, 'refresh');
+
+    return [...clients.values()]
+      .map((item) => {
+        const scopes = [...item.scopes];
+        return {
+          clientId: item.clientId,
+          clientName: item.clientName,
+          applicationType: item.applicationType,
+          registeredAt: item.registeredAt,
+          scopes,
+          canRead: scopes.includes('memory.read'),
+          canPropose: scopes.includes('memory.propose'),
+          accessTokenActive: item.accessTokenActive,
+          refreshTokenActive: item.refreshTokenActive,
+          accessExpiresAt: item.accessExpiresAt,
+          refreshExpiresAt: item.refreshExpiresAt
+        };
+      })
+      .sort((a, b) => String(a.clientName).localeCompare(String(b.clientName)));
+  }
+
+  function revokeClient(clientIdValue) {
+    cleanup();
+    const requestedClientId = String(clientIdValue || '').trim();
+    if (!requestedClientId) throw new Error('clientId is required');
+
+    let revoked = 0;
+    for (const [code, item] of authorizationCodes) {
+      if (item.clientId !== requestedClientId) continue;
+      authorizationCodes.delete(code);
+      revoked += 1;
+    }
+    for (const [token, item] of accessTokens) {
+      if (item.clientId !== requestedClientId) continue;
+      accessTokens.delete(token);
+      revoked += 1;
+    }
+    for (const [token, item] of refreshTokens) {
+      if (item.clientId !== requestedClientId) continue;
+      refreshTokens.delete(token);
+      revoked += 1;
+    }
+
+    log('client revoked', `client=${requestedClientId} credentials=${revoked}`);
+    return {
+      clientId: requestedClientId,
+      clientName: clientNameFor(requestedClientId),
+      revokedCredentials: revoked,
+      disconnected: revoked > 0
+    };
+  }
+
   function validateAuthorizeParams(params) {
     const responseType = params.get('response_type');
     const requestedClientId = params.get('client_id');
@@ -513,6 +606,8 @@ export function createMemoryBridgeOAuth({
     registrationEndpoint: `${issuer}/register`,
     protectedResourceMetadata: `${issuer}/.well-known/oauth-protected-resource/mcp`,
     isAuthorized,
+    listAuthorizedClients,
+    revokeClient,
     handle,
     challengeHeaders: {
       'WWW-Authenticate': `Bearer resource_metadata="${issuer}/.well-known/oauth-protected-resource/mcp"`
