@@ -115,6 +115,61 @@ This does not mean the entire V1 loop is complete. The external-AI proposal/revi
 
 One issue was found and remains open: the first manually created memory (`My name`) was automatically classified as **Critical + Locked**. That default/classification behaviour must be corrected before calling the whole onboarding experience finished.
 
+## MAJOR MILESTONE — Claude reauthorisation after autostart exposes future-provider callback rule
+
+On **8 Aug 2026**, Claude was reauthorised successfully after the new Windows autostart/runtime setup exposed a configuration gap that could also affect future AI providers.
+
+The visible symptom was that Claude still appeared as a previously connected AI, but clicking **Reconnect** failed before Claude's authorization screen opened. The bridge log proved the complete chain:
+
+```text
+old Claude refresh token attempted
+    -> refresh rejected as invalid or expired
+    -> Claude correctly attempted fresh Dynamic Client Registration
+    -> registration rejected: One or more OAuth redirect_uris are not allowed
+```
+
+The bridge itself, the packaged `MSB1.` customer connection, workspace publication and OAuth-state file were all present and working. The blocker was narrower: the installed runtime's `oauthRedirectHosts` allowed:
+
+```text
+grok.com,x.ai,chatgpt.com,openai.com
+```
+
+but omitted `claude.ai`. Existing grants and restored state had hidden that omission until Claude needed a completely fresh registration. This is why an AI can look connected after a restart yet fail later during reauthorisation.
+
+The running HP configuration and the Windows autostart installer fallback were updated to include `claude.ai`.
+
+Important commit:
+
+- `e53ff7` — preserve Claude callback support in Windows autostart configuration
+
+After restarting only the scheduled **Memory Space Bridge** task:
+
+- Claude reached the bridge authorization screen
+- the saved 64-character bridge pairing token was accepted
+- Claude connected again successfully
+- Memory Space showed ChatGPT, Claude and Grok authorised
+- the same restored state was visible from both the phone and PC views
+- Mistral remained the only previously proven provider still awaiting reauthorisation in this specific post-autostart check
+
+**Rule for every future AI integration:** do not treat a successful first connection or a restored-looking grant as sufficient. Record the provider's exact OAuth redirect URI/hostname during DCR testing, preserve it in both the installer default and the installed runtime configuration, then test all of:
+
+1. first authorization
+2. access-token use
+3. refresh-token rotation/use
+4. bridge restart
+5. expired/invalid refresh-token fallback to fresh DCR
+6. visible reconnection from each supported app/device view
+
+When a future provider reports `One or more OAuth redirect_uris are not allowed`, inspect the bridge's DCR log and the provider's exact registered callback before patching. Add only the required HTTPS hostname or exact callback URI; do not disable redirect validation or use a wildcard.
+
+Security distinction:
+
+- `MSB1.` Private Access Code — packages bridge details for the normal Memory Space connection flow
+- 64-character bridge pairing token — used on the bridge's OAuth authorization screen
+- OAuth redirect-host allow-list — server policy controlling which external AI callbacks may dynamically register
+
+These three values have separate jobs and must not be substituted for one another.
+
 ## MAJOR MILESTONE — ChatGPT completes OAuth/DCR connection; Plus account does not expose MCP actions
 
 On **8 Aug 2026**, ChatGPT was added as a custom Memory Space connector using the same public MCP endpoint as the other external clients:
