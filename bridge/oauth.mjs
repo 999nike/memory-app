@@ -5,6 +5,11 @@ const CODE_TTL_MS = 5 * 60 * 1000;
 const TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DCR_MAX_CLIENTS = 64;
+const CURSOR_REDIRECT_URIS = new Set([
+  'cursor://anysphere.cursor-mcp/oauth/callback',
+  'https://www.cursor.com/agents/mcp/oauth/callback',
+  'http://localhost:8787/callback'
+]);
 
 export function createMemoryBridgeOAuth({
   publicUrl,
@@ -97,7 +102,7 @@ export function createMemoryBridgeOAuth({
     return text ? JSON.parse(text) : {};
   }
 
-  function redirectUriAllowed(value) {
+  function hostRedirectUriAllowed(value) {
     try {
       const url = new URL(String(value || ''));
       if (url.protocol !== 'https:') return false;
@@ -107,6 +112,11 @@ export function createMemoryBridgeOAuth({
     }
   }
 
+  function dynamicRedirectUriAllowed(value) {
+    const redirectUri = String(value || '');
+    return CURSOR_REDIRECT_URIS.has(redirectUri) || hostRedirectUriAllowed(redirectUri);
+  }
+
   function normalizeScope(value) {
     const requested = String(value || '').split(/\s+/).filter(Boolean);
     const scopes = requested.length ? requested : DEFAULT_SCOPES;
@@ -114,7 +124,7 @@ export function createMemoryBridgeOAuth({
   }
 
   function registeredRedirectAllowed(requestedClientId, redirectUri) {
-    if (requestedClientId === clientId) return redirectUriAllowed(redirectUri);
+    if (requestedClientId === clientId) return hostRedirectUriAllowed(redirectUri);
     const registration = dynamicClients.get(requestedClientId);
     return Boolean(registration && registration.redirectUris.includes(String(redirectUri || '')));
   }
@@ -133,7 +143,7 @@ export function createMemoryBridgeOAuth({
       ? [...new Set(body.redirect_uris.map((value) => String(value || '').trim()).filter(Boolean))]
       : [];
     if (!redirectUris.length) throw new Error('redirect_uris is required');
-    if (!redirectUris.every(redirectUriAllowed)) {
+    if (!redirectUris.every(dynamicRedirectUriAllowed)) {
       throw new Error('One or more OAuth redirect_uris are not allowed');
     }
 
