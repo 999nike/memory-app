@@ -12,10 +12,10 @@ Memory App / Memory Space
         v
 Memory Bridge
         |
-        +-- Grok       VERIFIED
-        +-- Mistral    VERIFIED
-        +-- Claude     VERIFIED
-        +-- Cursor     next target
+        +-- Grok       VERIFIED FULL LOOP
+        +-- Mistral    VERIFIED FULL LOOP
+        +-- Claude     VERIFIED FULL LOOP
+        +-- Cursor     CONNECTED / READ VERIFIED
         +-- ChatGPT
         +-- Gemini
         +-- local models
@@ -32,6 +32,101 @@ The bigger architecture is deliberately broader than memory alone: Memory Space 
 # Living project ledger — 8 Aug 2026
 
 This section is the handoff point for the next development chat. Read this before changing code. Keep it factual: build first, update the ledger after meaningful milestones.
+
+## CURRENT PRODUCT GOAL — V1 normal-user loop
+
+Provider interoperability is proven strongly enough. The next milestone is productisation, not adding more providers.
+
+**V1 passes when a completely non-technical person can open Memory Space for the first time and, without developer help:**
+
+1. create a Space
+2. add some memory
+3. connect one supported AI
+4. ask that AI something using the Space
+5. receive a memory proposal
+6. approve, edit or reject it
+7. disconnect/revoke the AI
+8. close the app
+9. return later and find their workspace intact
+
+The normal user must not need to see or understand MCP URLs, OAuth/PKCE/DCR terminology, pairing tokens, bearer tokens, Node, PowerShell, Cloudflare Tunnel details or raw bridge diagnostics.
+
+Target experience:
+
+```text
+Open Memory Space
+    -> Create Space
+    -> Add first memory
+    -> Connect AI
+    -> Authorize
+    -> Connected
+    -> Use AI
+    -> Review proposal
+    -> Approve / Edit / Reject
+    -> Disconnect when wanted
+```
+
+The detailed V1 checklist is tracked in `V1_PRODUCT_GOAL.md`.
+
+### V1 implementation started — first-run onboarding
+
+The first productisation slice is now defined as:
+
+- a fresh browser must not receive the project's seeded developer memories
+- create a blank private first Space instead
+- show a plain-language welcome screen
+- let the user name the Space and optionally describe its purpose
+- explain only the user-facing trust rules: stored on this device, user approves lasting changes, AI can be connected later
+- resume incomplete onboarding after refresh
+- never show this onboarding over an existing stored workspace
+- after setup, land on an empty-state action that says `Add first memory`
+
+This slice deliberately does **not** redesign the provider/OAuth path in the same patch. The next product slice is the normal-user **AI Access** surface.
+
+## MAJOR MILESTONE — Cursor connects through the generic MCP bridge
+
+On **8 Aug 2026**, Cursor became the first IDE/coding-agent client verified against the same Memory Space MCP bridge used by the hosted chat providers.
+
+Initial Cursor DCR failed with:
+
+`One or more OAuth redirect_uris are not allowed`
+
+Cursor registered multiple callback forms. The bridge was updated to accept only Cursor's exact known callback URIs for dynamic clients while leaving the fixed Grok redirect policy unchanged.
+
+Important commit:
+
+- `39dd50b6` — allow Cursor OAuth callbacks for MCP DCR
+
+After OAuth completed, Cursor connected but repeatedly treated the transport as dead because it opened `GET /mcp` and the bridge returned the generic 404. The bridge's existing MCP implementation is POST-based Streamable HTTP and does not provide a standalone SSE stream. The unsupported GET was corrected to return `405 Method Not Allowed` with `Allow: POST` instead of 404.
+
+Important commit:
+
+- `b9bde9b0` — return 405 for unsupported MCP SSE GET
+
+After that transport fix, Cursor showed:
+
+- green `Connected` state
+- **7 tools enabled**
+- successful OAuth token exchange
+- successful Streamable HTTP connection
+
+Cursor then used Memory Space directly and returned the real current shared workspace:
+
+- active Space: `Memory App`
+- exact memory count: **10**
+- all 10 current confirmed memory titles were read successfully
+
+This proves an IDE/coding-agent environment can consume the same user-owned Memory Space without rebuilding project context manually.
+
+Cursor did **not** complete the final proposal -> human approval -> read-back test in that session because the Cursor account hit its Agent usage limit immediately after the successful read. That remaining read-back is a useful regression test later, but it is no longer a blocker for productisation because the connection, OAuth, tool discovery and real Memory Space read are verified.
+
+**Current provider status:**
+
+- Grok — full loop verified
+- Mistral — full loop verified
+- Claude — full loop verified
+- Cursor — OAuth/DCR + 7 tools + real Memory Space read verified
+- Cross-provider portability — human-approved memory proposed through one provider and read by another verified
 
 ## MAJOR MILESTONE — Claude becomes third full-loop provider
 
@@ -235,6 +330,8 @@ Important commits:
 
 - `8d46c3c` — add OAuth dynamic client registration for MCP
 - `f68165eb` — support OAuth refresh tokens for MCP clients
+- `39dd50b6` — allow Cursor OAuth callbacks for MCP DCR
+- `b9bde9b0` — return 405 for unsupported MCP SSE GET
 
 Current DCR/OAuth behaviour:
 
@@ -246,23 +343,26 @@ Current DCR/OAuth behaviour:
 - optional `refresh_token` grant for clients that register for it
 - `token_endpoint_auth_method=none`
 - registered redirect URI must match exactly at authorization time
-- redirect hosts remain allow-listed by bridge configuration
+- normal HTTPS redirect hosts remain allow-listed by bridge configuration
+- exact Cursor DCR callback URIs are accepted for dynamic clients
 - access tokens, refresh tokens and dynamic registrations are RAM-only
 - refresh tokens rotate on use
 - bridge restart clears OAuth runtime state
 - legacy fixed Grok client remains supported
+- unsupported standalone `GET /mcp` returns 405 rather than being misclassified as a missing route
 
-Mistral successfully validated the original DCR path. Claude then exposed and validated the refresh-token extension in a second independent DCR implementation.
+Mistral successfully validated the original DCR path. Claude then exposed and validated the refresh-token extension in a second independent DCR implementation. Cursor then exposed and validated callback-set and Streamable HTTP GET compatibility.
 
 ## Current state
 
-The core product is now beyond a single-provider proof of concept and has been exercised by three independent hosted AI clients.
+The core product is now beyond a single-provider proof of concept and has been exercised by three full-loop hosted AI clients plus an independent IDE/coding-agent client.
 
 **Verified external providers:**
 
 - Grok — read, propose, human approve, re-share, read-back verified
 - Mistral — OAuth/DCR connection, read, propose, human approve, changed-state read-back verified
 - Claude — OAuth/DCR + refresh-token compatibility, read, propose, human approve, re-share, read-back verified
+- Cursor — OAuth/DCR connection, 7 MCP tools discovered, exact 10-memory current Space read verified
 - Cross-provider portability — Mistral-created/human-approved memory read back by Grok verified
 
 The current shared `Memory App` state after the Claude loop contains **10 confirmed memories**.
@@ -284,6 +384,15 @@ The phone has successfully:
 - proved that independent providers see the same changed state
 - reached **10 confirmed memories** after the Claude full-loop proof
 
+Cursor has successfully:
+
+- completed OAuth/DCR against the public bridge
+- discovered all 7 MCP tools
+- connected over Streamable HTTP
+- called the real Memory Space tools
+- reported the exact active Space and `memoryCount: 10`
+- read the exact current confirmed memory titles
+
 The bridge self-test reports:
 
 `MCP verified · 7 tools · shared workspace readable · 2026-07-28`
@@ -298,7 +407,7 @@ The bridge self-test reports:
              Phone / Browser Memory App
              durable local source of truth
                        |
-                       | explicit Share
+                       | explicit Share (proof flow today)
                        v
              Cloudflare HTTPS route
                        |
@@ -312,22 +421,21 @@ The bridge self-test reports:
           |                          |
           +------------+-------------+
                        |
-             +---------+---------+---------+
-             |                   |         |
-             v                   v         v
-           Grok                Mistral   Claude
-          VERIFIED             VERIFIED  VERIFIED
+             +---------+---------+---------+---------+
+             |                   |         |         |
+             v                   v         v         v
+           Grok                Mistral   Claude    Cursor
+        FULL LOOP            FULL LOOP FULL LOOP   READ VERIFIED
                        |
                        v
              future MCP clients
-             Cursor / others
 ```
 
 Important distinction:
 
 - Browser storage is the durable workspace.
 - The bridge does **not** persist the shared workspace to disk.
-- Share is explicit.
+- Share is explicit in the current proof implementation; V1 should hide this infrastructure chore behind normal permission/state-sync behaviour.
 - Only current confirmed memories are published as trusted current memory.
 - Archived/superseded history does not silently re-enter current context.
 - External AI changes are proposals only; approval remains human-controlled.
@@ -395,21 +503,17 @@ The verified rule remains:
 
 **External AIs can suggest durable state. They cannot silently make themselves the source of truth.**
 
-## Next provider test — Cursor
+## Provider-expansion phase is closed for V1
 
-The hosted-provider proof is now strong enough: **Grok, Mistral and Claude** have all used the same Memory Space contract, and all three have completed full human-controlled loops.
+The interoperability proof is now sufficient:
 
-The next useful compatibility target is:
+- three independent hosted AIs have completed full human-controlled loops
+- cross-provider read-back is proven
+- Cursor proves an IDE/coding-agent can consume the same user-owned Memory Space through the same contract
 
-1. **Cursor** — prove an IDE/coding agent can consume project memory through the same Memory Space rather than receiving a manually rebuilt prompt.
+Do not spend V1 time chasing provider count. New provider tests are compatibility/regression work only when they materially help the normal-user product.
 
-After Cursor, stop chasing provider count for its own sake. The higher-value work becomes productisation: installer/startup reliability, AI-access UX, permission enforcement, secret handling, clearer status/re-auth flows and a normal-user setup path.
-
-## ChatGPT test status
-
-ChatGPT remains one compatibility target, not the architecture.
-
-The visible product UI previously did not expose a straightforward custom remote MCP control for this account. Do not redesign Memory Bridge around any single provider's current UI. Keep the generic MCP contract stable and retest providers as their product surfaces change.
+ChatGPT remains one compatibility target, not the architecture. The visible product UI previously did not expose a straightforward custom remote MCP control for this account. Do not redesign Memory Bridge around any single provider's current UI.
 
 ## Context selection now implemented
 
@@ -506,6 +610,8 @@ Desktop target is roughly **65% Memory / 35% AI**, with the AI pane sticky while
 - `8d46c3c` — add OAuth dynamic client registration for MCP
 - `57e5a95f` — record multi-provider portability and workspace vision
 - `f68165eb` — support OAuth refresh tokens for MCP clients
+- `39dd50b6` — allow Cursor OAuth callbacks for MCP DCR
+- `b9bde9b0` — return 405 for unsupported MCP SSE GET
 
 ## Regression / debugging notes
 
@@ -517,13 +623,19 @@ If Shared Chat ever disappears again, inspect startup JavaScript before assuming
 
 If OAuth reaches `consent approved` but never logs `token request`, inspect the browser callback/redirect boundary rather than the pairing token first.
 
-A bridge restart clears the current RAM-only OAuth grants, refresh tokens, dynamic client registrations and shared workspace state. External providers may therefore show `Auth required` until the user re-authenticates and the workspace is explicitly shared again. This behaviour was observed and successfully recovered with Grok during the Mistral portability test.
+A bridge restart clears the current RAM-only OAuth grants, refresh tokens, dynamic client registrations and shared workspace state. External providers may therefore show `Auth required` until the user re-authenticates and the workspace is explicitly shared again. This behaviour was observed and successfully recovered with Grok during the Mistral portability test and again during Cursor compatibility testing.
 
 Claude initially failed at DCR with:
 
 `[oauth] registration rejected Only authorization_code grant type is supported`
 
 That failure identified that Claude registered for `refresh_token` in addition to `authorization_code`. The generic bridge OAuth implementation was then extended in `f68165eb`, after which Claude registered and connected successfully. If another client fails at `/register`, inspect the exact DCR metadata before introducing provider-specific code.
+
+Cursor initially failed at DCR with:
+
+`One or more OAuth redirect_uris are not allowed`
+
+After exact Cursor callback compatibility was added, OAuth succeeded. Cursor then exposed a second transport issue where repeated `GET /mcp` 404 responses caused Cursor to tombstone the Streamable HTTP transport. Returning 405 for unsupported standalone SSE GET fixed that compatibility boundary. Future Streamable HTTP clients that initialize successfully and then fail on session/stream handling should be checked against the precise HTTP method/status requirements before adding a new transport implementation.
 
 ## HP / Cloudflare runtime
 
@@ -538,7 +650,7 @@ Current first bridge machine is the HP Windows server.
 - Media route remains separate: `media.w-i-z-z-lab-studios.com -> 127.0.0.1:8081`
 - Model currently used: `gemma3:1b`
 
-The bridge server is currently started manually with Node from PowerShell. Ollama/bridge persistence across reboot is still future work.
+The bridge server is currently started manually with Node from PowerShell. Ollama/bridge persistence across reboot is still V1 productisation work.
 
 After bridge server code changes on GitHub, the HP clone needs `git pull` and the Node bridge process must be restarted. Pure frontend/Vercel patches do not require an HP restart.
 
@@ -601,7 +713,7 @@ Memory App is not ordinary hidden chatbot memory and it is not a dump of every c
 
 The experience should feel like every authorised AI is entering the **same room**, rather than forcing the user to rebuild that room for each model provider.
 
-The current Grok + Mistral + Claude proof demonstrates that this room persists while the AI changes.
+The current Grok + Mistral + Claude + Cursor proof demonstrates that this room persists while the AI changes.
 
 ## Memory layers
 
@@ -779,36 +891,52 @@ The stable layer is the workspace, not any individual model.
 
 ---
 
-# Roadmap after the multi-provider proof
+# V1 roadmap — normal-user productisation
 
-1. Connect and verify **Cursor** or another coding/IDE client using the same project memory.
-2. Then stop expanding provider count temporarily and focus on productisation.
-3. Make HP Ollama + Memory Bridge persistent across reboot.
-4. Rotate exposed development pairing credentials and tighten operational secret handling.
-5. Enforce OAuth scopes at individual MCP tool boundaries.
-6. Add a simple user-facing **AI Access** view: provider, Space, Read, Propose, Revoke.
-7. Replace developer-facing setup language with `Connect AI -> Authorize -> Connected` for normal users.
-8. Hide bridge URLs, tokens, DCR/OAuth details and MCP diagnostics behind Advanced/Developer controls.
-9. Add contradiction detection and explicit supersede proposals.
-10. Improve history/timeline and archive UX.
-11. Harden durable storage toward IndexedDB/versioned exports.
-12. Package local/private mode so normal users do not need Node, PowerShell, Cloudflare or manual token handling.
-13. Only after the core product is reliable, prototype Code Space / task-scoped sandboxes using the same permission model.
-14. Semantic/vector retrieval only when deterministic/full-text retrieval demonstrates a real limitation.
+1. **First-run onboarding** — fresh browser creates a blank user Space instead of loading developer seed data; plain-language onboarding; existing workspaces untouched.
+2. **First memory** — reduce the main add-memory action to the fields a normal person actually needs; keep classification/provenance available without making them mandatory concepts.
+3. **AI Access** — one user-facing view showing provider, Space, Read, Propose and Revoke.
+4. **Three-click connection** — `Connect AI -> Authorize -> Connected` with URLs/tokens/MCP/OAuth details hidden from normal users.
+5. **Automatic authorised sharing** — remove the manual `Share` infrastructure chore from the normal flow while preserving explicit permission boundaries.
+6. **Proposal notification/review** — remove manual `Pull`; surface new AI proposals automatically and keep Approve / Edit / Reject human-controlled.
+7. **Real revoke** — disconnect invalidates access, not just UI state.
+8. **Runtime persistence** — make HP Ollama + Memory Bridge survive reboot/restart without PowerShell intervention and express failures as simple reconnect/status states.
+9. **Secret hardening** — rotate exposed development pairing credentials and remove operational secrets from screenshots/setup paths.
+10. **Scope enforcement** — enforce `memory.read` and `memory.propose` at individual MCP tool boundaries.
+11. **Durable storage hardening** — move toward IndexedDB/versioned migrations plus trustworthy export/import/recovery before people rely on years of memory.
+12. **Stranger test** — give a non-technical person only the app URL and ask them to make an AI memory and connect their AI; fix every place they need developer help.
+13. **Only after V1 works**, return to contradiction detection, explicit supersede proposals, richer timeline/archive UX and large-memory housekeeping.
+14. Keep Code Space, GitHub/repo access, banking and other capability integrations as bolt-ons rather than mixing them into the Memory core.
 
 ## Productisation target
 
-The normal-user path should eventually be approximately:
+The normal-user path should be approximately:
 
 ```text
-Install
+Open
   -> Create Space
+  -> Add memory
   -> Connect AI
-  -> Authorize what it can access
+  -> Authorize
   -> Connected
+  -> Review AI proposals
 ```
 
 A non-technical user should not need to understand MCP, OAuth, Cloudflare, Node, PowerShell or long bearer tokens to get the core benefit.
+
+## Future large-memory housekeeping — banked, not V1
+
+At hundreds or thousands of memories, the user should not become a manual database administrator.
+
+A future AI memory librarian can **propose** housekeeping such as:
+
+- duplicate memories to merge
+- old decisions that appear superseded
+- contradictions that need human resolution
+- stale material to archive
+- related memories to group
+
+The AI prepares the tidy-up. The human approves, edits or rejects it. Durable truth must not be silently rewritten.
 
 ---
 

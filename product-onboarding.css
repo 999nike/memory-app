@@ -1,0 +1,135 @@
+.product-onboarding-dialog {
+  width: min(560px, calc(100% - 28px));
+  border: 1px solid var(--line-strong);
+  border-radius: 24px;
+  padding: 0;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.product-onboarding-dialog::backdrop {
+  background: rgb(0 0 0 / 0.82);
+  backdrop-filter: blur(10px);
+}
+
+.product-onboarding-card {
+  padding: clamp(24px, 5vw, 38px);
+  display: grid;
+  gap: 18px;
+}
+
+.product-onboarding-mark {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.15rem;
+  font-weight: 950;
+  box-shadow: 0 0 34px rgb(199 255 86 / 0.2);
+}
+
+.product-onboarding-kicker {
+  margin: 4px 0 -10px;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.product-onboarding-card h1 {
+  margin: 0;
+  max-width: 470px;
+  font-size: clamp(1.8rem, 6vw, 2.65rem);
+  line-height: 1.02;
+  letter-spacing: -0.045em;
+}
+
+.product-onboarding-copy {
+  margin: -4px 0 0;
+  color: var(--soft);
+  line-height: 1.6;
+}
+
+.product-onboarding-points {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.025);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.product-onboarding-points span::before {
+  content: '✓';
+  margin-right: 9px;
+  color: var(--accent);
+  font-weight: 900;
+}
+
+.product-onboarding-card label {
+  display: grid;
+  gap: 8px;
+  color: var(--soft);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.product-onboarding-card label small {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.product-onboarding-card input,
+.product-onboarding-card textarea {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  outline: 0;
+  background: var(--bg);
+  color: var(--text);
+  padding: 12px 13px;
+  resize: vertical;
+}
+
+.product-onboarding-card input:focus,
+.product-onboarding-card textarea:focus {
+  border-color: rgb(199 255 86 / 0.68);
+  box-shadow: 0 0 0 3px rgb(199 255 86 / 0.08);
+}
+
+.product-onboarding-submit {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 2px;
+}
+
+.product-onboarding-footnote {
+  margin: -6px 0 0;
+  color: var(--muted);
+  text-align: center;
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .product-onboarding-dialog {
+    width: calc(100% - 20px);
+    max-height: calc(100dvh - 20px);
+  }
+
+  .product-onboarding-card {
+    padding: 22px 20px;
+    gap: 15px;
+  }
+
+  .product-onboarding-card h1 {
+    font-size: clamp(1.65rem, 9vw, 2.2rem);
+  }
+}

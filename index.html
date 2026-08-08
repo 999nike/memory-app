@@ -8,6 +8,7 @@
   <title>Memory Space</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./product-onboarding.css?v=1">
   <link rel="stylesheet" href="./phase2.css?v=8">
   <link rel="stylesheet" href="./memory-lifecycle.css?v=1">
   <link rel="stylesheet" href="./provider-connections.css?v=1">
@@ -96,9 +97,9 @@
         <div id="memoryGrid" class="memory-grid"></div>
         <div id="emptyState" class="empty-state" hidden>
           <div class="empty-icon" aria-hidden="true">◇</div>
-          <h3>No memories found</h3>
-          <p>Add the first memory or change the current filter.</p>
-          <button class="primary-button" id="emptyAddButton">Add memory</button>
+          <h3>Your Space is ready</h3>
+          <p>Add something you would like your AI to remember.</p>
+          <button class="primary-button" id="emptyAddButton">Add first memory</button>
         </div>
       </section>
     </main>
@@ -217,6 +218,7 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+  <script src="./product-onboarding.js?v=1" defer></script>
   <script src="./app.js" defer></script>
   <script src="./memory-lifecycle.js?v=2" defer></script>
   <script src="./local-ai.js?v=6" defer></script>

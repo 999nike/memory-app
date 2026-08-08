@@ -1,0 +1,151 @@
+# V1 Product Goal
+
+This file defines the current productisation target for Memory Space. It is deliberately narrower than the long-term roadmap.
+
+## Acceptance test
+
+A completely non-technical person should be able to open Memory Space for the first time and, without developer help:
+
+1. create a Space
+2. add a memory
+3. connect one supported AI
+4. ask that AI something using the Space
+5. receive a memory proposal
+6. approve, edit or reject it
+7. disconnect/revoke the AI
+8. close the app
+9. return later and find their workspace intact
+
+They should not need to see or understand:
+
+- MCP URLs
+- OAuth / PKCE / DCR terminology
+- pairing tokens
+- bearer tokens
+- Node / PowerShell
+- Cloudflare Tunnel details
+- raw bridge diagnostics
+
+The intended normal-user path is:
+
+```text
+Open Memory Space
+    -> Create Space
+    -> Add first memory
+    -> Connect AI
+    -> Authorize
+    -> Connected
+    -> Use AI
+    -> Review proposal
+    -> Approve / Edit / Reject
+    -> Disconnect when wanted
+```
+
+## Current proof behind V1
+
+The interoperability layer is already proven strongly enough to stop chasing provider count:
+
+- Grok — full read -> propose -> human approval -> read-back loop verified
+- Mistral — full loop verified
+- Claude — full loop verified
+- Cursor — OAuth/DCR connected, 7 tools discovered, real 10-memory Space read verified
+- cross-provider portability — one AI's human-approved memory was read by another provider
+
+Cursor's final proposal/read-back proof remains a useful regression test, but is not a blocker for beginning productisation; its read session ended because the Cursor account hit its Agent usage limit, not because Memory Space failed.
+
+## V1 work order
+
+### 1. First-run experience
+
+- fresh browser must not receive developer/sample project memories
+- show a plain-language welcome screen
+- create a blank first Space
+- explain the three trust rules in normal language
+- incomplete onboarding must resume after refresh
+- existing workspaces must not be modified
+
+### 2. Add memory
+
+- make the first memory obvious
+- keep title + content as the primary action
+- move classification/provenance controls out of the way unless needed
+- confirmation should be immediate and visible
+
+### 3. AI Access
+
+Build one normal-user control surface:
+
+```text
+AI Access
+
+Claude    Connected    Read ✓   Propose ✓   Revoke
+Grok      Not connected                  Connect
+Cursor    Connected    Read ✓   Propose ✓   Revoke
+```
+
+Normal user language:
+
+```text
+Connect AI -> Authorize -> Connected
+```
+
+Developer details remain available only under Advanced / Developer.
+
+### 4. Remove manual bridge chores from the core loop
+
+Today the proof flow exposes Share, Pull, bridge pairing and restart behaviour. V1 should turn this into product behaviour:
+
+- authorised current confirmed state is refreshed without requiring the user to understand `Share`
+- new external proposals surface automatically or through an obvious notification
+- the user reviews proposals rather than manually `Pull`ing them
+- re-authentication is expressed as `Reconnect`, not as an OAuth diagnostic
+
+### 5. Revoke correctly
+
+Disconnect must invalidate the provider's access, not merely hide a UI card.
+
+Permissions remain per Space and eventually enforce `memory.read` and `memory.propose` at individual MCP tool boundaries.
+
+### 6. Persistence and recovery
+
+A normal user must be able to leave and come back.
+
+Required:
+
+- browser workspace survives normal close/reopen
+- versioned export/import remains reliable
+- bridge runtime becomes persistent/recoverable without PowerShell
+- production path moves toward IndexedDB/versioned migrations before users trust it with years of data
+
+### 7. Stranger test
+
+Give a new person only the app URL and this instruction:
+
+> Make yourself an AI memory and connect your AI to it.
+
+Do not explain the interface. Every question they need to ask exposes a remaining product problem.
+
+## Explicitly postponed
+
+Do not distract V1 with:
+
+- more providers for provider-count's sake
+- Code Space / repo access
+- banking integrations
+- autonomous memory rewriting
+- vector search unless current retrieval demonstrates a real limitation
+- large-scale AI memory housekeeping
+
+Those remain future bolt-ons or V2+ work.
+
+## Future large-memory direction
+
+When Spaces reach hundreds or thousands of memories, organisation should not become a manual filing job. A future Memory Librarian may suggest:
+
+- duplicates to merge
+- older decisions superseded by newer decisions
+- contradictions needing review
+- inactive material to archive
+- related memories to group
+
+The AI may prepare housekeeping, but the human remains the approval boundary. It must not silently rewrite durable truth.
