@@ -50,6 +50,7 @@ The interoperability layer is already proven strongly enough to stop chasing pro
 - Claude — full loop verified
 - Cursor — OAuth/DCR connected, 7 tools discovered, real 10-memory Space read verified
 - cross-provider portability — one AI's human-approved memory was read by another provider
+- **8 Aug 2026 automatic V1 loop proof** — Grok received the current Space without manual Share, proposed `V1 automatic inbox test`, Memory Space surfaced it without manual Check/Pull, the human approved it, automatic sync republished the confirmed state, and Grok read the approved memory back as `status: confirmed`
 
 Cursor's final proposal/read-back proof remains a useful regression test, but is not a blocker for beginning productisation; its read session ended because the Cursor account hit its Agent usage limit, not because Memory Space failed.
 
@@ -98,7 +99,7 @@ Developer details remain available only under Advanced / Developer.
 
 ### 4. Remove manual bridge chores from the core loop
 
-Status: **automatic authorised-space sync and automatic external proposal inbox are now wired in the browser build.**
+Status: **implemented and end-to-end verified with Grok.**
 
 The product no longer needs the user to understand `Share` or manually press `Check proposals` in the normal flow:
 
@@ -108,6 +109,7 @@ The product no longer needs the user to understand `Share` or manually press `Ch
 - returning to the app forces a refresh, which also removes the small stale AI Access state seen after external authorization
 - the External AI inbox checks the bridge automatically and surfaces new proposals for human review
 - proposal approval remains a human action; automatic sync does not auto-approve durable memory
+- verified round trip: external proposal -> automatic inbox -> human Approve -> automatic republish -> same external AI reads the memory back as confirmed
 
 The old Share/Pull controls may remain under Advanced as diagnostics/fallback while V1 stabilises, but they are no longer intended as customer workflow.
 
