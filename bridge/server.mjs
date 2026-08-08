@@ -549,6 +549,14 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === 'GET' && req.url === '/mcp') {
+      sendJson(res, 405, { error: 'Standalone SSE stream is not supported; use POST /mcp' }, origin, {
+        Allow: 'POST',
+        'MCP-Protocol-Version': MCP_VERSION
+      });
+      return;
+    }
+
     if (req.method === 'POST' && req.url === '/mcp') {
       const body = await readBody(req);
       const response = handleMcp(body);
