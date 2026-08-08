@@ -3,6 +3,7 @@ name: Customer isolation test
 on:
   push:
     branches:
+      - main
       - customer-isolation-v1
   workflow_dispatch:
 
