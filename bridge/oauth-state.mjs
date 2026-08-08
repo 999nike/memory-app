@@ -97,7 +97,7 @@ function activeTokenEntries(value) {
 
 export function createPersistentOAuthState({ issuer, pairingToken, clientId }) {
   const stateFile = resolveStateFile();
-  let restored = { dynamicClients: [], accessTokens: [], refreshTokens: [] };
+  let restored = { dynamicClients: [], accessTokens: [], refreshTokens: [], connections: [] };
 
   try {
     if (fs.existsSync(stateFile)) {
@@ -109,10 +109,11 @@ export function createPersistentOAuthState({ issuer, pairingToken, clientId }) {
       restored = {
         dynamicClients: validEntries(payload.dynamicClients),
         accessTokens: activeTokenEntries(payload.accessTokens),
-        refreshTokens: activeTokenEntries(payload.refreshTokens)
+        refreshTokens: activeTokenEntries(payload.refreshTokens),
+        connections: validEntries(payload.connections)
       };
       console.log(
-        `[oauth] state restored clients=${restored.dynamicClients.length} access=${restored.accessTokens.length} refresh=${restored.refreshTokens.length}`
+        `[oauth] state restored clients=${restored.dynamicClients.length} access=${restored.accessTokens.length} refresh=${restored.refreshTokens.length} connections=${restored.connections.length}`
       );
     }
   } catch (error) {
@@ -123,6 +124,7 @@ export function createPersistentOAuthState({ issuer, pairingToken, clientId }) {
   let dynamicClients;
   let accessTokens;
   let refreshTokens;
+  let connections;
 
   function saveNow() {
     try {
@@ -133,7 +135,8 @@ export function createPersistentOAuthState({ issuer, pairingToken, clientId }) {
         savedAt: new Date().toISOString(),
         dynamicClients: [...dynamicClients.entries()],
         accessTokens: [...accessTokens.entries()],
-        refreshTokens: [...refreshTokens.entries()]
+        refreshTokens: [...refreshTokens.entries()],
+        connections: [...connections.entries()]
       };
       const envelope = encryptPayload(payload, pairingToken);
       fs.mkdirSync(path.dirname(stateFile), { recursive: true });
@@ -158,12 +161,14 @@ export function createPersistentOAuthState({ issuer, pairingToken, clientId }) {
   dynamicClients = new PersistedMap(restored.dynamicClients, scheduleSave);
   accessTokens = new PersistedMap(restored.accessTokens, scheduleSave);
   refreshTokens = new PersistedMap(restored.refreshTokens, scheduleSave);
+  connections = new PersistedMap(restored.connections, scheduleSave);
 
   return Object.freeze({
     stateFile,
     dynamicClients,
     accessTokens,
     refreshTokens,
+    connections,
     flush: saveNow
   });
 }
