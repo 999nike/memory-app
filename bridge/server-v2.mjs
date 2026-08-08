@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Readable } from 'node:stream';
 import { createMemoryBridgeOAuth } from './oauth.mjs';
 import { createConnectionState } from './connection-state.mjs';
 import { createWorkspaceRuntime, MCP_VERSION } from './workspace-runtime.mjs';
@@ -162,6 +163,37 @@ function oauthPath(suffix) {
     || suffix === '/.well-known/oauth-authorization-server';
 }
 
+function connectionIdFromAccessCode(value) {
+  const text = String(value || '').trim();
+  if (!text.startsWith('MSB2.')) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(text.slice(5), 'base64url').toString('utf8'));
+    const connectionId = String(payload?.connectionId || '');
+    return connections.verify(connectionId, text) ? connectionId : null;
+  } catch {
+    return null;
+  }
+}
+
+function replayRequest(req, bodyText, temporaryUrl) {
+  const replay = Readable.from([Buffer.from(bodyText, 'utf8')]);
+  replay.method = req.method;
+  replay.url = temporaryUrl;
+  replay.headers = { ...req.headers, 'content-length': String(Buffer.byteLength(bodyText)) };
+  return replay;
+}
+
+async function readTextBody(req, maxBytes = 64_000) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > maxBytes) throw new Error('OAuth request is too large');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 async function readBody(req, maxBytes = 512_000) {
   const chunks = [];
   let size = 0;
@@ -290,6 +322,17 @@ const server = http.createServer(async (req, res) => {
   const wellKnownTenant = parseWellKnownTenant(requestUrl.pathname);
 
   try {
+    // The proven OAuth consent HTML posts to absolute /authorize. Route an MSB2 credential
+    // back into its private tenant issuer instead of the legacy root issuer.
+    if (!tenantRoute && req.method === 'POST' && requestUrl.pathname === '/authorize') {
+      const bodyText = await readTextBody(req);
+      const params = new URLSearchParams(bodyText);
+      const connectionId = connectionIdFromAccessCode(params.get('pairing_token'));
+      const oauth = connectionId ? getTenantOauth(connectionId) : legacyOauth;
+      const replay = replayRequest(req, bodyText, '/authorize');
+      if (await oauth.handle(replay, res)) return;
+    }
+
     const oauthRoute = wellKnownTenant || (tenantRoute && oauthPath(tenantRoute.suffix) ? tenantRoute : null);
     if (oauthRoute) {
       const oauth = getTenantOauth(oauthRoute.connectionId);
