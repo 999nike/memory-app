@@ -75,11 +75,11 @@ Status: **implemented for the current browser build.**
 
 ### 3. AI Access
 
-Status: **product surface implemented; live OAuth grant visibility/revoke implemented in bridge code.**
+Status: **product surface implemented; live OAuth grant visibility/revoke implemented and verified with Grok.**
 
 The normal-user control surface now replaces the old provider-first controls with `AI Access`. It shows the current Space, in-app AI choices, compatible external AI apps and keeps raw connection setup under Advanced.
 
-For a bridge running the current code, External AI Access now reads the bridge's real OAuth grant state instead of inventing provider badges. Each live client can show:
+For a bridge running the current code, External AI Access reads the bridge's real OAuth grant state instead of inventing provider badges. Each live client can show:
 
 ```text
 Claude    Connected    Read ✓   Propose ✓   Disconnect
@@ -98,16 +98,27 @@ Developer details remain available only under Advanced / Developer.
 
 ### 4. Remove manual bridge chores from the core loop
 
-Today the proof flow still exposes Share, Pull, bridge pairing and restart behaviour. V1 should turn this into product behaviour:
+Status: **automatic authorised-space sync and automatic external proposal inbox are now wired in the browser build.**
 
-- authorised current confirmed state is refreshed without requiring the user to understand `Share`
-- new external proposals surface automatically or through an obvious notification
-- the user reviews proposals rather than manually `Pull`ing them
-- re-authentication is expressed as `Reconnect`, not as an OAuth diagnostic
+The product no longer needs the user to understand `Share` or manually press `Check proposals` in the normal flow:
+
+- the browser checks whether an external AI really has a live OAuth grant
+- only while an external AI is authorised, the active Space's current confirmed memories are refreshed into bridge RAM automatically
+- workspace edits are detected and republished without a manual Share step
+- returning to the app forces a refresh, which also removes the small stale AI Access state seen after external authorization
+- the External AI inbox checks the bridge automatically and surfaces new proposals for human review
+- proposal approval remains a human action; automatic sync does not auto-approve durable memory
+
+The old Share/Pull controls may remain under Advanced as diagnostics/fallback while V1 stabilises, but they are no longer intended as customer workflow.
+
+Remaining work in this area:
+
+- express re-authentication as `Reconnect`, not as OAuth/provider diagnostics
+- reduce the remaining provider-side setup instructions further where provider UX permits
 
 ### 5. Revoke correctly
 
-Status: **implemented for current live OAuth grants once the updated bridge is running.**
+Status: **implemented and verified with a live Grok OAuth grant.**
 
 Disconnect invalidates the provider's actual OAuth access instead of merely hiding a UI card.
 
