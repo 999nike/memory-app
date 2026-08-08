@@ -9,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 $bridgeDir = Split-Path -Parent $PSScriptRoot
 $stateDir = Join-Path $bridgeDir '.state'
 $launcherPath = Join-Path $PSScriptRoot 'start-bridge.ps1'
+$setupPath = Join-Path $PSScriptRoot 'show-access-code.ps1'
 $configPath = Join-Path $stateDir 'windows-runtime.json'
 $credentialPath = Join-Path $stateDir 'windows-token.clixml'
 
@@ -64,10 +65,22 @@ $settings = New-ScheduledTaskSettingsSet `
 $task = New-ScheduledTask -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Starts and supervises the local Memory Space bridge after Windows sign-in.'
 Register-ScheduledTask -TaskName $TaskName -InputObject $task -Force | Out-Null
 
+$startMenuDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Memory Space'
+$shortcutPath = Join-Path $startMenuDir 'Memory Bridge Setup.lnk'
+New-Item -ItemType Directory -Force -Path $startMenuDir | Out-Null
+$wsh = New-Object -ComObject WScript.Shell
+$shortcut = $wsh.CreateShortcut($shortcutPath)
+$shortcut.TargetPath = $powershellPath
+$shortcut.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$setupPath`""
+$shortcut.WorkingDirectory = $bridgeDir
+$shortcut.Description = 'Show the private access code used to connect Memory Space to this bridge.'
+$shortcut.Save()
+
 Write-Host "Memory Space Bridge autostart installed for $currentUser"
 Write-Host "Runtime config: $configPath"
 Write-Host 'Pairing token: encrypted with Windows user protection (DPAPI)'
 Write-Host "Task: $TaskName"
+Write-Host 'Start menu: Memory Space -> Memory Bridge Setup'
 
 if ($StartNow) {
     Start-ScheduledTask -TaskName $TaskName
