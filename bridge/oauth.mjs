@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { createPersistentOAuthState } from './oauth-state.mjs';
 
 const DEFAULT_SCOPES = ['memory.read', 'memory.propose'];
 const CODE_TTL_MS = 5 * 60 * 1000;
@@ -19,12 +20,15 @@ export function createMemoryBridgeOAuth({
 }) {
   const issuer = String(publicUrl || '').replace(/\/+$/, '');
   const authorizationCodes = new Map();
-  const accessTokens = new Map();
-  const refreshTokens = new Map();
-  const dynamicClients = new Map();
 
   if (!issuer.startsWith('https://')) throw new Error('OAuth publicUrl must be HTTPS');
   if (!pairingToken) throw new Error('OAuth pairingToken is required');
+
+  const { accessTokens, refreshTokens, dynamicClients } = createPersistentOAuthState({
+    issuer,
+    pairingToken,
+    clientId
+  });
 
   function log(event, detail = '') {
     console.log(`[oauth] ${event}${detail ? ` ${detail}` : ''}`);
@@ -130,6 +134,7 @@ export function createMemoryBridgeOAuth({
   }
 
   function clientSupportsRefreshToken(requestedClientId) {
+    if (requestedClientId === clientId) return true;
     const registration = dynamicClients.get(requestedClientId);
     return Boolean(registration && registration.grantTypes.includes('refresh_token'));
   }
