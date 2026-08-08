@@ -26,21 +26,28 @@ try {
     $credential = Import-Clixml -Path $credentialPath
     $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($credential.Password)
     try {
-        $token = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+        $adminToken = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
     } finally {
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
     }
 
-    $payload = [ordered]@{
-        version = 1
-        name = if ($config.name) { [string]$config.name } else { 'My Memory Bridge' }
-        baseUrl = [string]$config.publicUrl
-        token = $token
+    $port = if ($config.port) { [int]$config.port } else { 8787 }
+    $bridgeName = if ($config.name) { [string]$config.name } else { 'My Memory Bridge' }
+    $headers = @{ Authorization = "Bearer $adminToken" }
+    $connection = Invoke-RestMethod `
+        -Method Post `
+        -Uri "http://127.0.0.1:$port/v1/connections" `
+        -Headers $headers `
+        -ContentType 'application/json' `
+        -Body (@{ name = $bridgeName } | ConvertTo-Json -Compress) `
+        -TimeoutSec 5
+
+    if (!$connection.connectionId -or !$connection.accessCode) {
+        throw 'Memory Bridge did not create a private customer connection. Restart the bridge and try again.'
     }
-    $json = $payload | ConvertTo-Json -Compress
-    $bytes = [Text.Encoding]::UTF8.GetBytes($json)
-    $encoded = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
-    $accessCode = "MSB1.$encoded"
+
+    $connectionId = [string]$connection.connectionId
+    $accessCode = [string]$connection.accessCode
 
     $form = New-Object System.Windows.Forms.Form
     $form.Text = 'Memory Bridge Setup'
@@ -75,7 +82,7 @@ try {
     $form.Controls.Add($codeBox)
 
     $status = New-Object System.Windows.Forms.Label
-    $status.Text = 'Nothing from your Memory Space is included in this code.'
+    $status.Text = 'This code is unique to one private customer connection.'
     $status.Font = New-Object System.Drawing.Font('Segoe UI', 9)
     $status.AutoSize = $true
     $status.Location = New-Object System.Drawing.Point(26, 185)
