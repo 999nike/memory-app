@@ -69,6 +69,18 @@
     });
   }
 
+  async function listExternalClients(config) {
+    const data = await request(config, '/v1/oauth/clients', { method: 'GET' });
+    return Array.isArray(data?.clients) ? data.clients : [];
+  }
+
+  async function revokeExternalClient(config, clientId) {
+    return request(config, '/v1/oauth/clients/revoke', {
+      method: 'POST',
+      body: JSON.stringify({ clientId: String(clientId || '') })
+    });
+  }
+
   function registerBridge(config) {
     const memoryAI = globalThis.MemoryAI;
     if (!memoryAI) throw new Error('MemoryAI provider registry is not ready');
@@ -134,6 +146,8 @@
     registerBridge,
     testBridge,
     publishWorkspace,
-    pullExternalProposals
+    pullExternalProposals,
+    listExternalClients,
+    revokeExternalClient
   });
 })();
