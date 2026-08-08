@@ -16,7 +16,7 @@ Memory Bridge
         +-- Mistral    VERIFIED FULL LOOP
         +-- Claude     VERIFIED FULL LOOP
         +-- Cursor     CONNECTED / READ VERIFIED
-        +-- ChatGPT
+        +-- ChatGPT    OAUTH CONNECTED / TOOLS NOT EXPOSED ON PLUS
         +-- Gemini
         +-- local models
         +-- VS Code / IDE agents
@@ -83,6 +83,47 @@ The first productisation slice is now defined as:
 
 This slice deliberately does **not** redesign the provider/OAuth path in the same patch. The next product slice is the normal-user **AI Access** surface.
 
+## MAJOR MILESTONE — ChatGPT completes OAuth/DCR connection; Plus account does not expose MCP actions
+
+On **8 Aug 2026**, ChatGPT was added as a custom Memory Space connector using the same public MCP endpoint as the other external clients:
+
+`https://bridge.w-i-z-z-lab-studios.com/mcp`
+
+The first ChatGPT Dynamic Client Registration attempt failed with:
+
+`One or more OAuth redirect_uris are not allowed`
+
+For the live compatibility test, bridge redirect-host configuration was expanded to accept `chatgpt.com` and `openai.com`. ChatGPT then completed the actual OAuth path successfully:
+
+- protected-resource discovery succeeded
+- authorization-server discovery succeeded
+- a `memory-space-dcr-*` client was dynamically registered with a `chatgpt.com` redirect
+- consent was approved
+- the authorization-code token exchange completed with PKCE
+- an access token and refresh token were issued
+- Memory Space AI Access visibly showed `ChatGPT` as `CONNECTED` with `Read ✓ · Propose ✓`
+- automatic authorised sharing published `space_memory_app` with **11 confirmed memories** into bridge RAM
+
+This proves that ChatGPT can register and become authorised against the generic Memory Bridge. It does **not** yet prove a ChatGPT MCP tool read/propose loop.
+
+On the ChatGPT Plus account used for this test, the connector detail page still showed:
+
+`No app actions available yet`
+
+and refresh returned:
+
+`Couldn't refresh connector`
+
+When asked to read Memory Space, ChatGPT did not call the live MCP tools and instead fell back to previously stored Personal Context. The ChatGPT product note shown during the test stated that full MCP support was rolling out in beta to Business, Enterprise and Edu plans.
+
+Therefore the exact status is:
+
+**ChatGPT — OAuth/DCR CONNECTED; live grant + 11-memory publication VERIFIED; MCP tool execution NOT VERIFIED on the current Plus account.**
+
+Do not treat this as a bridge OAuth failure, and do not count ChatGPT as a full-loop provider until ChatGPT actually exposes and calls the tools. Retest on an eligible ChatGPT plan or when the product surface changes.
+
+The `chatgpt.com` / `openai.com` redirect-host allowance used in this live test was process configuration, not yet a permanent product configuration. Bank that cleanup for supported ChatGPT productisation rather than introducing a provider-specific bridge fork.
+
 ## MAJOR MILESTONE — Cursor connects through the generic MCP bridge
 
 On **8 Aug 2026**, Cursor became the first IDE/coding-agent client verified against the same Memory Space MCP bridge used by the hosted chat providers.
@@ -126,6 +167,7 @@ Cursor did **not** complete the final proposal -> human approval -> read-back te
 - Mistral — full loop verified
 - Claude — full loop verified
 - Cursor — OAuth/DCR + 7 tools + real Memory Space read verified
+- ChatGPT — OAuth/DCR connected + live grant + automatic 11-memory publication verified; MCP tool execution not exposed/verified on current Plus account
 - Cross-provider portability — human-approved memory proposed through one provider and read by another verified
 
 ## MAJOR MILESTONE — Claude becomes third full-loop provider
@@ -345,17 +387,17 @@ Current DCR/OAuth behaviour:
 - registered redirect URI must match exactly at authorization time
 - normal HTTPS redirect hosts remain allow-listed by bridge configuration
 - exact Cursor DCR callback URIs are accepted for dynamic clients
-- access tokens, refresh tokens and dynamic registrations are RAM-only
+- ChatGPT DCR can register when its redirect hosts are explicitly allowed in bridge configuration
+- access tokens, refresh tokens and dynamic registrations are RAM-only in the earlier proof configuration; current V1 restart recovery is tracked separately in `V1_PRODUCT_GOAL.md`
 - refresh tokens rotate on use
-- bridge restart clears OAuth runtime state
 - legacy fixed Grok client remains supported
 - unsupported standalone `GET /mcp` returns 405 rather than being misclassified as a missing route
 
-Mistral successfully validated the original DCR path. Claude then exposed and validated the refresh-token extension in a second independent DCR implementation. Cursor then exposed and validated callback-set and Streamable HTTP GET compatibility.
+Mistral successfully validated the original DCR path. Claude then exposed and validated the refresh-token extension in a second independent DCR implementation. Cursor then exposed and validated callback-set and Streamable HTTP GET compatibility. ChatGPT then validated DCR registration, PKCE authorization and token issuance, but its Plus product surface did not expose the MCP tool actions for a live read/propose test.
 
 ## Current state
 
-The core product is now beyond a single-provider proof of concept and has been exercised by three full-loop hosted AI clients plus an independent IDE/coding-agent client.
+The core product is now beyond a single-provider proof of concept and has been exercised by three full-loop hosted AI clients, an independent IDE/coding-agent client, and a live-authorised ChatGPT connector whose MCP actions are currently unavailable on the tested Plus account.
 
 **Verified external providers:**
 
@@ -363,9 +405,10 @@ The core product is now beyond a single-provider proof of concept and has been e
 - Mistral — OAuth/DCR connection, read, propose, human approve, changed-state read-back verified
 - Claude — OAuth/DCR + refresh-token compatibility, read, propose, human approve, re-share, read-back verified
 - Cursor — OAuth/DCR connection, 7 MCP tools discovered, exact 10-memory current Space read verified
+- ChatGPT — OAuth/DCR connection, live Read/Propose grant visible in Memory Space, automatic 11-memory publication verified; MCP tool read/propose not verified on current Plus account
 - Cross-provider portability — Mistral-created/human-approved memory read back by Grok verified
 
-The current shared `Memory App` state after the Claude loop contains **10 confirmed memories**.
+The current active `Memory App` source-of-truth state contains **11 confirmed memories** and is automatically republished into bridge RAM while an external AI is authorised.
 
 The current production web app is hosted on Vercel while trusted workspace data remains in browser storage. The HP Windows PC runs Memory Bridge and Ollama. Cloudflare Tunnel exposes the bridge securely over HTTPS.
 
@@ -374,15 +417,15 @@ The phone has successfully:
 - paired with `WIZZ HP Bridge`
 - chatted through the public bridge to Ollama `gemma3:1b`
 - sent selected confirmed Memory Space context to the remote-local model
-- explicitly shared the active Memory App space to the bridge
-- published current confirmed memories into bridge RAM
+- explicitly shared the active Memory App space to the bridge in the original proof flow
+- automatically republished current confirmed memories into bridge RAM for authorised external AI clients in the V1 flow
 - verified the public MCP endpoint through the in-app MCP self-test
 - pulled real external AI proposals from Grok, Mistral and Claude through the same bridge contract
 - visibly reviewed and approved external proposals locally
 - archived an obsolete/duplicate memory locally
-- re-shared changed source-of-truth state
 - proved that independent providers see the same changed state
-- reached **10 confirmed memories** after the Claude full-loop proof
+- reached **11 confirmed memories** after the automatic V1 loop proof
+- visibly shown ChatGPT as a live authorised external AI client after successful OAuth/DCR
 
 Cursor has successfully:
 
@@ -390,8 +433,23 @@ Cursor has successfully:
 - discovered all 7 MCP tools
 - connected over Streamable HTTP
 - called the real Memory Space tools
-- reported the exact active Space and `memoryCount: 10`
+- reported the exact active Space and `memoryCount: 10` during its test session
 - read the exact current confirmed memory titles
+
+ChatGPT has successfully:
+
+- completed protected-resource and authorization-server discovery
+- dynamically registered a ChatGPT OAuth client
+- completed user consent and PKCE token exchange
+- received access + refresh tokens
+- appeared as `CONNECTED` in Memory Space AI Access
+- caused the current 11-memory Space to be automatically published into bridge RAM
+
+ChatGPT has **not yet** successfully:
+
+- discovered/exposed the 7 MCP actions in the tested Plus product UI
+- called `list_spaces`, `get_current_space_context` or another live Memory Space MCP tool
+- completed proposal -> human approval -> read-back
 
 The bridge self-test reports:
 
@@ -407,7 +465,7 @@ The bridge self-test reports:
              Phone / Browser Memory App
              durable local source of truth
                        |
-                       | explicit Share (proof flow today)
+                       | automatic authorised publish in V1
                        v
              Cloudflare HTTPS route
                        |
@@ -417,15 +475,16 @@ The bridge self-test reports:
           +------------+-------------+
           |                          |
           | ephemeral shared state   | OAuth / DCR / MCP
-          | proposal queue in RAM    | auth + refresh runtime in RAM
+          | proposal queue in RAM    | authorised client state
           |                          |
           +------------+-------------+
                        |
-             +---------+---------+---------+---------+
-             |                   |         |         |
-             v                   v         v         v
-           Grok                Mistral   Claude    Cursor
-        FULL LOOP            FULL LOOP FULL LOOP   READ VERIFIED
+       +---------------+---------+---------+---------+----------+
+       |                         |         |         |          |
+       v                         v         v         v          v
+     Grok                      Mistral   Claude    Cursor     ChatGPT
+  FULL LOOP                  FULL LOOP FULL LOOP READ VERIFIED OAUTH CONNECTED
+                                                               TOOLS PLAN-GATED
                        |
                        v
              future MCP clients
@@ -435,11 +494,11 @@ Important distinction:
 
 - Browser storage is the durable workspace.
 - The bridge does **not** persist the shared workspace to disk.
-- Share is explicit in the current proof implementation; V1 should hide this infrastructure chore behind normal permission/state-sync behaviour.
+- V1 automatic authorised sharing hides the old manual Share infrastructure chore from the normal flow while preserving the authorisation boundary.
 - Only current confirmed memories are published as trusted current memory.
 - Archived/superseded history does not silently re-enter current context.
 - External AI changes are proposals only; approval remains human-controlled.
-- OAuth grants, refresh tokens and DCR registrations are runtime state and can require re-authentication after bridge restart.
+- OAuth restart recovery is tracked in `V1_PRODUCT_GOAL.md`; the current source-of-truth Space snapshot and pending external proposals remain RAM-only.
 
 ## MCP interface currently implemented
 
@@ -510,10 +569,11 @@ The interoperability proof is now sufficient:
 - three independent hosted AIs have completed full human-controlled loops
 - cross-provider read-back is proven
 - Cursor proves an IDE/coding-agent can consume the same user-owned Memory Space through the same contract
+- ChatGPT proves the same bridge can complete DCR/OAuth against ChatGPT without a provider-specific memory database, even though the tested Plus account does not expose the MCP actions needed for a live tool-read proof
 
 Do not spend V1 time chasing provider count. New provider tests are compatibility/regression work only when they materially help the normal-user product.
 
-ChatGPT remains one compatibility target, not the architecture. The visible product UI previously did not expose a straightforward custom remote MCP control for this account. Do not redesign Memory Bridge around any single provider's current UI.
+ChatGPT remains one compatibility target, not the architecture. The current test is banked as `OAuth connected / actions unavailable on Plus`; retest only when an eligible plan or changed ChatGPT product surface makes a real MCP tool call possible.
 
 ## Context selection now implemented
 
@@ -612,6 +672,7 @@ Desktop target is roughly **65% Memory / 35% AI**, with the AI pane sticky while
 - `f68165eb` — support OAuth refresh tokens for MCP clients
 - `39dd50b6` — allow Cursor OAuth callbacks for MCP DCR
 - `b9bde9b0` — return 405 for unsupported MCP SSE GET
+- `f1f9db00` — record ChatGPT OAuth connection and Plus MCP limitation in V1 goal
 
 ## Regression / debugging notes
 
@@ -623,7 +684,7 @@ If Shared Chat ever disappears again, inspect startup JavaScript before assuming
 
 If OAuth reaches `consent approved` but never logs `token request`, inspect the browser callback/redirect boundary rather than the pairing token first.
 
-A bridge restart clears the current RAM-only OAuth grants, refresh tokens, dynamic client registrations and shared workspace state. External providers may therefore show `Auth required` until the user re-authenticates and the workspace is explicitly shared again. This behaviour was observed and successfully recovered with Grok during the Mistral portability test and again during Cursor compatibility testing.
+Current V1 OAuth restart recovery is documented in `V1_PRODUCT_GOAL.md`. Historical tests before that persistence work did require re-authentication after bridge restart; do not use those older observations as the current product-state rule.
 
 Claude initially failed at DCR with:
 
@@ -636,6 +697,12 @@ Cursor initially failed at DCR with:
 `One or more OAuth redirect_uris are not allowed`
 
 After exact Cursor callback compatibility was added, OAuth succeeded. Cursor then exposed a second transport issue where repeated `GET /mcp` 404 responses caused Cursor to tombstone the Streamable HTTP transport. Returning 405 for unsupported standalone SSE GET fixed that compatibility boundary. Future Streamable HTTP clients that initialize successfully and then fail on session/stream handling should be checked against the precise HTTP method/status requirements before adding a new transport implementation.
+
+ChatGPT initially failed DCR with the same redirect allow-list class of error:
+
+`One or more OAuth redirect_uris are not allowed`
+
+Allowing the ChatGPT redirect hosts in process configuration let DCR, consent and token exchange complete successfully. After that point, Memory Space itself showed the ChatGPT grant as live and automatically published 11 memories, while ChatGPT's Plus connector UI still reported no app actions. If this is retested, distinguish **OAuth connected** from **MCP tools actually exposed/called**; do not patch the bridge merely because the current ChatGPT account tier withholds the actions.
 
 ## HP / Cloudflare runtime
 
@@ -654,7 +721,7 @@ The bridge server is currently started manually with Node from PowerShell. Ollam
 
 After bridge server code changes on GitHub, the HP clone needs `git pull` and the Node bridge process must be restarted. Pure frontend/Vercel patches do not require an HP restart.
 
-OAuth grants, refresh tokens, dynamic registrations and the shared bridge workspace are currently held in RAM. Restarting the bridge clears that runtime state and requires re-authentication/re-sharing where applicable.
+Current OAuth restart recovery is implemented and verified as described in `V1_PRODUCT_GOAL.md`. The published workspace snapshot and pending external proposal queue remain RAM-only and are republished/recovered through the browser-side V1 flow.
 
 ## Security / permission housekeeping
 
@@ -713,7 +780,7 @@ Memory App is not ordinary hidden chatbot memory and it is not a dump of every c
 
 The experience should feel like every authorised AI is entering the **same room**, rather than forcing the user to rebuild that room for each model provider.
 
-The current Grok + Mistral + Claude + Cursor proof demonstrates that this room persists while the AI changes.
+The current Grok + Mistral + Claude + Cursor proof demonstrates that this room persists while the AI changes; the ChatGPT OAuth test additionally proves the same bridge can authorise ChatGPT even when the current account tier does not expose live MCP actions.
 
 ## Memory layers
 
