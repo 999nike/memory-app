@@ -476,6 +476,19 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
+    if (req.method === 'GET' && req.url === '/v1/oauth/clients') {
+      const clients = oauth.listAuthorizedClients();
+      sendJson(res, 200, { clients, count: clients.length }, origin);
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/v1/oauth/clients/revoke') {
+      const body = await readBody(req);
+      const result = oauth.revokeClient(body?.clientId);
+      sendJson(res, 200, result, origin);
+      return;
+    }
+
     if (req.method === 'GET' && req.url === '/v1/info') {
       sendJson(res, 200, {
         protocol: PROTOCOL,
