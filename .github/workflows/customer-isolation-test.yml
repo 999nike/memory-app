@@ -1,0 +1,29 @@
+name: Customer isolation test
+
+on:
+  push:
+    branches:
+      - customer-isolation-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Syntax check
+        run: |
+          node --check bridge/server.mjs
+          node --check bridge/server-v2.mjs
+          node --check bridge/connection-state.mjs
+          node --check bridge/workspace-runtime.mjs
+          node --check bridge/isolation-test.mjs
+      - name: Run two-customer isolation regression
+        run: node bridge/isolation-test.mjs
