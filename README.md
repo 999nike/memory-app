@@ -104,63 +104,76 @@ The test proved:
 - a fresh browser could create a new private Space without the developer workspace being inserted
 - the empty state led clearly to `Add first memory`
 - AI Access led to the external connection flow without requiring the user to understand MCP or OAuth
-- the Windows `Memory Bridge Setup` helper copied a single packaged code beginning `MSB1.`
-- the normal form accepted that one code and connected the new browser Space to the already-running `WIZZ HP Bridge`
+- the original Windows `Memory Bridge Setup` helper copied a packaged `MSB1.` code for the single-owner path
 - the bridge URL and original 64-character pairing token remained hidden from the normal-user path
 - raw URL/token fields remained available only under `Advanced manual setup`
 
-**Result:** the simplified first-run + one-code bridge connection slice passed the clean customer test and is ready to keep as the normal V1 path.
+That earlier test was the clean onboarding proof. The later customer-isolation milestone below supersedes the old assumption that one shared bridge workspace was sufficient for unrelated customers.
 
-This does not mean the entire V1 loop is complete. The external-AI proposal/review/revoke/return-later sequence still needs its own clean-user pass.
+One issue found during onboarding remains worth tracking: the first manually created memory (`My name`) was automatically classified as **Critical + Locked**. That default/classification behaviour should be corrected before calling the whole onboarding experience finished.
 
-One issue was found and remains open: the first manually created memory (`My name`) was automatically classified as **Critical + Locked**. That default/classification behaviour must be corrected before calling the whole onboarding experience finished.
+## MAJOR MILESTONE — customer-scoped bridge isolation implemented; fresh Claude customer full loop proven
 
-## CRITICAL NEXT ARCHITECTURE — isolate each customer's Spaces at the bridge
+On **8 Aug 2026**, the single shared bridge-workspace limitation was replaced on `main` by customer-scoped routing, deployed to the HP runtime, and exercised through a genuinely fresh customer browser plus a fresh Claude account.
 
-The clean HP customer-style test proved that a fresh Space can connect through the existing bridge and be read correctly by Claude. It did **not** prove that two unrelated customers can safely use the same bridge at the same time.
+Important merged commit:
 
-### Confirmed current limitation
+- `ce5010d` — keep customer isolation regression on main
 
-The bridge currently has one shared published-workspace position. Memory Space browsers automatically publish their active Space into that shared position. If Nike and a second tester both use the same HP bridge, the most recently published Space can replace the previous one, and authorised external AIs can then read that shared current snapshot.
-
-This is a bridge-routing problem. It is **not** caused by Claude, by using the same AI provider, or by Spaces being incorrect in the app.
-
-### What the two bridge credentials currently mean
-
-- **64-character pairing token** — the underlying authentication secret for this HP bridge.
-- **`MSB1...` Private Access Code** — a convenient package containing the bridge name/address and that pairing credential for the normal customer onboarding form.
-- **Memory Bridge Setup** — the Windows helper that generates/copies the `MSB1...` package.
-
-The current `MSB1` code connects a browser installation to the bridge. It does **not** create a unique customer identity, private channel or isolated workspace slot. Do not treat different generated setup codes as proof of customer isolation.
-
-### Required fix before multi-customer use
-
-Replace the single shared workspace route with customer-bound routing:
+The bridge now supports customer-scoped routes of the form:
 
 ```text
-unique customer connection ID + unique revocable secret
-    -> that customer's authorised Space IDs
-    -> that customer's OAuth grants/tokens
-    -> only that customer's published Space and proposals
+https://bridge.w-i-z-z-lab-studios.com/c/<connectionId>
+https://bridge.w-i-z-z-lab-studios.com/c/<connectionId>/mcp
 ```
 
-Every publish, OAuth authorization and MCP tool call must resolve the customer/connection from authenticated server-side state. A client must never gain access merely by supplying another `spaceId`.
+Each isolated customer connection receives:
 
-The original 64-character bridge token should remain an administrator/setup secret. Each customer-facing setup code must instead use its own revocable connection credential.
+- a random `connectionId`
+- a unique derived, revocable customer secret
+- an `MSB2.` Private Access Code containing only that customer's scoped connection details
+- a customer-specific OAuth issuer/namespace
+- customer-specific OAuth state/tokens/clients
+- a customer-specific RAM-only published workspace
+- a customer-specific RAM-only proposal queue
 
-### Mandatory regression test
+The original 64-character bridge token remains an administrator/bootstrap secret. It is not handed to normal customers. The legacy root `/mcp` + `MSB1.` path remains for the existing owner/single-owner compatibility flow; new unrelated customers use the scoped `MSB2.` path.
 
-Before installing this as a shared customer service:
+The customer connection registry is encrypted at rest. Memory Space contents themselves remain outside that registry and are not persisted there.
 
-1. Create two genuinely separate customer connections and two Spaces.
-2. Put `OWNER = NIKE` in one and `OWNER = PLUMBER` in the other.
-3. Connect each through separate AI accounts/connections.
-4. Run both simultaneously.
-5. Confirm each reads only its own marker.
-6. Ask each explicitly for the other marker; both requests must return no data/unauthorised.
-7. Revoke one connection and prove the other remains working.
+### Automated isolation regression
 
-**Current release boundary:** the present bridge is suitable only for the existing single-owner proof flow. Do not onboard unrelated simultaneous customers onto one bridge until this isolation work and regression test pass. For a very small temporary beta, separate bridge instances/configurations per tester are the safe workaround.
+The committed regression test creates separate NIKE and PLUMBER customer connections and verifies:
+
+- separate workspace markers stay separate
+- cross-customer search returns no other-customer data
+- a token used against another customer's route is rejected
+- revoking one customer connection does not revoke the other
+
+That regression passed in CI on the merged `main` isolation build.
+
+### Live fresh-customer Claude proof
+
+A second-customer test was then performed using deliberately separate client state:
+
+- HP Chrome **Incognito** rather than the existing owner browser state
+- a new Space named `plummers memory`
+- a fresh `MSB2.` customer connection
+- a fresh Claude account using a separate email/account
+
+Before Claude OAuth, the plumber Memory App showed no inherited external-AI authorisations. Claude was then configured against the plumber customer's scoped MCP URL and authorised using the same plumber `MSB2.` pairing credential.
+
+Claude successfully invoked the real Memory Space integration and read exactly the plumber Space state:
+
+- Space: `plummers memory`
+- confirmed memory count: **1**
+- memory content matched the plumber/kitchen-fitting/3D-model-work test memory
+
+Claude then used `propose_memory`. The write did **not** become trusted memory automatically; it arrived as a pending external-AI proposal requiring explicit human approval.
+
+**What this live test proves:** a fresh unrelated customer can now complete the scoped customer connection -> OAuth -> Memory Space read -> proposal path without inheriting the owner's existing browser/provider authorisations or reading the owner's current Space as the active customer workspace.
+
+**Do not overclaim the final live regression yet:** the automated cross-customer/revocation regression is passing, but the final live external-account checks are still worth doing explicitly: ask plumber-Claude for an owner-only marker, ask the owner path for a plumber-only marker, then revoke the plumber connection and prove the owner remains operational. Record those as live-passed only after they are actually observed.
 
 ## MAJOR MILESTONE — Claude reauthorisation after autostart exposes future-provider callback rule
 
@@ -175,7 +188,7 @@ old Claude refresh token attempted
     -> registration rejected: One or more OAuth redirect_uris are not allowed
 ```
 
-The bridge itself, the packaged `MSB1.` customer connection, workspace publication and OAuth-state file were all present and working. The blocker was narrower: the installed runtime's `oauthRedirectHosts` allowed:
+The bridge itself, the packaged customer connection, workspace publication and OAuth-state file were all present and working. The blocker was narrower: the installed runtime's `oauthRedirectHosts` allowed:
 
 ```text
 grok.com,x.ai,chatgpt.com,openai.com
@@ -192,7 +205,7 @@ Important commit:
 After restarting only the scheduled **Memory Space Bridge** task:
 
 - Claude reached the bridge authorization screen
-- the saved 64-character bridge pairing token was accepted
+- the saved bridge pairing credential was accepted
 - Claude connected again successfully
 - Memory Space showed ChatGPT, Claude and Grok authorised
 - the same restored state was visible from both the phone and PC views
@@ -211,11 +224,12 @@ When a future provider reports `One or more OAuth redirect_uris are not allowed`
 
 Security distinction:
 
-- `MSB1.` Private Access Code — packages bridge details for the normal Memory Space connection flow
-- 64-character bridge pairing token — used on the bridge's OAuth authorization screen
+- `MSB1.` — legacy owner/single-owner packaged connection code
+- `MSB2.` — customer-scoped connection package containing that customer's route/id/derived secret
+- 64-character master bridge token — administrator/bootstrap secret; do not distribute to normal customers
 - OAuth redirect-host allow-list — server policy controlling which external AI callbacks may dynamically register
 
-These three values have separate jobs and must not be substituted for one another.
+These values have separate jobs and must not be substituted for one another.
 
 ## MAJOR MILESTONE — ChatGPT completes OAuth/DCR connection; Plus account does not expose MCP actions
 
@@ -531,7 +545,7 @@ Mistral successfully validated the original DCR path. Claude then exposed and va
 
 ## Current state
 
-The core product is now beyond a single-provider proof of concept and has been exercised by three full-loop hosted AI clients, an independent IDE/coding-agent client, and a live-authorised ChatGPT connector whose MCP actions are currently unavailable on the tested Plus account.
+The core product is now beyond a single-provider proof of concept and has also crossed the first live customer-isolation boundary: a fresh customer browser + fresh Claude account completed a scoped `MSB2.` read/propose path without inheriting the owner browser's external-AI authorisations.
 
 **Verified external providers:**
 
@@ -541,8 +555,9 @@ The core product is now beyond a single-provider proof of concept and has been e
 - Cursor — OAuth/DCR connection, 7 MCP tools discovered, exact 10-memory current Space read verified
 - ChatGPT — OAuth/DCR connection, live Read/Propose grant visible in Memory Space, automatic 11-memory publication verified; MCP tool read/propose not verified on current Plus account
 - Cross-provider portability — Mistral-created/human-approved memory read back by Grok verified
+- Customer isolation — scoped `MSB2.` architecture merged and automated NIKE/PLUMBER regression passing; fresh plumber Claude read/propose path live-proven
 
-The current active `Memory App` source-of-truth state contains **11 confirmed memories** and is automatically republished into bridge RAM while an external AI is authorised.
+The existing owner `Memory App` source-of-truth state remains separate from the fresh plumber browser test. Browser storage is still the durable workspace boundary for the current V1 client; customer-scoped bridge runtime state is routed by authenticated connection identity.
 
 The current production web app is hosted on Vercel while trusted workspace data remains in browser storage. The HP Windows PC runs Memory Bridge and Ollama. Cloudflare Tunnel exposes the bridge securely over HTTPS.
 
@@ -560,6 +575,16 @@ The phone has successfully:
 - proved that independent providers see the same changed state
 - reached **11 confirmed memories** after the automatic V1 loop proof
 - visibly shown ChatGPT as a live authorised external AI client after successful OAuth/DCR
+
+The fresh plumber customer test has successfully:
+
+- created independent incognito browser storage
+- created `plummers memory`
+- paired a fresh scoped `MSB2.` connection
+- shown no inherited external-AI authorisations before OAuth
+- connected a fresh Claude account against the scoped customer MCP route
+- read exactly the plumber Space's one confirmed memory
+- submitted a Memory Space proposal that remained pending until human approval
 
 Cursor has successfully:
 
@@ -606,41 +631,46 @@ The bridge self-test reports:
                        v
               HP Memory Bridge :8787
                        |
-          +------------+-------------+
-          |                          |
-          | ephemeral shared state   | OAuth / DCR / MCP
-          | proposal queue in RAM    | authorised client state
-          |                          |
-          +------------+-------------+
+          +------------+------------------+
+          |                               |
+          | tenant/customer runtime       | OAuth / DCR / MCP
+          | workspace + proposals in RAM  | scoped auth state
+          |                               |
+          +------------+------------------+
                        |
-       +---------------+---------+---------+---------+----------+
-       |                         |         |         |          |
-       v                         v         v         v          v
-     Grok                      Mistral   Claude    Cursor     ChatGPT
-  FULL LOOP                  FULL LOOP FULL LOOP READ VERIFIED OAUTH CONNECTED
-                                                               TOOLS PLAN-GATED
+             authenticated connection
                        |
-                       v
-             future MCP clients
+       +---------------+-----------------------+
+       |                                       |
+       v                                       v
+ legacy owner `/mcp`                 customer `/c/<id>/mcp`
+  existing owner flow                  isolated MSB2 flow
+       |                                       |
+       +--------- providers / MCP clients -----+
 ```
 
 Important distinction:
 
 - Browser storage is the durable workspace.
-- The bridge does **not** persist the shared workspace to disk.
+- The bridge does **not** persist Memory Space contents into the customer connection registry.
+- Customer registry state is encrypted at rest; published customer workspace snapshots and proposal queues remain RAM-only.
 - V1 automatic authorised sharing hides the old manual Share infrastructure chore from the normal flow while preserving the authorisation boundary.
 - Only current confirmed memories are published as trusted current memory.
 - Archived/superseded history does not silently re-enter current context.
 - External AI changes are proposals only; approval remains human-controlled.
-- OAuth restart recovery is tracked in `V1_PRODUCT_GOAL.md`; the current source-of-truth Space snapshot and pending external proposals remain RAM-only.
+- Legacy root `/mcp` exists for the owner compatibility flow; unrelated customers use scoped `/c/<connectionId>/mcp` routes.
 
 ## MCP interface currently implemented
 
-Public route:
+Legacy owner route:
 
 `https://bridge.w-i-z-z-lab-studios.com/mcp`
 
-The public bridge supports OAuth authorization-code + PKCE, Dynamic Client Registration and refresh tokens for compatible external MCP clients. The private bridge pairing token is used at the consent boundary and must never be committed or pasted into public documentation.
+Customer-scoped route:
+
+`https://bridge.w-i-z-z-lab-studios.com/c/<connectionId>/mcp`
+
+The bridge supports OAuth authorization-code + PKCE, Dynamic Client Registration and refresh tokens for compatible external MCP clients. Normal customers should use their scoped `MSB2.` connection credential; the master bridge token is administrator/bootstrap-only and must never be committed or pasted into public documentation.
 
 Current MCP tools:
 
@@ -683,14 +713,14 @@ Reject / Edit / Approve
       v
 Confirmed Memory Space only after user approval
       |
-      | explicit Share
+      | explicit Share / automatic authorised republish
       v
 Same AI or another authorised AI can read the approved state
 ```
 
 The Shared Chat screen contains an **External AI inbox** with visible proposal controls.
 
-Real external proposals from **Grok, Mistral and Claude** have now passed through the same phone-side human approval boundary.
+Real external proposals from **Grok, Mistral and Claude** have now passed through the same human approval boundary. The fresh plumber Claude customer test also proved that a scoped customer proposal lands as pending rather than silently becoming trusted memory.
 
 The verified rule remains:
 
@@ -704,6 +734,7 @@ The interoperability proof is now sufficient:
 - cross-provider read-back is proven
 - Cursor proves an IDE/coding-agent can consume the same user-owned Memory Space through the same contract
 - ChatGPT proves the same bridge can complete DCR/OAuth against ChatGPT without a provider-specific memory database, even though the tested Plus account does not expose the MCP actions needed for a live tool-read proof
+- customer-scoped `MSB2.` routing is now implemented and live-exercised with a separate plumber Claude account
 
 Do not spend V1 time chasing provider count. New provider tests are compatibility/regression work only when they materially help the normal-user product.
 
@@ -807,6 +838,7 @@ Desktop target is roughly **65% Memory / 35% AI**, with the AI pane sticky while
 - `39dd50b6` — allow Cursor OAuth callbacks for MCP DCR
 - `b9bde9b0` — return 405 for unsupported MCP SSE GET
 - `f1f9db00` — record ChatGPT OAuth connection and Plus MCP limitation in V1 goal
+- `ce5010d` — customer-scoped bridge isolation + regression retained on main
 
 ## Regression / debugging notes
 
@@ -851,27 +883,62 @@ Current first bridge machine is the HP Windows server.
 - Media route remains separate: `media.w-i-z-z-lab-studios.com -> 127.0.0.1:8081`
 - Model currently used: `gemma3:1b`
 
-The bridge server is currently started manually with Node from PowerShell. Ollama/bridge persistence across reboot is still V1 productisation work.
+The bridge is installed under the Windows scheduled-task/supervisor path and has recovered after the isolation build restart. After bridge server code changes on GitHub, the HP clone still needs `git pull` and the bridge process/task must be restarted so the live runtime is actually using the new commit.
 
-After bridge server code changes on GitHub, the HP clone needs `git pull` and the Node bridge process must be restarted. Pure frontend/Vercel patches do not require an HP restart.
-
-Current OAuth restart recovery is implemented and verified as described in `V1_PRODUCT_GOAL.md`. The published workspace snapshot and pending external proposal queue remain RAM-only and are republished/recovered through the browser-side V1 flow.
+Current OAuth restart recovery is implemented and verified as described in `V1_PRODUCT_GOAL.md`. Customer connection registry/OAuth state is scoped and persisted as designed; published workspace snapshots and pending external proposal queues remain RAM-only and are republished/recovered through the browser-side V1 flow.
 
 ## Security / permission housekeeping
 
-The bridge pairing token appeared during live development setup/screenshots and should be rotated. Do not place the replacement token in this README, Git history, screenshots or chat logs.
+The original development bridge pairing/master token appeared during live development setup/screenshots and should be rotated before wider deployment. Do not place the replacement token in this README, Git history, screenshots or chat logs.
+
+Implemented security boundaries now include:
+
+- customer-scoped `connectionId` + derived revocable customer secret for `MSB2.` connections
+- encrypted customer connection registry at rest
+- separate tenant OAuth namespaces/state
+- customer-scoped workspace and proposal runtime state
+- exact OAuth redirect validation rather than wildcard callback acceptance
+- external AI durable writes limited to `propose_memory`; trusted memory still requires human review
 
 Current OAuth scopes include `memory.read` and `memory.propose`. These scopes should become hard tool-level authorization boundaries rather than merely being issued/recorded.
 
 Target permission model:
 
-- access is granted **per Space**
+- access is granted **per Space/customer connection**
 - read/search confirmed memory can be granted independently from proposal rights
 - external AI may propose only when `memory.propose` is granted
 - external AI never receives direct approve/delete/archive/lock authority over trusted memory
 - user can revoke an AI's grant clearly and immediately
 - every external action keeps provider/client provenance
 - future grants may be time-limited or task-scoped
+
+### Future security hardening — banked
+
+A shared long-term memory layer creates a specific security risk: **memory poisoning / prompt injection through durable shared context**. A malicious, compromised or simply careless connected model could propose instructions or false facts that another AI later reads as trusted context.
+
+The current human approval boundary is therefore not just UX; it is a security control. Keep this rule mandatory for normal external-AI writes:
+
+```text
+external AI output
+    -> untrusted proposal
+    -> visible human review
+    -> Approve / Edit / Reject
+    -> trusted confirmed memory only after approval
+```
+
+Future hardening should include:
+
+- keep proposal provenance visible: provider, client, time and source action
+- flag or quarantine proposals that look like hidden instructions, privilege escalation, credential requests or attempts to override user/system policy
+- never let an AI approve its own proposal
+- enforce `memory.read` / `memory.propose` scopes at every MCP tool boundary
+- resolve tenant/customer identity before every publish, read, search and proposal operation
+- add rate/size limits so one client cannot flood a Space or proposal queue
+- maintain clear revocation and audit history for external clients
+- test cross-tenant route/token misuse continuously in CI
+- rotate development/admin secrets before public beta and keep them out of logs/screenshots
+- preserve exact redirect URI/host validation for OAuth clients; no wildcards as a convenience fix
+- if durable server-side Memory Space storage is added later, add explicit at-rest encryption, migration integrity and backup/recovery controls rather than silently expanding the current bridge trust boundary
 
 The app/phone remains the human control surface and root authority.
 
@@ -884,14 +951,16 @@ The app/phone remains the human control surface and root authority.
 - External AIs may read/search only explicitly shared/authorised memory.
 - External AIs may propose changes only when granted that capability.
 - External AIs must not silently approve/write/delete/archive trusted memory.
+- External AI proposal content is untrusted until the human approves or edits it.
 - Only current confirmed memories enter active trusted context.
 - Superseded/archived history remains history, not current context.
 - Pairing/connection tests should not leak workspace data.
-- Shared bridge workspace remains ephemeral RAM-only unless the product deliberately changes later.
+- Customer-scoped bridge runtime state must resolve authenticated customer identity before memory operations.
+- Shared/customer bridge workspace snapshots remain ephemeral RAM-only unless the product deliberately changes later.
 - No silent cloud fallback.
 - Local-only/private operation remains a first-class mode, not a degraded fallback.
 - No provider-specific fork of the user's memory database.
-- Access to one Space must not imply access to another Space.
+- Access to one Space/customer connection must not imply access to another.
 - **Knowledge, artifacts and execution are separate permission layers.** Knowing project context does not automatically grant authority to modify code/files or execute tools.
 - Keep the bridge generic: Grok, Mistral, Claude, ChatGPT, Gemini, Cursor, VS Code, local models and future MCP clients should use the same contract.
 
@@ -914,7 +983,7 @@ Memory App is not ordinary hidden chatbot memory and it is not a dump of every c
 
 The experience should feel like every authorised AI is entering the **same room**, rather than forcing the user to rebuild that room for each model provider.
 
-The current Grok + Mistral + Claude + Cursor proof demonstrates that this room persists while the AI changes; the ChatGPT OAuth test additionally proves the same bridge can authorise ChatGPT even when the current account tier does not expose live MCP actions.
+The current Grok + Mistral + Claude + Cursor proof demonstrates that this room persists while the AI changes; the ChatGPT OAuth test additionally proves the same bridge can authorise ChatGPT even when the current account tier does not expose live MCP actions. The scoped plumber-Claude test additionally proves that unrelated customer rooms can now use separate bridge identities instead of sharing one global workspace slot.
 
 ## Memory layers
 
@@ -950,7 +1019,7 @@ The user should be able to inspect what was selected and why.
 
 - local storage by default
 - explicit sharing only
-- per-space authorization
+- per-space/customer authorization
 - clear provenance
 - clear deletion/export controls
 - no private memory in analytics
@@ -1102,12 +1171,14 @@ The stable layer is the workspace, not any individual model.
 6. **Proposal notification/review** — remove manual `Pull`; surface new AI proposals automatically and keep Approve / Edit / Reject human-controlled.
 7. **Real revoke** — disconnect invalidates access, not just UI state.
 8. **Runtime persistence** — make HP Ollama + Memory Bridge survive reboot/restart without PowerShell intervention and express failures as simple reconnect/status states.
-9. **Secret hardening** — rotate exposed development pairing credentials and remove operational secrets from screenshots/setup paths.
-10. **Scope enforcement** — enforce `memory.read` and `memory.propose` at individual MCP tool boundaries.
-11. **Durable storage hardening** — move toward IndexedDB/versioned migrations plus trustworthy export/import/recovery before people rely on years of memory.
-12. **Stranger test** — give a non-technical person only the app URL and ask them to make an AI memory and connect their AI; fix every place they need developer help.
-13. **Only after V1 works**, return to contradiction detection, explicit supersede proposals, richer timeline/archive UX and large-memory housekeeping.
-14. Keep Code Space, GitHub/repo access, banking and other capability integrations as bolt-ons rather than mixing them into the Memory core.
+9. **Customer isolation** — scoped `MSB2.` routing is implemented and automated isolation regression is passing; finish the explicit live owner-vs-plumber cross-read + scoped revoke check.
+10. **Secret hardening** — rotate exposed development/master credentials and remove operational secrets from screenshots/setup paths.
+11. **Scope enforcement** — enforce `memory.read` and `memory.propose` at individual MCP tool boundaries.
+12. **Memory-poisoning hardening** — keep propose -> human approval mandatory; add review cues/quarantine/audit controls for hostile or misleading durable-context proposals.
+13. **Durable storage hardening** — move toward IndexedDB/versioned migrations plus trustworthy export/import/recovery before people rely on years of memory.
+14. **Stranger test** — give a non-technical person only the app URL and ask them to make an AI memory and connect their AI; fix every place they need developer help.
+15. **Only after V1 works**, return to contradiction detection, explicit supersede proposals, richer timeline/archive UX and large-memory housekeeping.
+16. Keep Code Space, GitHub/repo access, banking and other capability integrations as bolt-ons rather than mixing them into the Memory core.
 
 ## Productisation target
 
