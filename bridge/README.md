@@ -9,11 +9,17 @@ The browser remains the owner of workspace data. Before any model call, the exis
 - Workspace storage remains in the browser.
 - The bridge does not persist Memory Space data.
 - Bridge access requires a pairing token.
+- OAuth client registrations, access tokens, and refresh tokens are persisted locally only so authorised AI apps can recover after a bridge restart.
+- OAuth state is encrypted at rest with AES-256-GCM using a key derived from the bridge pairing token with scrypt.
+- The encrypted OAuth state defaults to `bridge/.state/oauth-state.enc.json` and `bridge/.state/` is Git-ignored.
+- Authorization codes, the currently published Space snapshot, and pending external proposals remain RAM-only.
 - The bridge accepts requests only from configured web origins.
 - Connection tests use `GET /v1/info` and send no memory context.
 - Normal model requests receive only the context already approved by the Memory Space context firewall.
 - Superseded, archived, and deleted memories are excluded before the bridge is called.
 - Permanent memory changes still require approval inside Memory Space.
+
+Changing the bridge pairing token intentionally makes the previous encrypted OAuth state unreadable, which effectively requires external AI apps to authorize again.
 
 ## Protocol
 
@@ -65,13 +71,14 @@ Requires Node.js 18+ and a local OpenAI-compatible model endpoint. Ollama and LM
 
 Environment variables:
 
-- `MEMORY_BRIDGE_TOKEN` — required pairing secret.
+- `MEMORY_BRIDGE_TOKEN` — required pairing secret. This also protects the encrypted OAuth recovery state.
 - `MEMORY_BRIDGE_MODEL` — required local model name, for example `gemma3:4b`.
 - `MEMORY_BRIDGE_TARGET` — optional target chat-completions endpoint. Defaults to `http://127.0.0.1:11434/v1/chat/completions`.
 - `MEMORY_BRIDGE_HOST` — optional bind address. Defaults to `127.0.0.1`.
 - `MEMORY_BRIDGE_PORT` — optional port. Defaults to `8787`.
 - `MEMORY_BRIDGE_NAME` — optional display name.
 - `MEMORY_BRIDGE_ORIGINS` — comma-separated allowed browser origins. Defaults to the production Memory Space origin.
+- `MEMORY_BRIDGE_OAUTH_STATE_FILE` — optional local path for the encrypted OAuth recovery file. Defaults to `bridge/.state/oauth-state.enc.json`.
 
 Example on a machine running Ollama:
 
@@ -88,6 +95,12 @@ $env:MEMORY_BRIDGE_TOKEN="replace-with-a-long-random-secret"
 $env:MEMORY_BRIDGE_MODEL="gemma3:4b"
 node bridge/server.mjs
 ```
+
+### First persistence rollout
+
+A bridge process started before OAuth persistence was installed has no encrypted state file yet. The first restart onto the new code therefore cannot recover grants that existed only in the old process RAM.
+
+After that first restart, authorize each desired AI app once. The new access/refresh state is written to the encrypted local state file automatically. Subsequent bridge restarts can restore still-valid grants without repeating authorization.
 
 ## HTTPS requirement
 
