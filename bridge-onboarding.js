@@ -2,7 +2,8 @@
   'use strict';
 
   const BRIDGES_KEY = 'memory-ai-bridges-v1';
-  const CODE_PREFIX = 'MSB1.';
+  const CODE_PREFIX_V1 = 'MSB1.';
+  const CODE_PREFIX_V2 = 'MSB2.';
 
   function loadBridges() {
     try {
@@ -25,30 +26,47 @@
     setTimeout(() => el.classList.remove('show'), 3000);
   }
 
-  function decodePrivateAccessCode(value) {
-    const text = String(value || '').trim();
-    if (!text.startsWith(CODE_PREFIX)) throw new Error('That Private Access Code is not recognised. Copy it again from Memory Bridge Setup.');
-
-    let payload = text.slice(CODE_PREFIX.length).replace(/-/g, '+').replace(/_/g, '/');
+  function decodePayload(text, prefix) {
+    let payload = text.slice(prefix.length).replace(/-/g, '+').replace(/_/g, '/');
     while (payload.length % 4) payload += '=';
-
-    let config;
     try {
       const binary = atob(payload);
       const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-      config = JSON.parse(new TextDecoder().decode(bytes));
+      return JSON.parse(new TextDecoder().decode(bytes));
     } catch {
       throw new Error('That Private Access Code could not be read. Copy the full code and try again.');
     }
+  }
 
+  function decodePrivateAccessCode(value) {
+    const text = String(value || '').trim();
+    const prefix = text.startsWith(CODE_PREFIX_V2)
+      ? CODE_PREFIX_V2
+      : text.startsWith(CODE_PREFIX_V1)
+        ? CODE_PREFIX_V1
+        : null;
+    if (!prefix) throw new Error('That Private Access Code is not recognised. Copy it again from Memory Bridge Setup.');
+
+    const config = decodePayload(text, prefix);
     const baseUrl = String(config?.baseUrl || '').trim().replace(/\/+$/, '');
     const token = String(config?.token || '');
     const name = String(config?.name || 'My Memory Bridge').trim() || 'My Memory Bridge';
-    if (Number(config?.version) !== 1 || !baseUrl.startsWith('https://') || !token) {
+    const version = Number(config?.version);
+
+    if (!baseUrl.startsWith('https://') || !token) {
       throw new Error('That Private Access Code is incomplete or from an unsupported Memory Bridge.');
     }
 
-    return { name, baseUrl, token };
+    if (prefix === CODE_PREFIX_V1) {
+      if (version !== 1) throw new Error('That Private Access Code is from an unsupported Memory Bridge.');
+      return { name, baseUrl, token };
+    }
+
+    const connectionId = String(config?.connectionId || '').trim();
+    if (version !== 2 || !connectionId) {
+      throw new Error('That Private Access Code is missing its private customer connection.');
+    }
+    return { name, baseUrl, token: text, connectionId };
   }
 
   function readConnection(dialog) {
@@ -101,7 +119,8 @@
         id: providerId,
         name: bridge.name,
         baseUrl: bridge.baseUrl,
-        token: bridge.token
+        token: bridge.token,
+        connectionId: bridge.connectionId || null
       });
       globalThis.MemoryAI.setActiveProvider(providerId);
       dialog.close();
@@ -163,7 +182,7 @@
 
     const help = form.querySelector('.connection-help:not(.memory-bridge-guide)');
     if (help) {
-      help.innerHTML = '<strong>Your control:</strong> this code pairs only this browser with your bridge. It does not copy your Memory Space to the bridge. Confirmed memory stays under your control.';
+      help.innerHTML = '<strong>Your control:</strong> this code creates a private bridge connection for this browser. Other customer connections cannot read this Space.';
     }
 
     const submit = form.querySelector('button[type="submit"]');
