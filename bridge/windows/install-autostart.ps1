@@ -13,8 +13,10 @@ $setupPath = Join-Path $PSScriptRoot 'show-access-code.ps1'
 $configPath = Join-Path $stateDir 'windows-runtime.json'
 $credentialPath = Join-Path $stateDir 'windows-token.clixml'
 $adminCredentialPath = Join-Path $stateDir 'windows-admin-token.clixml'
+$legacyOwnerDisabledFlag = Join-Path $stateDir 'legacy-owner-disabled.flag'
+$legacyOwnerDisabled = Test-Path $legacyOwnerDisabledFlag
 
-if ([string]::IsNullOrWhiteSpace($env:MEMORY_BRIDGE_TOKEN)) {
+if (!$legacyOwnerDisabled -and [string]::IsNullOrWhiteSpace($env:MEMORY_BRIDGE_TOKEN)) {
     throw 'MEMORY_BRIDGE_TOKEN is not set in this terminal. Start from the same terminal/config used for the working bridge.'
 }
 if ([string]::IsNullOrWhiteSpace($env:MEMORY_BRIDGE_MODEL)) {
@@ -28,15 +30,21 @@ $powershellPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\pow
 
 New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
 
-$secureToken = ConvertTo-SecureString $env:MEMORY_BRIDGE_TOKEN -AsPlainText -Force
-$credential = New-Object System.Management.Automation.PSCredential('memory-bridge-owner', $secureToken)
-$credential | Export-Clixml -Path $credentialPath
+$secureToken = $null
+if (!$legacyOwnerDisabled) {
+    $secureToken = ConvertTo-SecureString $env:MEMORY_BRIDGE_TOKEN -AsPlainText -Force
+    $credential = New-Object System.Management.Automation.PSCredential('memory-bridge-owner', $secureToken)
+    $credential | Export-Clixml -Path $credentialPath
+}
 
 if (![string]::IsNullOrWhiteSpace($env:MEMORY_BRIDGE_ADMIN_TOKEN)) {
     $secureAdminToken = ConvertTo-SecureString $env:MEMORY_BRIDGE_ADMIN_TOKEN -AsPlainText -Force
     $adminCredential = New-Object System.Management.Automation.PSCredential('memory-bridge-admin', $secureAdminToken)
     $adminCredential | Export-Clixml -Path $adminCredentialPath
 } elseif (!(Test-Path $adminCredentialPath)) {
+    if ($legacyOwnerDisabled -or $null -eq $secureToken) {
+        throw 'MEMORY_BRIDGE_ADMIN_TOKEN is required because the legacy owner credential is retired.'
+    }
     $adminCredential = New-Object System.Management.Automation.PSCredential('memory-bridge-admin', $secureToken)
     $adminCredential | Export-Clixml -Path $adminCredentialPath
 }
@@ -88,7 +96,12 @@ $shortcut.Save()
 
 Write-Host "Memory Space Bridge autostart installed for $currentUser"
 Write-Host "Runtime config: $configPath"
-Write-Host 'Owner and administrator credentials: encrypted with Windows user protection (DPAPI)'
+if ($legacyOwnerDisabled) {
+    Write-Host 'Legacy owner credential remains retired; installer did not recreate it.'
+} else {
+    Write-Host 'Owner credential: encrypted with Windows user protection (DPAPI)'
+}
+Write-Host 'Administrator credential: encrypted with Windows user protection (DPAPI)'
 Write-Host "Task: $TaskName"
 Write-Host 'Start menu: Memory Space -> Memory Bridge Setup'
 
