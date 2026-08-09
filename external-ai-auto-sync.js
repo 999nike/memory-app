@@ -26,7 +26,9 @@
       if (match) return match;
     }
 
-    return bridges[0] || null;
+    // Never guess between multiple saved customer connections. Publishing the
+    // active Space to the wrong bridge would cross the customer boundary.
+    return bridges.length === 1 ? bridges[0] : null;
   }
 
   function buildSharedActiveSpace() {
