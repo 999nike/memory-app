@@ -15,6 +15,8 @@ const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const HOST = process.env.MEMORY_BRIDGE_HOST || '127.0.0.1';
 const PORT = Number(process.env.MEMORY_BRIDGE_PORT || 8787);
 const TOKEN = process.env.MEMORY_BRIDGE_TOKEN || '';
+const OWNER_TOKEN = process.env.MEMORY_BRIDGE_OWNER_TOKEN || TOKEN;
+const ADMIN_TOKEN = process.env.MEMORY_BRIDGE_ADMIN_TOKEN || TOKEN;
 const BRIDGE_NAME = process.env.MEMORY_BRIDGE_NAME || 'Memory Bridge';
 const TARGET_ENDPOINT = process.env.MEMORY_BRIDGE_TARGET || 'http://127.0.0.1:11434/v1/chat/completions';
 const TARGET_MODEL = process.env.MEMORY_BRIDGE_MODEL || '';
@@ -39,8 +41,12 @@ const MCP_TOOL_SCOPES = Object.freeze({
   propose_memory: 'memory.propose'
 });
 
-if (!TOKEN) {
-  console.error('MEMORY_BRIDGE_TOKEN is required. Refusing to start without pairing authentication.');
+if (!OWNER_TOKEN) {
+  console.error('MEMORY_BRIDGE_TOKEN is required. Refusing to start without owner pairing authentication.');
+  process.exit(1);
+}
+if (!ADMIN_TOKEN) {
+  console.error('MEMORY_BRIDGE_ADMIN_TOKEN is required. Refusing to start without administrator authentication.');
   process.exit(1);
 }
 if (!TARGET_MODEL) {
@@ -54,11 +60,11 @@ if (!PUBLIC_URL.startsWith('https://')) {
 
 const legacyOauth = createMemoryBridgeOAuth({
   publicUrl: PUBLIC_URL,
-  pairingToken: TOKEN,
+  pairingToken: OWNER_TOKEN,
   clientId: OAUTH_CLIENT_ID,
   redirectHosts: OAUTH_REDIRECT_HOSTS
 });
-const connections = createConnectionState({ masterToken: TOKEN, publicUrl: PUBLIC_URL, bridgeName: BRIDGE_NAME });
+const connections = createConnectionState({ masterToken: ADMIN_TOKEN, publicUrl: PUBLIC_URL, bridgeName: BRIDGE_NAME });
 const workspaces = createWorkspaceRuntime();
 const tenantOauth = new Map();
 
@@ -102,7 +108,11 @@ function safeEqual(left, right) {
 }
 
 function isAdminAuthorized(req) {
-  return safeEqual(bearer(req), TOKEN);
+  return safeEqual(bearer(req), ADMIN_TOKEN);
+}
+
+function isOwnerAuthorized(req) {
+  return safeEqual(bearer(req), OWNER_TOKEN);
 }
 
 function mcpScopeCheck(oauth, req, body, adminAuthorized = false) {
@@ -473,7 +483,9 @@ const server = http.createServer(async (req, res) => {
     const legacyMcp = requestUrl.pathname === '/mcp';
     if (legacyMcp) {
       const adminAuthorized = isAdminAuthorized(req);
-      if (!adminAuthorized && !legacyOauth.isAuthorized(req)) {
+      const ownerAuthorized = isOwnerAuthorized(req);
+      const privilegedAuthorized = adminAuthorized || ownerAuthorized;
+      if (!privilegedAuthorized && !legacyOauth.isAuthorized(req)) {
         sendJson(res, 401, { error: 'MCP authorization required' }, origin, legacyOauth.challengeHeaders);
         return;
       }
@@ -483,7 +495,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === 'POST') {
         const body = await readBody(req);
-        const scopeCheck = mcpScopeCheck(legacyOauth, req, body, adminAuthorized);
+        const scopeCheck = mcpScopeCheck(legacyOauth, req, body, privilegedAuthorized);
         if (!scopeCheck.allowed) {
           sendJson(res, 403, { error: scopeCheck.error, requiredScope: scopeCheck.requiredScope || null }, origin, { 'MCP-Protocol-Version': MCP_VERSION });
           return;
@@ -499,7 +511,7 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    if (!isAdminAuthorized(req)) {
+    if (!isAdminAuthorized(req) && !isOwnerAuthorized(req)) {
       sendJson(res, 401, { error: 'Bridge pairing token is invalid' }, origin);
       return;
     }
