@@ -4,6 +4,7 @@ $bridgeDir = Split-Path -Parent $PSScriptRoot
 $stateDir = Join-Path $bridgeDir '.state'
 $configPath = Join-Path $stateDir 'windows-runtime.json'
 $credentialPath = Join-Path $stateDir 'windows-token.clixml'
+$adminCredentialPath = Join-Path $stateDir 'windows-admin-token.clixml'
 $logPath = Join-Path $stateDir 'windows-autostart.log'
 
 function Write-BridgeLog([string]$Message) {
@@ -20,20 +21,27 @@ function Set-BridgeEnvironment([string]$Name, $Value) {
     }
 }
 
+function Read-ProtectedToken([string]$Path) {
+    $credential = Import-Clixml -Path $Path
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($credential.Password)
+    try {
+        return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    } finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+}
+
 if (!(Test-Path $configPath) -or !(Test-Path $credentialPath)) {
     throw 'Memory Bridge autostart is not configured. Run bridge\windows\install-autostart.cmd once.'
 }
 
 $config = Get-Content -Raw -Path $configPath | ConvertFrom-Json
-$credential = Import-Clixml -Path $credentialPath
-$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($credential.Password)
-try {
-    $token = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-} finally {
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-}
+$ownerToken = Read-ProtectedToken $credentialPath
+$adminToken = if (Test-Path $adminCredentialPath) { Read-ProtectedToken $adminCredentialPath } else { $ownerToken }
 
-$env:MEMORY_BRIDGE_TOKEN = $token
+$env:MEMORY_BRIDGE_TOKEN = $ownerToken
+$env:MEMORY_BRIDGE_OWNER_TOKEN = $ownerToken
+$env:MEMORY_BRIDGE_ADMIN_TOKEN = $adminToken
 Set-BridgeEnvironment 'MEMORY_BRIDGE_MODEL' $config.model
 Set-BridgeEnvironment 'MEMORY_BRIDGE_TARGET' $config.target
 Set-BridgeEnvironment 'MEMORY_BRIDGE_HOST' $config.host
@@ -51,7 +59,7 @@ $port = if ($config.port) { [int]$config.port } else { 8787 }
 
 function Test-MemoryBridgeRunning {
     try {
-        $headers = @{ Authorization = "Bearer $token" }
+        $headers = @{ Authorization = "Bearer $ownerToken" }
         $info = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$port/v1/info" -Headers $headers -TimeoutSec 2
         return $info.protocol -eq 'memory-space-bridge'
     } catch {
