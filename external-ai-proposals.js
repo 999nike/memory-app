@@ -28,7 +28,9 @@
       const match = bridges.find((bridge) => bridge.id === id);
       if (match) return match;
     }
-    return bridges[0] || null;
+    // Never guess between multiple saved customer connections. Pulling from
+    // the wrong bridge could surface another customer's proposal queue.
+    return bridges.length === 1 ? bridges[0] : null;
   }
 
   function mergeExternalProposals(proposals) {
@@ -76,7 +78,9 @@
 
     const bridge = activeBridge();
     if (!bridge) {
-      setStatus('Connect an AI app to receive suggestions here.');
+      setStatus(loadBridges().length > 1
+        ? 'Choose the Memory Bridge for this Space before checking external AI suggestions.'
+        : 'Connect an AI app to receive suggestions here.');
       return;
     }
     if (!globalThis.MemoryBridge?.pullExternalProposals) {
