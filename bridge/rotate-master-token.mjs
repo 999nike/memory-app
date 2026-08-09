@@ -6,6 +6,7 @@ import { rotateOAuthStatePairingToken } from './oauth-state.mjs';
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const oldMasterToken = String(process.env.MEMORY_BRIDGE_OLD_TOKEN || '');
 const newMasterToken = String(process.env.MEMORY_BRIDGE_NEW_TOKEN || '');
+const rotateOwnerOauth = String(process.env.MEMORY_BRIDGE_ROTATE_OWNER_OAUTH || '') === '1';
 const connectionStateFile = path.resolve(
   String(process.env.MEMORY_BRIDGE_CONNECTION_STATE_FILE || path.join(moduleDir, '.state', 'customer-connections.enc.json'))
 );
@@ -27,20 +28,23 @@ try {
 
   let oauth = { rotated: false };
   let oauthWarning = null;
-  try {
-    oauth = rotateOAuthStatePairingToken({
-      stateFile: oauthStateFile,
-      oldPairingToken: oldMasterToken,
-      newPairingToken: newMasterToken
-    });
-  } catch (error) {
-    oauthWarning = error?.message || String(error);
+  if (rotateOwnerOauth) {
+    try {
+      oauth = rotateOAuthStatePairingToken({
+        stateFile: oauthStateFile,
+        oldPairingToken: oldMasterToken,
+        newPairingToken: newMasterToken
+      });
+    } catch (error) {
+      oauthWarning = error?.message || String(error);
+    }
   }
 
   console.log(JSON.stringify({
     rotated: true,
     customerConnections: connections.connectionCount,
     customerRegistryRotated: connections.rotated,
+    ownerOauthRotationRequested: rotateOwnerOauth,
     ownerOauthRotated: oauth.rotated,
     ownerOauthClients: oauth.dynamicClients || 0,
     ownerAccessTokens: oauth.accessTokens || 0,
