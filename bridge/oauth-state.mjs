@@ -95,6 +95,29 @@ function activeTokenEntries(value) {
   );
 }
 
+function writeEnvelopeFile(stateFile, envelope) {
+  fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+  const tempFile = `${stateFile}.${process.pid}.tmp`;
+  fs.writeFileSync(tempFile, JSON.stringify(envelope), { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(tempFile, stateFile);
+  try { fs.chmodSync(stateFile, 0o600); } catch {}
+}
+
+export function rotateOAuthStatePairingToken({ stateFile = resolveStateFile(), oldPairingToken, newPairingToken }) {
+  if (!oldPairingToken || !newPairingToken) throw new Error('Old and new OAuth pairing tokens are required');
+  const resolved = path.resolve(stateFile);
+  if (!fs.existsSync(resolved)) return { rotated: false, stateFile: resolved };
+  const payload = decryptEnvelope(JSON.parse(fs.readFileSync(resolved, 'utf8')), oldPairingToken);
+  writeEnvelopeFile(resolved, encryptPayload(payload, newPairingToken));
+  return {
+    rotated: true,
+    stateFile: resolved,
+    dynamicClients: validEntries(payload.dynamicClients).length,
+    accessTokens: activeTokenEntries(payload.accessTokens).length,
+    refreshTokens: activeTokenEntries(payload.refreshTokens).length
+  };
+}
+
 export function createPersistentOAuthState({ issuer, pairingToken, clientId }) {
   const stateFile = resolveStateFile();
   let restored = { dynamicClients: [], accessTokens: [], refreshTokens: [] };
@@ -136,11 +159,7 @@ export function createPersistentOAuthState({ issuer, pairingToken, clientId }) {
         refreshTokens: [...refreshTokens.entries()]
       };
       const envelope = encryptPayload(payload, pairingToken);
-      fs.mkdirSync(path.dirname(stateFile), { recursive: true });
-      const tempFile = `${stateFile}.${process.pid}.tmp`;
-      fs.writeFileSync(tempFile, JSON.stringify(envelope), { encoding: 'utf8', mode: 0o600 });
-      fs.renameSync(tempFile, stateFile);
-      try { fs.chmodSync(stateFile, 0o600); } catch {}
+      writeEnvelopeFile(stateFile, envelope);
     } catch (error) {
       console.error(`[oauth] state save failed ${error?.message || error}`);
     }
