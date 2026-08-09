@@ -10,6 +10,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const port = 19000 + (process.pid % 1000);
 const localBase = `http://127.0.0.1:${port}`;
 const publicBase = 'https://bridge.test';
+const ownerToken = `owner-${crypto.randomBytes(32).toString('hex')}`;
 const adminToken = `admin-${crypto.randomBytes(32).toString('hex')}`;
 const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'memory-bridge-isolation-'));
 const stateFile = path.join(stateDir, 'oauth-state.enc.json');
@@ -20,7 +21,9 @@ const child = spawn(process.execPath, [path.join(HERE, 'server.mjs')], {
     ...process.env,
     MEMORY_BRIDGE_HOST: '127.0.0.1',
     MEMORY_BRIDGE_PORT: String(port),
-    MEMORY_BRIDGE_TOKEN: adminToken,
+    MEMORY_BRIDGE_TOKEN: ownerToken,
+    MEMORY_BRIDGE_OWNER_TOKEN: ownerToken,
+    MEMORY_BRIDGE_ADMIN_TOKEN: adminToken,
     MEMORY_BRIDGE_NAME: 'Isolation Test Bridge',
     MEMORY_BRIDGE_MODEL: 'test-model',
     MEMORY_BRIDGE_TARGET: 'http://127.0.0.1:9/v1/chat/completions',
@@ -41,6 +44,10 @@ child.stderr.on('data', (chunk) => { logs += chunk.toString(); });
 
 function adminHeaders() {
   return { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' };
+}
+
+function ownerHeaders() {
+  return { Authorization: `Bearer ${ownerToken}`, 'Content-Type': 'application/json' };
 }
 
 function connectionHeaders(connection) {
@@ -186,6 +193,16 @@ function structured(result) {
 try {
   await waitForBridge();
 
+  const ownerInfo = await json(await fetch(`${localBase}/v1/info`, { headers: ownerHeaders() }));
+  assert.equal(ownerInfo.response.status, 200, 'owner credential must keep legacy owner bridge working');
+
+  const ownerCannotCreateCustomer = await json(await fetch(`${localBase}/v1/connections`, {
+    method: 'POST',
+    headers: ownerHeaders(),
+    body: JSON.stringify({ name: 'Must not be created' })
+  }));
+  assert.equal(ownerCannotCreateCustomer.response.status, 401, 'owner credential must not have administrator connection-management rights');
+
   const nike = await createConnection('Nike');
   const plumber = await createConnection('Plumber');
   assert.notEqual(nike.connectionId, plumber.connectionId);
@@ -250,7 +267,7 @@ try {
   assert.equal(plumberAfterNikeRevoke.response.status, 200, 'Plumber must remain working after Nike revocation');
   assert.equal(structured(plumberAfterNikeRevoke)?.count, 1);
 
-  console.log('PASS customer isolation + MCP scopes: customer data stayed separate, revocation was scoped, read/propose permissions were enforced, and undeclared tools failed closed.');
+  console.log('PASS owner/admin split + customer isolation + MCP scopes: owner stayed compatible without admin rights; customer data stayed separate; revocation and permissions remained scoped.');
 } finally {
   child.kill('SIGTERM');
   fs.rmSync(stateDir, { recursive: true, force: true });
