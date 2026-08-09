@@ -29,6 +29,18 @@ function pkce() {
   return { verifier, challenge };
 }
 
+function authorizeQuery(client, challenge, state = 'private-reconnect-test') {
+  return new URLSearchParams({
+    response_type: 'code',
+    client_id: client.clientId,
+    redirect_uri: client.redirectUri,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    scope: 'memory.read memory.propose',
+    state
+  });
+}
+
 const child = spawn(process.execPath, [path.join(HERE, 'server.mjs')], {
   cwd: HERE,
   env: {
@@ -100,24 +112,19 @@ async function registerClient(connection, clientName) {
   return { clientId: data.client_id, redirectUri };
 }
 
-async function authorize(connection, client, suppliedPrivateCode) {
+async function authorize(connection, client) {
   const { verifier, challenge } = pkce();
-  const query = new URLSearchParams({
-    response_type: 'code',
-    client_id: client.clientId,
-    redirect_uri: client.redirectUri,
-    code_challenge: challenge,
-    code_challenge_method: 'S256',
-    scope: 'memory.read memory.propose',
-    state: 'private-reconnect-test'
-  });
+  const query = authorizeQuery(client, challenge);
+  const scopedPath = `/c/${encodeURIComponent(connection.connectionId)}`;
 
-  const page = await fetch(`${base}/c/${encodeURIComponent(connection.connectionId)}/authorize?${query}`);
+  const page = await fetch(`${base}${scopedPath}/authorize?${query}`);
   const html = await page.text();
   assert.equal(page.status, 200, html);
   assert.match(html, /Authorize external AI access/);
+  assert.doesNotMatch(html, /Bridge pairing token/);
+  assert.match(html, new RegExp(`${scopedPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/authorize`));
 
-  const approval = await fetch(`${base}/authorize`, {
+  const approval = await fetch(`${base}${scopedPath}/authorize`, {
     method: 'POST',
     redirect: 'manual',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -128,8 +135,7 @@ async function authorize(connection, client, suppliedPrivateCode) {
       code_challenge: challenge,
       code_challenge_method: 'S256',
       scope: 'memory.read memory.propose',
-      state: 'private-reconnect-test',
-      pairing_token: suppliedPrivateCode
+      state: 'private-reconnect-test'
     })
   });
 
@@ -142,7 +148,7 @@ async function authorize(connection, client, suppliedPrivateCode) {
   const code = new URL(location).searchParams.get('code');
   assert.ok(code, 'authorization code must be returned');
 
-  const token = await fetch(`${base}/c/${encodeURIComponent(connection.connectionId)}/token`, {
+  const token = await fetch(`${base}${scopedPath}/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: form({
@@ -171,14 +177,42 @@ try {
   const ownerClient = await registerClient(ownerPrivate, 'Owner Claude');
   const plumberClient = await registerClient(plumberPrivate, 'Plumber Claude');
 
-  const wrongTenant = await authorize(ownerPrivate, ownerClient, plumberPrivate.accessCode);
-  assert.equal(wrongTenant.approval.status, 400, wrongTenant.body);
-  assert.match(wrongTenant.body, /Unknown OAuth client_id/);
+  // A client registered inside one customer's OAuth namespace must not become
+  // valid merely by presenting it at another customer's private issuer.
+  {
+    const { challenge } = pkce();
+    const wrongTenantQuery = authorizeQuery(ownerClient, challenge, 'wrong-tenant-test');
+    const wrongTenantPage = await fetch(
+      `${base}/c/${encodeURIComponent(plumberPrivate.connectionId)}/authorize?${wrongTenantQuery}`
+    );
+    const wrongTenantBody = await wrongTenantPage.text();
+    assert.equal(wrongTenantPage.status, 400, wrongTenantBody);
+    assert.match(wrongTenantBody, /Unknown OAuth client_id/);
+  }
 
-  const ownerGrant = await authorize(ownerPrivate, ownerClient, ownerPrivate.accessCode);
+  // Legacy/root compatibility remains pairing-token gated. Only private MSB2
+  // issuers use the simple Connect AI -> Authorize flow.
+  {
+    const { challenge } = pkce();
+    const legacyQuery = new URLSearchParams({
+      response_type: 'code',
+      client_id: 'memory-space-grok',
+      redirect_uri: `https://${redirectHost}/legacy/callback`,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      scope: 'memory.read memory.propose',
+      state: 'legacy-pairing-test'
+    });
+    const legacyPage = await fetch(`${base}/authorize?${legacyQuery}`);
+    const legacyHtml = await legacyPage.text();
+    assert.equal(legacyPage.status, 200, legacyHtml);
+    assert.match(legacyHtml, /Bridge pairing token/);
+  }
+
+  const ownerGrant = await authorize(ownerPrivate, ownerClient);
   assert.equal(ownerGrant.approval.status, 302);
 
-  const plumberGrant = await authorize(plumberPrivate, plumberClient, plumberPrivate.accessCode);
+  const plumberGrant = await authorize(plumberPrivate, plumberClient);
   assert.equal(plumberGrant.approval.status, 302);
 
   const ownerClientsResponse = await fetch(`${base}/c/${encodeURIComponent(ownerPrivate.connectionId)}/v1/oauth/clients`, {
@@ -197,7 +231,7 @@ try {
   assert.equal(plumberClients.count, 1);
   assert.equal(plumberClients.clients[0].clientName, 'Plumber Claude');
 
-  console.log('PASS private OAuth reconnect: owner/private and plumber/private each re-authorised with their own saved MSB2 code and remained isolated.');
+  console.log('PASS private OAuth reconnect: Connect AI uses one scoped MCP handoff, private consent needs only Authorize, and owner/plumber OAuth namespaces remain isolated.');
 } finally {
   child.kill('SIGTERM');
   fs.rmSync(stateDir, { recursive: true, force: true });
