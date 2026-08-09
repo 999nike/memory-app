@@ -4,6 +4,7 @@ $bridgeDir = Split-Path -Parent $PSScriptRoot
 $stateDir = Join-Path $bridgeDir '.state'
 $configPath = Join-Path $stateDir 'windows-runtime.json'
 $credentialPath = Join-Path $stateDir 'windows-token.clixml'
+$adminCredentialPath = Join-Path $stateDir 'windows-admin-token.clixml'
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -17,18 +18,26 @@ function Show-ErrorMessage([string]$Message) {
     ) | Out-Null
 }
 
+function Read-ProtectedToken([string]$Path) {
+    $credential = Import-Clixml -Path $Path
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($credential.Password)
+    try {
+        return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    } finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+}
+
 try {
     if (!(Test-Path $configPath) -or !(Test-Path $credentialPath)) {
         throw 'Memory Bridge is not configured yet. Run the Memory Space Bridge installer first.'
     }
 
     $config = Get-Content -Raw -Path $configPath | ConvertFrom-Json
-    $credential = Import-Clixml -Path $credentialPath
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($credential.Password)
-    try {
-        $adminToken = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-    } finally {
-        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    $adminToken = if (Test-Path $adminCredentialPath) {
+        Read-ProtectedToken $adminCredentialPath
+    } else {
+        Read-ProtectedToken $credentialPath
     }
 
     $port = if ($config.port) { [int]$config.port } else { 8787 }
