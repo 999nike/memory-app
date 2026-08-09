@@ -27,6 +27,23 @@
     return Array.isArray(bridges) ? bridges : [];
   }
 
+  function activeBridge() {
+    const bridges = loadBridges();
+    if (!bridges.length) return null;
+
+    const activeId = globalThis.MemoryAI?.getActiveProviderId?.() || '';
+    if (String(activeId).startsWith('memory-bridge:')) {
+      const id = String(activeId).slice('memory-bridge:'.length);
+      const match = bridges.find((bridge) => bridge.id === id);
+      if (match) return match;
+    }
+
+    // With multiple saved customer connections, guessing the first bridge can
+    // expose or revoke the wrong customer's OAuth grants. Fail closed until
+    // the user selects the intended Memory Bridge.
+    return bridges.length === 1 ? bridges[0] : null;
+  }
+
   function mountControl() {
     const control = document.querySelector('.ai-provider-control');
     if (!control) return false;
@@ -200,6 +217,7 @@
 
     const requestId = ++externalStatusRequest;
     const bridges = loadBridges();
+    button.disabled = false;
     if (!bridges.length) {
       status.classList.remove('ready');
       status.textContent = 'External AI access has not been set up on this device yet. Your on-device AI still works normally.';
@@ -208,12 +226,20 @@
       return;
     }
 
+    const bridge = activeBridge();
+    if (!bridge) {
+      status.classList.remove('ready');
+      status.textContent = 'More than one private Memory Bridge connection is saved. Choose the Memory Bridge for this Space above before managing external AI access.';
+      list.innerHTML = '';
+      button.textContent = 'Select Memory Bridge above';
+      button.disabled = true;
+      return;
+    }
+
     status.classList.add('ready');
     status.textContent = 'Checking which AI apps currently have access…';
     list.innerHTML = '';
     button.textContent = 'Connect AI app';
-
-    const bridge = bridges[0];
     if (!globalThis.MemoryBridge?.listExternalClients) {
       status.textContent = 'Private AI access is ready. Restart the updated Memory Bridge once to enable live permission controls.';
       return;
@@ -285,10 +311,14 @@
     if (!button) return;
 
     const dialog = event.currentTarget.closest('dialog');
-    const bridge = loadBridges()[0];
+    const bridge = activeBridge();
     const clientId = button.dataset.aiAccessRevoke;
     const name = button.dataset.aiAccessClientName || 'this AI app';
-    if (!bridge || !clientId || !globalThis.MemoryBridge?.revokeExternalClient) return;
+    if (!bridge) {
+      toast('Select the Memory Bridge for this Space before disconnecting an AI app');
+      return;
+    }
+    if (!clientId || !globalThis.MemoryBridge?.revokeExternalClient) return;
     if (!confirm(`Disconnect ${name} from Memory Space? It will need your approval again before it can access memory.`)) return;
 
     const original = button.textContent;
@@ -325,7 +355,15 @@
       return;
     }
 
-    const bridge = bridges[0];
+    const bridge = activeBridge();
+    if (!bridge) {
+      if (status) {
+        status.classList.remove('ready');
+        status.textContent = 'More than one private Memory Bridge connection is saved. Choose the Memory Bridge for this Space above before connecting an external AI app.';
+      }
+      return;
+    }
+
     const address = `${String(bridge.baseUrl || '').replace(/\/+$/, '')}/mcp`;
     if (!address.startsWith('https://')) {
       if (status) status.textContent = 'This saved bridge does not have a secure external connection address.';
