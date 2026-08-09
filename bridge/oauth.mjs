@@ -359,13 +359,17 @@ export function createMemoryBridgeOAuth({
     return target.toString();
   }
 
-  function isAuthorized(req) {
+  function isAuthorized(req, requiredScope = '') {
     cleanup();
     const auth = String(req.headers.authorization || '');
     if (!auth.startsWith('Bearer ')) return false;
     const token = auth.slice(7);
     const record = accessTokens.get(token);
-    return Boolean(record && record.expiresAt > Date.now());
+    if (!record || record.expiresAt <= Date.now()) return false;
+    const required = String(requiredScope || '').trim();
+    if (!required) return true;
+    const scopes = new Set(String(record.scope || '').split(/\s+/).filter(Boolean));
+    return scopes.has(required);
   }
 
   function issueAccessToken(clientIdValue, scope) {
