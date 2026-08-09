@@ -71,9 +71,9 @@ Each customer receives:
 - separate RAM-only published workspace
 - separate RAM-only proposal queue
 
-Customer secrets are now stored as stable per-connection secrets inside the encrypted customer registry instead of remaining permanently derived from the bridge administrator token. Existing customer credentials are migrated to the same value they already used, so their `MSB2.` codes do not change during the migration.
+Customer secrets are stored as stable per-connection secrets inside the encrypted customer registry instead of remaining permanently derived from the bridge administrator token. Existing customer credentials migrate to the same value they already used, so their `MSB2.` codes do not change during administrator rotation.
 
-Legacy `MSB1.` + root `/mcp` remains only for owner/single-owner compatibility.
+The HP owner workspace has now been moved away from the stored development-era `MSB1` owner credential and onto the same scoped `MSB2` connection model used by unrelated customers. The server still contains dormant legacy-root compatibility code, but the Windows supervisor no longer persists the retired owner credential after the retirement flag is set.
 
 Customer connection registry is encrypted at rest. Memory Space contents are not stored in that registry.
 
@@ -92,14 +92,14 @@ Important merged commit:
 
 ### MCP tool permission enforcement — PASSED 9 Aug 2026
 
-MCP permissions are now enforced at the individual tool-call boundary rather than only at the higher-level OAuth connection boundary.
+MCP permissions are enforced at the individual tool-call boundary rather than only at the higher-level OAuth connection boundary.
 
 Current rules:
 
 - `list_spaces`, `search_memory`, `get_current_space_context`, `read_memory`, `get_current_decisions`, `inspect_provenance` require `memory.read`
 - `propose_memory` requires `memory.propose`
 - any future/unknown MCP tool without a declared scope fails closed
-- the owner/administrator compatibility path remains privileged only where explicitly intended
+- privileged compatibility paths remain privileged only where explicitly intended
 
 Automated regression verifies:
 
@@ -112,34 +112,81 @@ Relevant commits include `e6a7bc9`, `c3d0096`, and `ee96622`.
 
 The HP bridge was pulled/restarted onto the scope-enforcement build and the normal app connections remained connected. The restricted-scope negative cases are CI-proven; they were not repeated as another manual live provider test.
 
-### Rotation-safe administrator credential split — CI PASSED 9 Aug 2026; HP DEPLOY/ROTATION PENDING
+### Rotation-safe administrator credential split — LIVE PASSED 9 Aug 2026
 
-A direct administrator-token rotation was found to be unsafe because the old implementation also used that token to encrypt the customer registry and derive customer credentials. Rotating it blindly would have invalidated the private customer routes we had just proved.
+A direct administrator-token rotation was found to be unsafe because the old implementation also used that token to encrypt the customer registry and derive customer credentials. Rotating it blindly would have invalidated private customer routes.
 
-The repository now has a rotation-safe path:
+The repository therefore split owner/root compatibility from administrator/customer-management access and made customer credentials stable across administrator rotation:
 
-- customer connection secrets are stable and survive administrator rotation
+- customer connection secrets survive administrator rotation
 - existing derived customer credentials migrate without changing their `MSB2.` Private Access Codes
-- owner/root access and administrator/customer-management access are separate credentials
-- the retained owner credential can keep the existing owner app/OAuth connection working while the administrator credential changes
+- owner/root compatibility and administrator/customer-management use separate credentials
 - the owner credential is rejected from `/v1/connections` administrator operations
-- Windows supervisor can load separate DPAPI-protected owner and administrator credentials
-- Memory Bridge Setup uses the administrator credential when creating new private customer connections
-- `bridge/windows/rotate-master-token.ps1` rotates the administrator credential and customer-registry encryption while leaving owner and tenant OAuth state intact
+- Windows supervisor loads separate DPAPI-protected administrator state
+- Memory Bridge Setup uses the administrator credential when creating new private connections
+- `bridge/windows/rotate-master-token.ps1` rotates administrator credential + customer-registry encryption while preserving MSB2 customer credentials and tenant OAuth state
 
-Automated CI now verifies:
+Automated CI verifies:
 
-- owner credential still reaches the legacy owner bridge but cannot create customer connections
+- owner credential cannot create customer connections
 - separate administrator credential can manage customers
 - administrator rotation preserves the same `MSB2.` customer access code
-- tenant OAuth state survives the administrator rotation
-- owner OAuth state remains usable on the retained owner credential
+- tenant OAuth state survives administrator rotation
+- owner OAuth state could remain usable while the old owner credential was temporarily retained
 - Node and Windows PowerShell security scripts parse successfully
-- the full customer-isolation + MCP-scope regression still passes
+- full customer-isolation + MCP-scope regression still passes
 
-Latest regression run completed successfully after commit `8b547019`.
+Live HP result on 9 Aug 2026:
 
-**This security change is not yet live on the HP.** The next HP step is to pull current `main`, restart the supervisor onto the new code, then run the one-command administrator rotation. Do not mark the old development credential fully retired until the later legacy owner credential is also migrated/rotated.
+```text
+Memory Bridge administrator credential rotated successfully.
+Rotation state: {"rotated":true,"customerConnections":1,"customerRegistryRotated":true,...}
+```
+
+Observed immediately afterward:
+
+- owner side remained available
+- plumber/private side remained available
+- no connection/UI bug was observed after the administrator rotation
+
+This closes the live administrator/master credential rotation milestone.
+
+### Legacy owner development credential retirement — LIVE COMPLETED 9 Aug 2026
+
+The stored development-era owner `MSB1` credential was then retired instead of replacing it with another permanent privileged legacy secret.
+
+Before retirement:
+
+- a fresh `MSB2` Private Access Code was generated through Memory Bridge Setup
+- the normal owner `Memory App` browser was connected to a new Private/MSB2 bridge entry
+- the browser showed the old Owner entry and the new Private entry concurrently, preserving a fallback during migration
+
+Repository hardening for retirement includes:
+
+- `bridge/windows/disable-legacy-owner.ps1`
+- `bridge/windows/start-bridge.ps1` retirement mode
+- `bridge/legacy-owner-retirement-test.mjs`
+- CI coverage preventing the legacy stored owner credential from being silently recreated by reinstall/autostart setup
+
+Latest retirement CI passed on `main` after commit `fc18fdf`.
+
+Live HP retirement command completed successfully and reported:
+
+```text
+Legacy owner credential retired.
+The stored owner MSB1 credential and legacy root OAuth recovery state were removed.
+The administrator credential, private MSB2 customer credentials, and tenant OAuth state were left untouched.
+The supervisor will now use a non-persisted random owner token only for dormant legacy-root compatibility.
+```
+
+Meaning:
+
+- the old stored development owner credential is no longer retained on the HP
+- administrator credential remains separate
+- private `MSB2` customer credentials remain the intended normal connection model
+- dormant legacy-root compatibility receives only a non-persisted random owner token on supervisor start
+
+**Do not overclaim this step:** after the retirement command, another full external-provider read/propose cycle was deliberately not repeated. The retirement script completed and the migration code is CI-covered; provider reconnection on the new owner MSB2 route can be done only when actually needed.
 
 ### Multi-bridge browser isolation fix — PASSED 9 Aug 2026
 
@@ -281,11 +328,11 @@ Current known callback support includes Claude after commit:
 
 Priority order:
 
-1. deploy current `main` to the HP and run the new zero-disruption administrator credential rotation; confirm owner and plumber/private connections remain available
-2. retire/migrate the retained legacy owner development credential before wider public testing so the old development secret is fully dead, not merely stripped of administrator rights
-3. keep proposal -> human approval mandatory and add memory-poisoning review/audit hardening
-4. improve durable browser storage/recovery toward IndexedDB/versioned migrations/export/import; keep the storage schema ready for the derived shelving/index layer below
-5. run a genuine stranger test using only the app/customer setup path
+1. keep proposal -> human approval mandatory and add memory-poisoning review/audit hardening
+2. improve durable browser storage/recovery toward IndexedDB/versioned migrations/export/import; keep the storage schema ready for the derived shelving/index layer below
+3. run a genuine stranger test using only the app/customer setup path
+
+The administrator rotation and stored legacy-owner credential retirement are now completed live; do not reopen them unless a real regression appears.
 
 Do not mix Code Space, GitHub execution, banking or other future capability layers into the Memory core during V1.
 
