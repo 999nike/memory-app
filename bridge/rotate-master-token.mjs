@@ -24,11 +24,19 @@ try {
     oldMasterToken,
     newMasterToken
   });
-  const oauth = rotateOAuthStatePairingToken({
-    stateFile: oauthStateFile,
-    oldPairingToken: oldMasterToken,
-    newPairingToken: newMasterToken
-  });
+
+  let oauth = { rotated: false };
+  let oauthWarning = null;
+  try {
+    oauth = rotateOAuthStatePairingToken({
+      stateFile: oauthStateFile,
+      oldPairingToken: oldMasterToken,
+      newPairingToken: newMasterToken
+    });
+  } catch (error) {
+    oauthWarning = error?.message || String(error);
+  }
+
   console.log(JSON.stringify({
     rotated: true,
     customerConnections: connections.connectionCount,
@@ -36,7 +44,8 @@ try {
     ownerOauthRotated: oauth.rotated,
     ownerOauthClients: oauth.dynamicClients || 0,
     ownerAccessTokens: oauth.accessTokens || 0,
-    ownerRefreshTokens: oauth.refreshTokens || 0
+    ownerRefreshTokens: oauth.refreshTokens || 0,
+    ownerOauthWarning: oauthWarning
   }));
 } catch (error) {
   console.error(`Credential rotation failed: ${error?.message || error}`);
