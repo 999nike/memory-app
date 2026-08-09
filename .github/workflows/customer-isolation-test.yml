@@ -28,6 +28,7 @@ jobs:
           node --check bridge/workspace-runtime.mjs
           node --check bridge/isolation-test.mjs
           node --check bridge/credential-rotation-test.mjs
+          node --check bridge/legacy-owner-retirement-test.mjs
           node --check bridge/rotate-master-token.mjs
       - name: PowerShell syntax check
         shell: pwsh
@@ -36,7 +37,10 @@ jobs:
           [void][scriptblock]::Create((Get-Content -Raw 'bridge/windows/install-autostart.ps1'))
           [void][scriptblock]::Create((Get-Content -Raw 'bridge/windows/show-access-code.ps1'))
           [void][scriptblock]::Create((Get-Content -Raw 'bridge/windows/rotate-master-token.ps1'))
+          [void][scriptblock]::Create((Get-Content -Raw 'bridge/windows/disable-legacy-owner.ps1'))
       - name: Run two-customer isolation regression
         run: node bridge/isolation-test.mjs
       - name: Run credential rotation regression
         run: node bridge/credential-rotation-test.mjs
+      - name: Run legacy owner retirement regression
+        run: node bridge/legacy-owner-retirement-test.mjs
