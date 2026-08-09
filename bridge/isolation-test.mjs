@@ -119,7 +119,7 @@ function pkce() {
   return { verifier, challenge };
 }
 
-async function issueOAuthToken(connection) {
+async function issueOAuthToken(connection, scope = 'memory.read memory.propose') {
   const redirectUri = 'https://example.com/callback';
   const resource = `${publicBase}/c/${encodeURIComponent(connection.connectionId)}/mcp`;
   const { verifier, challenge } = pkce();
@@ -129,7 +129,7 @@ async function issueOAuthToken(connection) {
     redirect_uri: redirectUri,
     code_challenge: challenge,
     code_challenge_method: 'S256',
-    scope: 'memory.read memory.propose',
+    scope,
     resource,
     pairing_token: connection.accessCode
   });
@@ -160,6 +160,7 @@ async function issueOAuthToken(connection) {
   }));
   assert.equal(response.status, 200, JSON.stringify(data));
   assert.ok(data.access_token);
+  assert.equal(data.scope, scope);
   return data.access_token;
 }
 
@@ -215,6 +216,25 @@ try {
   const crossedPath = await mcp(plumber, nikeToken, 'search_memory', { query: 'OWNER' });
   assert.equal(crossedPath.response.status, 401, 'Nike token must be rejected on Plumber MCP route');
 
+  const readOnlyToken = await issueOAuthToken(plumber, 'memory.read');
+  const readOnlyRead = await mcp(plumber, readOnlyToken, 'search_memory', { query: 'OWNER = PLUMBER' });
+  assert.equal(readOnlyRead.response.status, 200, 'memory.read must allow read tools');
+  assert.equal(structured(readOnlyRead)?.count, 1);
+  const readOnlyPropose = await mcp(plumber, readOnlyToken, 'propose_memory', { title: 'Denied proposal', content: 'Read-only token must not propose.' });
+  assert.equal(readOnlyPropose.response.status, 403, 'memory.read alone must not allow propose_memory');
+  assert.equal(readOnlyPropose.data.requiredScope, 'memory.propose');
+
+  const proposeOnlyToken = await issueOAuthToken(plumber, 'memory.propose');
+  const proposeOnlyProposal = await mcp(plumber, proposeOnlyToken, 'propose_memory', { title: 'Scoped proposal', content: 'Proposal-only token may submit for human review.' });
+  assert.equal(proposeOnlyProposal.response.status, 200, 'memory.propose must allow propose_memory');
+  assert.equal(structured(proposeOnlyProposal)?.acceptedAsProposal, true);
+  const proposeOnlyRead = await mcp(plumber, proposeOnlyToken, 'search_memory', { query: 'OWNER = PLUMBER' });
+  assert.equal(proposeOnlyRead.response.status, 403, 'memory.propose alone must not allow read tools');
+  assert.equal(proposeOnlyRead.data.requiredScope, 'memory.read');
+
+  const undeclaredTool = await mcp(plumber, plumberToken, 'future_unscoped_tool', {});
+  assert.equal(undeclaredTool.response.status, 403, 'MCP tools without a declared scope must fail closed');
+
   const revoke = await json(await fetch(`${localBase}/v1/connections/revoke`, {
     method: 'POST',
     headers: adminHeaders(),
@@ -230,7 +250,7 @@ try {
   assert.equal(plumberAfterNikeRevoke.response.status, 200, 'Plumber must remain working after Nike revocation');
   assert.equal(structured(plumberAfterNikeRevoke)?.count, 1);
 
-  console.log('PASS customer isolation: NIKE and PLUMBER remained separate; cross-route access failed; revocation was scoped.');
+  console.log('PASS customer isolation + MCP scopes: customer data stayed separate, revocation was scoped, read/propose permissions were enforced, and undeclared tools failed closed.');
 } finally {
   child.kill('SIGTERM');
   fs.rmSync(stateDir, { recursive: true, force: true });
