@@ -53,8 +53,58 @@ The interoperability layer is already proven strongly enough to stop chasing pro
 - cross-provider portability — one AI's human-approved memory was read by another provider
 - **8 Aug 2026 automatic V1 loop proof** — Grok received the current Space without manual Share, proposed `V1 automatic inbox test`, Memory Space surfaced it without manual Check/Pull, the human approved it, automatic sync republished the confirmed state, and Grok read the approved memory back as `status: confirmed`
 - **8 Aug 2026 restart recovery proof** — the encrypted OAuth state file was created locally, the bridge was stopped and started again, startup restored `access=1 refresh=1`, Grok remained connected without Reauth, and Memory Space automatically republished the active Space with 11 confirmed memories into bridge RAM
+- **9 Aug 2026 live customer-isolation proof** — a separate `plummers space` customer connection was authorised through its scoped customer route and Claude read exactly that Space with **1 confirmed memory**, while the owner Space remained separate
+- **9 Aug 2026 live phone-sync proof** — a new owner memory `Test1k` / `Test from phone at 18:55` was added on the phone; Grok immediately read it back and reported the confirmed count changing from **12 -> 13**, proving live republish from the phone-held Space through the bridge to the external AI
 
 Cursor's final proposal/read-back proof remains a useful regression test, but is not a blocker for beginning productisation; its read session ended because the Cursor account hit its Agent usage limit, not because Memory Space failed.
+
+### Customer isolation + phone live-sync proof — 9 Aug 2026
+
+The scoped customer architecture was rechecked live after the connection/auth changes rather than relying only on the automated regression.
+
+A separate customer Space named `plummers space` was connected using its own scoped customer connection. Claude's Memory Space tools returned exactly:
+
+- current Space: `plummers space`
+- confirmed memory count: **1**
+- confirmed test memory: `123` / `tester`
+- no owner-Space memories were visible
+
+The owner Space remained independent. Grok was connected to the owner's `Memory App` Space and reported **12 confirmed memories** before the live-sync test.
+
+A new memory was then added from the phone:
+
+- title: `Test1k`
+- content: `Test from phone at 18:55`
+- type: Decision
+- importance: Normal
+- source: User confirmed
+
+Grok immediately read the new memory and reported the count changing from **12 to 13**. The same memory was visible in the Memory Space UI on the phone.
+
+This is the current strongest V1 proof that the intended product architecture works in real use:
+
+```text
+Phone-held Space
+    -> automatic publish to its scoped bridge workspace
+    -> external AI reads the new confirmed state
+```
+
+and that unrelated customer routes remain separate rather than sharing one global published workspace.
+
+### AI connector UX cleanup — 9 Aug 2026
+
+The external-AI connection path was simplified after testing exposed confusion between the customer onboarding credential and the external AI connector address.
+
+Current intended behaviour:
+
+- `Connect AI app` / connector copy gives the scoped **HTTPS MCP connector address** needed by the external AI app
+- the UI must describe that value as the AI connector address, not as a private bridge credential
+- the extra `Copy Private Access Code` control is not part of the normal external-AI authorization flow
+- normal OAuth authorization uses the scoped customer route and the bridge authorization screen; the user should not be asked to expose or manually paste the bridge's raw private token into the external AI
+
+The small UI cleanup commit `c1cd2a2` also fixes the mobile memory-inspector stacking issue so the Shared Chat `Send` button no longer sits above the inspector when a memory is opened.
+
+Do not reopen bridge/OAuth/customer-isolation architecture while stabilising this V1 unless a reproducible fault demonstrates a need. Prefer UI-only fixes and regression checks from this baseline.
 
 ### ChatGPT compatibility proof — 8 Aug 2026
 
@@ -87,7 +137,7 @@ Therefore the factual status is:
 
 Do not treat this as a Memory Bridge OAuth failure, and do not count ChatGPT as a full-loop provider until ChatGPT actually exposes and calls the MCP tools. Retest on an eligible ChatGPT plan or when the product surface changes.
 
-The `chatgpt.com` / `openai.com` redirect-host allowance used for this test was process configuration, not yet a durable product configuration. Bank that cleanup for supported ChatGPT productisation rather than hard-coding provider-specific behaviour prematurely.
+The `chatgpt.com` / `openai.com` redirect-host allowance used in this live test was process configuration, not yet a durable product configuration. Bank that cleanup for supported ChatGPT productisation rather than hard-coding provider-specific behaviour prematurely.
 
 ## V1 work order
 
@@ -111,7 +161,7 @@ Status: **implemented for the current browser build.**
 
 ### 3. AI Access
 
-Status: **product surface implemented; live OAuth grant visibility/revoke implemented and verified with Grok.**
+Status: **product surface implemented; live OAuth grant visibility/revoke implemented and verified with Grok. Customer-scoped Claude and owner-Grok live reads reverified on 9 Aug.**
 
 The normal-user control surface now replaces the old provider-first controls with `AI Access`. It shows the current Space, in-app AI choices, compatible external AI apps and keeps raw connection setup under Advanced.
 
@@ -134,7 +184,7 @@ Developer details remain available only under Advanced / Developer.
 
 ### 4. Remove manual bridge chores from the core loop
 
-Status: **implemented and end-to-end verified with Grok.**
+Status: **implemented and end-to-end verified with Grok, including live phone edit -> external read on 9 Aug.**
 
 The product no longer needs the user to understand `Share` or manually press `Check proposals` in the normal flow:
 
@@ -145,6 +195,7 @@ The product no longer needs the user to understand `Share` or manually press `Ch
 - the External AI inbox checks the bridge automatically and surfaces new proposals for human review
 - proposal approval remains a human action; automatic sync does not auto-approve durable memory
 - verified round trip: external proposal -> automatic inbox -> human Approve -> automatic republish -> same external AI reads the memory back as confirmed
+- verified live phone update: 12 confirmed memories -> phone adds `Test1k` -> Grok reads 13 and the exact new memory without manual Share
 
 The old Share/Pull controls may remain under Advanced as diagnostics/fallback while V1 stabilises, but they are no longer intended as customer workflow.
 
@@ -179,22 +230,35 @@ Remaining V1 work:
 - keep versioned export/import reliable and regression-tested
 - move production browser persistence toward IndexedDB + versioned migrations before users trust it with years of data
 
-## Current V1 position — 8 Aug 2026
+## Current V1 position — 9 Aug 2026
 
-The core product loop is now working rather than merely prototyped:
+The core product loop is now working rather than merely prototyped, and both customer isolation and live phone-to-AI republishing have been observed directly:
 
 ```text
 Open / install Memory Space
     -> use durable local Space
-    -> connect external AI
-    -> AI reads current confirmed memory
+    -> connect external AI with scoped HTTPS connector address
+    -> authorize
+    -> AI reads only that customer's current confirmed memory
     -> AI proposes durable memory
     -> proposal appears automatically
     -> human Approve / Edit / Reject
     -> approved state republishes automatically
     -> external AI reads the new confirmed truth
+    -> phone edits republish live without manual Share
     -> bridge can restart without losing the authorised AI grant
 ```
+
+Current stable baseline after the 9 Aug cleanup:
+
+- customer-scoped isolation is live-proven with the separate plumber Space
+- owner and customer published workspaces remain separate
+- Grok live phone sync is proven at 12 -> 13 confirmed memories
+- Claude customer-scoped read is proven at exactly 1 plumber memory
+- the external-AI button must expose the scoped HTTPS connector address, not a raw bridge token
+- the obsolete private-access-code copy control is removed from the normal AI connector flow
+- mobile inspector stacking no longer allows the Shared Chat Send button to sit above the memory inspector
+- commit `c1cd2a2` is the current UI-cleanup baseline; avoid unrelated bridge/auth rewrites while stabilising V1
 
 The next productisation focus is no longer MCP interoperability. It is removing the remaining technical setup around the companion runtime and making the first-use/install path simple enough for a non-technical user.
 
@@ -202,7 +266,7 @@ Near-term priorities:
 
 1. bridge auto-start / no PowerShell in normal use
 2. in-app `Install Memory Space` experience where the browser supports it
-3. simplify Private Access Code / companion setup language
+3. simplify companion/connector setup language without exposing credentials
 4. persistence hardening and recovery UX
 5. stranger test
 
