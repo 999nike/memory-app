@@ -93,6 +93,22 @@ Important merged commit:
 
 - `ce5010d` — customer isolation regression retained on `main`
 
+### Multi-bridge browser isolation fix — PASSED 9 Aug 2026
+
+A real edge-case test exposed a browser-side isolation bug: the HP browser could show the plumber Space while still using the saved owner bridge identity. This made owner external-AI grants appear in the plumber UI and could cause a revoke from the plumber screen to hit the owner OAuth namespace.
+
+The fix now:
+
+- binds a Space to an explicit saved bridge identity instead of using browser/array order
+- fails closed when multiple bridges exist and no Space binding is known
+- labels saved bridge identities as Owner vs Private in AI Access
+- forces an `MSB2.` connection with `connectionId` onto `/c/<connectionId>` at the low-level bridge request path
+- refuses a scoped bridge test if the returned customer identity does not match
+
+Live HP verification showed `WIZZ HP Bridge · Owner` separately **READY** while `WIZZ HP Bridge · Private` was **IN USE** for the plumber Space. The plumber AI Access list then showed only the plumber tenant's own authorisation.
+
+Relevant production hardening includes commits `977a678` and `fbaa27c`.
+
 ### Fresh real customer proof
 
 A genuinely separate plumber customer was tested using:
@@ -153,17 +169,28 @@ Observed live:
 
 Together with the plumber -> owner test, this gives a live bidirectional cross-customer negative-read proof: each real external AI connection can read its own customer workspace while the tested other-customer markers remain inaccessible.
 
----
+### Live scoped revoke + reverse authorisation proof — PASSED 9 Aug 2026
 
-## STILL TO VERIFY LIVE
+The real plumber/customer route was then tested through revoke and re-authorisation from both sides.
 
-Do **not** mark these as passed until directly observed:
+Observed live:
 
-1. revoke the plumber connection
-2. prove plumber access is dead
-3. prove owner connection still works after plumber revoke
+- plumber Space used `WIZZ HP Bridge · Private`; the owner bridge remained a separate `WIZZ HP Bridge · Owner`
+- before revoke, plumber AI Access showed only **Claude** authorised
+- disconnecting Claude from the plumber Space removed the plumber external-AI grant; plumber AI Access then showed **0 external AI apps authorised**
+- the revoked plumber Claude chat reported that no live Memory Space MCP/tool connection was available
+- owner phone remained on `Memory App` with **ChatGPT + Grok** still connected after the plumber revoke
+- Claude was then authorised again on the owner phone, producing **ChatGPT + Claude + Grok** on the owner side
+- after that owner-side Claude authorisation, the plumber HP still showed **0 external AI apps authorised**
 
-Automated regression already covers this class of isolation; these remaining revoke checks finish the explicit real external-account proof.
+The owner product loop also remained independently functional while plumber had no external AI connected:
+
+- an external-AI proposal appeared in the owner `Memory App`
+- the proposal required explicit human approval
+- after approval the owner memory count moved from **11 -> 12**
+- the saved decision was `Customer Isolation Proven End-to-End (Live Test)`
+
+This closes the live customer-isolation/scoped-revoke test set: revoke on one customer does not affect the other, and authorising an AI on one customer does not appear on the other.
 
 ---
 
@@ -206,13 +233,12 @@ Current known callback support includes Claude after commit:
 
 Priority order:
 
-1. finish plumber revoke + plumber-dead + owner-still-works live proof
-2. reproduce the first-memory Critical + Locked report on the current build; patch only if it still occurs
-3. enforce `memory.read` and `memory.propose` at individual MCP tool boundaries
-4. rotate exposed development/master credentials before wider testing
-5. keep proposal -> human approval mandatory and add memory-poisoning review/audit hardening
-6. improve durable browser storage/recovery toward IndexedDB/versioned migrations/export/import; keep the storage schema ready for the derived shelving/index layer below
-7. run a genuine stranger test using only the app/customer setup path
+1. reproduce the first-memory Critical + Locked report on the current build; patch only if it still occurs
+2. enforce `memory.read` and `memory.propose` at individual MCP tool boundaries
+3. rotate exposed development/master credentials before wider testing
+4. keep proposal -> human approval mandatory and add memory-poisoning review/audit hardening
+5. improve durable browser storage/recovery toward IndexedDB/versioned migrations/export/import; keep the storage schema ready for the derived shelving/index layer below
+6. run a genuine stranger test using only the app/customer setup path
 
 Do not mix Code Space, GitHub execution, banking or other future capability layers into the Memory core during V1.
 
@@ -220,7 +246,7 @@ Do not mix Code Space, GitHub execution, banking or other future capability laye
 
 ## BANKED FUTURE PLAN — MANAGED AI ACCESS / MCP CONTROL PLANE
 
-**Not V1 work. Stay on the current V1 security, revoke, scope and storage track first.**
+**Not V1 work. Stay on the current V1 security, permission, scope and storage track first.**
 
 Longer term, remove another infrastructure layer from the normal customer experience. The customer should not have to understand or manually manage bridge selection, MCP URLs, tunnel addresses, pairing codes or provider-specific connection plumbing.
 
@@ -305,7 +331,7 @@ This rule applies to status, publish, read, search, proposal pull, proposal writ
 
 The managed control plane should be an easier product layer over the existing protocol, not a replacement for local/private ownership. A customer must still be able to run a private/local Memory Bridge and use the same permission model without a mandatory cloud-memory fallback.
 
-Bank this architecture for after V1. Do not derail the present customer-isolation and permission-hardening work to build it now.
+Bank this architecture for after V1. Do not derail the present permission-hardening work to build it now.
 
 ---
 
@@ -387,7 +413,7 @@ Every index/search/shelf operation must preserve the same customer and Space iso
 
 ### Build timing
 
-Do not derail the remaining V1 security/revoke work for this. However, storage and memory-ID decisions made now must not block it. After the core V1 safety path is closed, prototype the smallest useful shelf/index layer against a larger synthetic memory set and measure retrieval quality/context reduction before adding automatic summarisation or complex clustering.
+Do not derail the remaining V1 security/permission/storage work for this. However, storage and memory-ID decisions made now must not block it. After the core V1 safety path is closed, prototype the smallest useful shelf/index layer against a larger synthetic memory set and measure retrieval quality/context reduction before adding automatic summarisation or complex clustering.
 
 ---
 
