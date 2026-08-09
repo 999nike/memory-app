@@ -53,19 +53,75 @@ function safeEqual(left, right) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+function legacyDerivedSecret(masterToken, connectionId) {
+  return crypto
+    .createHmac('sha256', String(masterToken))
+    .update(`memory-space-connection:${connectionId}`)
+    .digest('base64url');
+}
+
+function normalizeRecord(recordValue, masterToken, connectionId) {
+  const record = recordValue && typeof recordValue === 'object' && !Array.isArray(recordValue)
+    ? { ...recordValue }
+    : {};
+  let migrated = false;
+  if (!String(record.secret || '').trim()) {
+    record.secret = legacyDerivedSecret(masterToken, connectionId);
+    migrated = true;
+  }
+  return { record, migrated };
+}
+
+function writeEnvelopeFile(stateFile, envelope) {
+  fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+  const temp = `${stateFile}.${process.pid}.tmp`;
+  fs.writeFileSync(temp, JSON.stringify(envelope), { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(temp, stateFile);
+  try { fs.chmodSync(stateFile, 0o600); } catch {}
+}
+
+export function rotateConnectionStateMasterToken({ stateFile = resolveStateFile(), oldMasterToken, newMasterToken }) {
+  if (!oldMasterToken || !newMasterToken) throw new Error('Old and new bridge administrator tokens are required');
+  if (safeEqual(oldMasterToken, newMasterToken)) throw new Error('New bridge administrator token must be different');
+  const resolved = path.resolve(stateFile);
+  if (!fs.existsSync(resolved)) return { rotated: false, connectionCount: 0, stateFile: resolved };
+
+  const payload = decryptPayload(JSON.parse(fs.readFileSync(resolved, 'utf8')), oldMasterToken);
+  const connections = [];
+  for (const item of Array.isArray(payload?.connections) ? payload.connections : []) {
+    if (!Array.isArray(item) || item.length !== 2) continue;
+    const connectionId = String(item[0] || '');
+    if (!CONNECTION_ID_RE.test(connectionId)) continue;
+    const { record } = normalizeRecord(item[1], oldMasterToken, connectionId);
+    connections.push([connectionId, record]);
+  }
+
+  writeEnvelopeFile(resolved, encryptPayload({
+    version: STATE_VERSION,
+    savedAt: new Date().toISOString(),
+    connections
+  }, newMasterToken));
+
+  return { rotated: true, connectionCount: connections.length, stateFile: resolved };
+}
+
 export function createConnectionState({ masterToken, publicUrl, bridgeName = 'Memory Bridge' }) {
   if (!masterToken) throw new Error('Connection state requires the bridge administrator token');
   const publicBase = String(publicUrl || '').replace(/\/+$/, '');
   if (!publicBase.startsWith('https://')) throw new Error('Connection state requires the bridge public HTTPS URL');
   const stateFile = resolveStateFile();
   const records = new Map();
+  let needsMigrationSave = false;
 
   try {
     if (fs.existsSync(stateFile)) {
       const payload = decryptPayload(JSON.parse(fs.readFileSync(stateFile, 'utf8')), masterToken);
       for (const item of Array.isArray(payload?.connections) ? payload.connections : []) {
         if (!Array.isArray(item) || item.length !== 2 || !CONNECTION_ID_RE.test(String(item[0] || ''))) continue;
-        records.set(String(item[0]), item[1]);
+        const connectionId = String(item[0]);
+        const { record, migrated } = normalizeRecord(item[1], masterToken, connectionId);
+        records.set(connectionId, record);
+        if (migrated) needsMigrationSave = true;
       }
       console.log(`[bridge] customer connection state restored count=${records.size}`);
     }
@@ -79,18 +135,18 @@ export function createConnectionState({ masterToken, publicUrl, bridgeName = 'Me
       savedAt: new Date().toISOString(),
       connections: [...records.entries()]
     }, masterToken);
-    fs.mkdirSync(path.dirname(stateFile), { recursive: true });
-    const temp = `${stateFile}.${process.pid}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify(envelope), { encoding: 'utf8', mode: 0o600 });
-    fs.renameSync(temp, stateFile);
-    try { fs.chmodSync(stateFile, 0o600); } catch {}
+    writeEnvelopeFile(stateFile, envelope);
   }
 
-  function deriveSecret(connectionId) {
-    return crypto
-      .createHmac('sha256', String(masterToken))
-      .update(`memory-space-connection:${connectionId}`)
-      .digest('base64url');
+  if (needsMigrationSave) {
+    save();
+    console.log(`[bridge] customer connection credentials migrated to rotation-safe secrets count=${records.size}`);
+  }
+
+  function deriveSecret(connectionIdValue) {
+    const connectionId = String(connectionIdValue || '');
+    const record = records.get(connectionId);
+    return record ? String(record.secret || '') : '';
   }
 
   function accessCodeFor(connectionIdValue) {
@@ -118,7 +174,8 @@ export function createConnectionState({ masterToken, publicUrl, bridgeName = 'Me
     } while (records.has(connectionId));
     const record = {
       name: String(nameValue || 'Private Memory Space').trim().slice(0, 120) || 'Private Memory Space',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      secret: crypto.randomBytes(32).toString('base64url')
     };
     records.set(connectionId, record);
     save();
