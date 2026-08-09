@@ -211,10 +211,92 @@ Priority order:
 3. enforce `memory.read` and `memory.propose` at individual MCP tool boundaries
 4. rotate exposed development/master credentials before wider testing
 5. keep proposal -> human approval mandatory and add memory-poisoning review/audit hardening
-6. improve durable browser storage/recovery toward IndexedDB/versioned migrations/export/import
+6. improve durable browser storage/recovery toward IndexedDB/versioned migrations/export/import; keep the storage schema ready for the derived shelving/index layer below
 7. run a genuine stranger test using only the app/customer setup path
 
 Do not mix Code Space, GitHub execution, banking or other future capability layers into the Memory core during V1.
+
+---
+
+## SCALING TRACK — MEMORY SHELVING / RETRIEVAL INDEX
+
+Memory Space must remain useful after years of use when one customer may have thousands or tens of thousands of approved memories.
+
+**The AI must never need to read the whole library to find the few memories relevant to the current task.**
+
+Design rule:
+
+```text
+trusted original memories
+        -> derived index / shelves / memory map
+        -> scoped search
+        -> exact original memory IDs
+        -> small context packet for the AI
+```
+
+### Source-of-truth rule
+
+- approved memory records remain the canonical source of truth
+- automatic organisation must **not rewrite, merge away or silently alter original memories**
+- shelves, summaries, clusters, tags, embeddings and indexes are derived data and must be rebuildable
+- the organiser may reorganise the catalogue; it does not rewrite the books
+
+### Retrieval model
+
+The future retrieval layer should combine:
+
+- exact/keyword search for names, filenames, IDs, commits and literal terms
+- semantic search for conceptually related memories
+- metadata filters for customer, Space, project, type, importance, status, date and source
+- lifecycle awareness so current confirmed memories rank above superseded/archived history unless history is explicitly requested
+- recency/relevance ranking
+
+Expected route:
+
+```text
+AI asks a question
+  -> resolve authorised customer + Space
+  -> find relevant shelf/topic
+  -> search only the relevant scope
+  -> fetch a small set of exact source memories
+  -> return an answer-sized context packet
+```
+
+### Shelf / Memory Map concept
+
+A Space may expose derived catalogue entries such as:
+
+```text
+SPACE JUNKZ
+- Weapon system       -> memory IDs...
+- Boss architecture   -> memory IDs...
+- Mobile performance  -> memory IDs...
+- Audio               -> memory IDs...
+- Deployment          -> memory IDs...
+```
+
+A shelf/card can contain pointers, counts, topic labels, last-changed time and a short derived description, but it is **not itself trusted memory** and cannot replace the originals.
+
+### Candidate AI tools
+
+Keep the API/tool design capable of supporting calls such as:
+
+- `list_shelves`
+- `search_memory`
+- `search_space`
+- `get_memory`
+- `get_related_memories`
+- `get_recent_changes`
+
+The goal is for ChatGPT, Grok, Claude, local/free models and future workers to navigate the same long-term library efficiently without consuming their context window on irrelevant history.
+
+### Security requirement
+
+Every index/search/shelf operation must preserve the same customer and Space isolation as direct memory reads. A derived index must never become a side channel that reveals another customer's titles, topics, counts, embeddings or memory contents.
+
+### Build timing
+
+Do not derail the remaining V1 security/revoke work for this. However, storage and memory-ID decisions made now must not block it. After the core V1 safety path is closed, prototype the smallest useful shelf/index layer against a larger synthetic memory set and measure retrieval quality/context reduction before adding automatic summarisation or complex clustering.
 
 ---
 
