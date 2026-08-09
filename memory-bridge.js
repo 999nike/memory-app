@@ -16,6 +16,18 @@
     return parsed.href.replace(/\/+$/, '');
   }
 
+  function scopedBaseUrl(config) {
+    const baseUrl = assertSecureBridgeUrl(normalizeBaseUrl(config?.baseUrl));
+    const connectionId = String(config?.connectionId || '').trim();
+    if (!connectionId) return baseUrl;
+
+    const parsed = new URL(baseUrl);
+    parsed.pathname = `/c/${encodeURIComponent(connectionId)}`;
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.href.replace(/\/+$/, '');
+  }
+
   function bridgeHeaders(token) {
     return {
       'Accept': 'application/json',
@@ -35,7 +47,7 @@
 
   async function request(config, path, options = {}) {
     const transport = globalThis.MemoryAI?.transportFetch || window.fetch.bind(window);
-    const baseUrl = assertSecureBridgeUrl(normalizeBaseUrl(config?.baseUrl));
+    const baseUrl = scopedBaseUrl(config);
     const response = await transport(`${baseUrl}${path}`, {
       cache: 'no-store',
       ...options,
@@ -51,6 +63,10 @@
     const data = await request(config, '/v1/info', { method: 'GET' });
     if (data?.protocol !== PROTOCOL || Number(data?.version) !== VERSION) {
       throw new Error('The server answered, but it is not a compatible Memory Bridge.');
+    }
+    const connectionId = String(config?.connectionId || '').trim();
+    if (connectionId && (data?.connection?.isolated !== true || String(data?.connection?.connectionId || '') !== connectionId)) {
+      throw new Error('Private Memory Bridge scope mismatch. Refusing to use the wrong customer connection.');
     }
     return data;
   }
@@ -87,7 +103,8 @@
 
     const id = String(config?.id || '').trim();
     const name = String(config?.name || 'Memory Bridge').trim();
-    const baseUrl = assertSecureBridgeUrl(normalizeBaseUrl(config?.baseUrl));
+    const connectionId = String(config?.connectionId || '').trim();
+    const baseUrl = scopedBaseUrl(config);
     const token = String(config?.token || '');
     if (!id || !baseUrl) throw new Error('Bridge id and URL are required');
 
@@ -103,7 +120,7 @@
         protocolVersion: VERSION
       },
       async generate(request) {
-        const data = await requestBridgeChat({ baseUrl, token }, request);
+        const data = await requestBridgeChat({ baseUrl, token, connectionId }, request);
         return {
           reply: String(data.reply),
           usedMemoryTitles: Array.isArray(data.usedMemoryTitles) ? data.usedMemoryTitles : [],
