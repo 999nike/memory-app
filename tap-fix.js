@@ -14,7 +14,7 @@
 
     button.type = 'button';
     button.style.position = 'relative';
-    button.style.zIndex = '50';
+    button.style.zIndex = '1';
     button.style.pointerEvents = 'auto';
     button.style.touchAction = 'manipulation';
     button.style.minWidth = '96px';
