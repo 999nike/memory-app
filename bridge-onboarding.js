@@ -18,6 +18,26 @@
     localStorage.setItem(BRIDGES_KEY, JSON.stringify(items));
   }
 
+  function activeBridgeForCurrentSpace() {
+    const scoped = globalThis.MemoryBridgeScope?.activeBridge?.();
+    if (scoped) return scoped;
+
+    const bridges = loadBridges();
+    const activeId = String(globalThis.MemoryAI?.getActiveProviderId?.() || '');
+    if (activeId.startsWith('memory-bridge:')) {
+      const bridgeId = activeId.slice('memory-bridge:'.length);
+      const match = bridges.find((bridge) => bridge.id === bridgeId);
+      if (match) return match;
+    }
+    return bridges.length === 1 ? bridges[0] : null;
+  }
+
+  function privateAccessCodeForActiveSpace() {
+    const bridge = activeBridgeForCurrentSpace();
+    const token = String(bridge?.token || '').trim();
+    return bridge?.connectionId && token.startsWith(CODE_PREFIX_V2) ? token : '';
+  }
+
   function toast(message) {
     const el = document.getElementById('toast');
     if (!el) return;
@@ -195,6 +215,42 @@
     }, true);
   }
 
+  function ensurePrivateAccessCodeControl() {
+    const connectButton = document.querySelector('#aiAccessConnectExternal');
+    if (!connectButton) return;
+
+    let copyButton = document.getElementById('aiAccessCopyPrivateCode');
+    if (!copyButton) {
+      copyButton = document.createElement('button');
+      copyButton.type = 'button';
+      copyButton.id = 'aiAccessCopyPrivateCode';
+      copyButton.className = 'ai-access-secondary-button';
+      copyButton.textContent = 'Copy Private Access Code';
+      connectButton.insertAdjacentElement('afterend', copyButton);
+      copyButton.addEventListener('click', async () => {
+        const code = privateAccessCodeForActiveSpace();
+        if (!code) {
+          toast('Select the Private Memory Bridge for this Space first');
+          ensurePrivateAccessCodeControl();
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(code);
+          const status = document.querySelector('#aiAccessExternalStatus');
+          if (status) {
+            status.classList.add('ready');
+            status.textContent = 'Private Access Code copied. Paste it into the Memory Space authorization page for this Space.';
+          }
+          toast('Private Access Code copied');
+        } catch {
+          toast('Browser blocked copying the Private Access Code');
+        }
+      });
+    }
+
+    copyButton.hidden = !privateAccessCodeForActiveSpace();
+  }
+
   function waitForBridgeButton(attempts = 20) {
     const button = document.querySelector('[data-open-memory-bridge]');
     if (button) {
@@ -210,7 +266,19 @@
 
   document.addEventListener('click', (event) => {
     const button = event.target.closest('#aiAccessConnectExternal');
-    if (!button || loadBridges().length) return;
+    if (!button) return;
+
+    if (loadBridges().length) {
+      setTimeout(() => {
+        ensurePrivateAccessCodeControl();
+        const status = document.querySelector('#aiAccessExternalStatus');
+        if (status && privateAccessCodeForActiveSpace()) {
+          status.classList.add('ready');
+          status.textContent = 'Connection copied. Add it to your AI. When the Memory Space authorization page opens, return here and use Copy Private Access Code.';
+        }
+      }, 0);
+      return;
+    }
 
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -230,7 +298,14 @@
 
   const observer = new MutationObserver(() => {
     prepareBridgeDialog(document.getElementById('memoryBridgeDialog'));
+    ensurePrivateAccessCodeControl();
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  addEventListener('memory-ai-provider-changed', ensurePrivateAccessCodeControl);
+  addEventListener('memory-space-bridge-bound', ensurePrivateAccessCodeControl);
+  addEventListener('memory-bridge-connected', ensurePrivateAccessCodeControl);
+
   prepareBridgeDialog(document.getElementById('memoryBridgeDialog'));
+  ensurePrivateAccessCodeControl();
 })();
