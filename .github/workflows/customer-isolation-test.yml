@@ -24,7 +24,11 @@ jobs:
           node --check bridge/server.mjs
           node --check bridge/server-v2.mjs
           node --check bridge/connection-state.mjs
+          node --check bridge/oauth-state.mjs
           node --check bridge/workspace-runtime.mjs
           node --check bridge/isolation-test.mjs
+          node --check bridge/credential-rotation-test.mjs
       - name: Run two-customer isolation regression
         run: node bridge/isolation-test.mjs
+      - name: Run credential rotation regression
+        run: node bridge/credential-rotation-test.mjs
