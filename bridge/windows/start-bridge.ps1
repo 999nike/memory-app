@@ -5,6 +5,7 @@ $stateDir = Join-Path $bridgeDir '.state'
 $configPath = Join-Path $stateDir 'windows-runtime.json'
 $credentialPath = Join-Path $stateDir 'windows-token.clixml'
 $adminCredentialPath = Join-Path $stateDir 'windows-admin-token.clixml'
+$legacyOwnerDisabledFlag = Join-Path $stateDir 'legacy-owner-disabled.flag'
 $logPath = Join-Path $stateDir 'windows-autostart.log'
 
 function Write-BridgeLog([string]$Message) {
@@ -31,13 +32,36 @@ function Read-ProtectedToken([string]$Path) {
     }
 }
 
-if (!(Test-Path $configPath) -or !(Test-Path $credentialPath)) {
+function New-EphemeralOwnerToken {
+    $bytes = New-Object byte[] 48
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $rng.GetBytes($bytes)
+    } finally {
+        $rng.Dispose()
+    }
+    return [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
+if (!(Test-Path $configPath)) {
     throw 'Memory Bridge autostart is not configured. Run bridge\windows\install-autostart.cmd once.'
+}
+if (!(Test-Path $adminCredentialPath) -and !(Test-Path $credentialPath)) {
+    throw 'Memory Bridge has no protected administrator credential.'
 }
 
 $config = Get-Content -Raw -Path $configPath | ConvertFrom-Json
-$ownerToken = Read-ProtectedToken $credentialPath
-$adminToken = if (Test-Path $adminCredentialPath) { Read-ProtectedToken $adminCredentialPath } else { $ownerToken }
+$legacyOwnerDisabled = Test-Path $legacyOwnerDisabledFlag
+$adminToken = if (Test-Path $adminCredentialPath) { Read-ProtectedToken $adminCredentialPath } else { Read-ProtectedToken $credentialPath }
+
+if ($legacyOwnerDisabled) {
+    $ownerToken = New-EphemeralOwnerToken
+} else {
+    if (!(Test-Path $credentialPath)) {
+        throw 'Memory Bridge owner credential is missing. Either restore it or complete the legacy-owner retirement.'
+    }
+    $ownerToken = Read-ProtectedToken $credentialPath
+}
 
 $env:MEMORY_BRIDGE_TOKEN = $ownerToken
 $env:MEMORY_BRIDGE_OWNER_TOKEN = $ownerToken
@@ -59,7 +83,7 @@ $port = if ($config.port) { [int]$config.port } else { 8787 }
 
 function Test-MemoryBridgeRunning {
     try {
-        $headers = @{ Authorization = "Bearer $ownerToken" }
+        $headers = @{ Authorization = "Bearer $adminToken" }
         $info = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$port/v1/info" -Headers $headers -TimeoutSec 2
         return $info.protocol -eq 'memory-space-bridge'
     } catch {
@@ -68,7 +92,8 @@ function Test-MemoryBridgeRunning {
 }
 
 New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
-Write-BridgeLog "autostart supervisor online node=$nodePath port=$port"
+$ownerMode = if ($legacyOwnerDisabled) { 'retired/ephemeral' } else { 'legacy-enabled' }
+Write-BridgeLog "autostart supervisor online node=$nodePath port=$port ownerMode=$ownerMode"
 
 while ($true) {
     if (Test-MemoryBridgeRunning) {
