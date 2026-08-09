@@ -49,10 +49,7 @@ Verified from a fresh browser/customer state:
 - AI Access leads into external connection setup
 - normal setup uses one packaged Private Access Code rather than raw bridge URL/token fields
 
-Known onboarding issue still to verify/fix:
-
-- an earlier fresh-customer test showed the first manually created memory (`My name`) as **Critical + Locked**
-- current `app.js` explicitly defaults a new manual memory to **Normal + Unlocked**, so reproduce the issue on the current build before patching rather than guessing at an old/stale state
+Earlier `Critical + Locked` first-memory report is **closed / not a bug**. The test memory had been manually set Critical + Locked by the developer; no current first-memory defect was reproduced.
 
 ### Customer isolation
 
@@ -68,13 +65,13 @@ New unrelated customers use:
 Each customer receives:
 
 - random `connectionId`
-- unique derived/revocable customer secret
+- unique revocable customer secret
 - scoped `MSB2.` Private Access Code
 - separate OAuth namespace/state
 - separate RAM-only published workspace
 - separate RAM-only proposal queue
 
-The original 64-character bridge token is administrator/bootstrap-only and must not be handed to customers.
+Customer secrets are now stored as stable per-connection secrets inside the encrypted customer registry instead of remaining permanently derived from the bridge administrator token. Existing customer credentials are migrated to the same value they already used, so their `MSB2.` codes do not change during the migration.
 
 Legacy `MSB1.` + root `/mcp` remains only for owner/single-owner compatibility.
 
@@ -92,6 +89,57 @@ Passing regression verifies separate NIKE and PLUMBER customers:
 Important merged commit:
 
 - `ce5010d` — customer isolation regression retained on `main`
+
+### MCP tool permission enforcement — PASSED 9 Aug 2026
+
+MCP permissions are now enforced at the individual tool-call boundary rather than only at the higher-level OAuth connection boundary.
+
+Current rules:
+
+- `list_spaces`, `search_memory`, `get_current_space_context`, `read_memory`, `get_current_decisions`, `inspect_provenance` require `memory.read`
+- `propose_memory` requires `memory.propose`
+- any future/unknown MCP tool without a declared scope fails closed
+- the owner/administrator compatibility path remains privileged only where explicitly intended
+
+Automated regression verifies:
+
+- read-only token can read but cannot call `propose_memory`
+- propose-only token can propose but cannot read
+- an undeclared future tool is rejected
+- customer isolation and scoped revoke tests still pass
+
+Relevant commits include `e6a7bc9`, `c3d0096`, and `ee96622`.
+
+The HP bridge was pulled/restarted onto the scope-enforcement build and the normal app connections remained connected. The restricted-scope negative cases are CI-proven; they were not repeated as another manual live provider test.
+
+### Rotation-safe administrator credential split — CI PASSED 9 Aug 2026; HP DEPLOY/ROTATION PENDING
+
+A direct administrator-token rotation was found to be unsafe because the old implementation also used that token to encrypt the customer registry and derive customer credentials. Rotating it blindly would have invalidated the private customer routes we had just proved.
+
+The repository now has a rotation-safe path:
+
+- customer connection secrets are stable and survive administrator rotation
+- existing derived customer credentials migrate without changing their `MSB2.` Private Access Codes
+- owner/root access and administrator/customer-management access are separate credentials
+- the retained owner credential can keep the existing owner app/OAuth connection working while the administrator credential changes
+- the owner credential is rejected from `/v1/connections` administrator operations
+- Windows supervisor can load separate DPAPI-protected owner and administrator credentials
+- Memory Bridge Setup uses the administrator credential when creating new private customer connections
+- `bridge/windows/rotate-master-token.ps1` rotates the administrator credential and customer-registry encryption while leaving owner and tenant OAuth state intact
+
+Automated CI now verifies:
+
+- owner credential still reaches the legacy owner bridge but cannot create customer connections
+- separate administrator credential can manage customers
+- administrator rotation preserves the same `MSB2.` customer access code
+- tenant OAuth state survives the administrator rotation
+- owner OAuth state remains usable on the retained owner credential
+- Node and Windows PowerShell security scripts parse successfully
+- the full customer-isolation + MCP-scope regression still passes
+
+Latest regression run completed successfully after commit `8b547019`.
+
+**This security change is not yet live on the HP.** The next HP step is to pull current `main`, restart the supervisor onto the new code, then run the one-command administrator rotation. Do not mark the old development credential fully retired until the later legacy owner credential is also migrated/rotated.
 
 ### Multi-bridge browser isolation fix — PASSED 9 Aug 2026
 
@@ -233,12 +281,11 @@ Current known callback support includes Claude after commit:
 
 Priority order:
 
-1. reproduce the first-memory Critical + Locked report on the current build; patch only if it still occurs
-2. enforce `memory.read` and `memory.propose` at individual MCP tool boundaries
-3. rotate exposed development/master credentials before wider testing
-4. keep proposal -> human approval mandatory and add memory-poisoning review/audit hardening
-5. improve durable browser storage/recovery toward IndexedDB/versioned migrations/export/import; keep the storage schema ready for the derived shelving/index layer below
-6. run a genuine stranger test using only the app/customer setup path
+1. deploy current `main` to the HP and run the new zero-disruption administrator credential rotation; confirm owner and plumber/private connections remain available
+2. retire/migrate the retained legacy owner development credential before wider public testing so the old development secret is fully dead, not merely stripped of administrator rights
+3. keep proposal -> human approval mandatory and add memory-poisoning review/audit hardening
+4. improve durable browser storage/recovery toward IndexedDB/versioned migrations/export/import; keep the storage schema ready for the derived shelving/index layer below
+5. run a genuine stranger test using only the app/customer setup path
 
 Do not mix Code Space, GitHub execution, banking or other future capability layers into the Memory core during V1.
 
