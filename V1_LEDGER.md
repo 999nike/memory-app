@@ -218,6 +218,97 @@ Do not mix Code Space, GitHub execution, banking or other future capability laye
 
 ---
 
+## BANKED FUTURE PLAN — MANAGED AI ACCESS / MCP CONTROL PLANE
+
+**Not V1 work. Stay on the current V1 security, revoke, scope and storage track first.**
+
+Longer term, remove another infrastructure layer from the normal customer experience. The customer should not have to understand or manually manage bridge selection, MCP URLs, tunnel addresses, pairing codes or provider-specific connection plumbing.
+
+Target customer experience:
+
+```text
+Open Space
+  -> AI Access
+  -> choose Claude / Grok / ChatGPT / Mistral / other supported AI
+  -> Authorize
+  -> Connected
+```
+
+Memory Space can operate a managed AI-access control plane/gateway over the same generic MCP contract:
+
+```text
+                 MEMORY SPACE CONTROL PLANE
+                           |
+                 managed public gateway
+                           |
+          +----------------+----------------+
+          |                |                |
+      Customer A       Customer B       Customer C
+          |                |                |
+       Space A1         Space B1         Space C1
+          |                |                |
+   scoped AI grants  scoped AI grants  scoped AI grants
+```
+
+The service may automate:
+
+- creation of isolated customer/Space routes
+- MCP endpoint handoff
+- OAuth/DCR/PKCE plumbing
+- token refresh and reconnection
+- provider connection status
+- explicit revoke
+- capability/scopes per AI
+- audit/provenance
+- abuse/rate monitoring
+- detection of wrong-tenant route/token attempts
+- security monitoring without needing to inspect private memory content
+
+### Trust model
+
+Do **not** implement this as one universal credential that can read every customer's memory.
+
+Operate the routing/control plane without creating a skeleton key to all customer data. Each customer/Space connection keeps its own identity, secret, OAuth namespace, grant state, workspace runtime and revocation boundary.
+
+Example future routing shape:
+
+```text
+bridge.memoryspace.example
+  -> /c/customer-A/space-1/mcp
+  -> /c/customer-B/space-7/mcp
+  -> /c/customer-C/space-2/mcp
+```
+
+Exact product URL/naming is undecided; the isolation principle is the important part.
+
+### Design lesson banked from the multi-bridge UI bug
+
+A client path must never infer customer identity from array order, browser ordering or "first available bridge" behaviour.
+
+Required resolution chain for every privileged operation:
+
+```text
+user identity
+  -> customer identity
+  -> Space identity
+  -> connection identity
+  -> AI grant
+  -> requested capability
+  -> operation
+```
+
+If identity is ambiguous, fail closed and ask for/resolve the intended connection. Never silently fall back to another saved customer connection.
+
+This rule applies to status, publish, read, search, proposal pull, proposal write, revoke and future execution/artifact permissions.
+
+### Preserve local/private mode
+
+The managed control plane should be an easier product layer over the existing protocol, not a replacement for local/private ownership. A customer must still be able to run a private/local Memory Bridge and use the same permission model without a mandatory cloud-memory fallback.
+
+Bank this architecture for after V1. Do not derail the present customer-isolation and permission-hardening work to build it now.
+
+---
+
 ## SCALING TRACK — MEMORY SHELVING / RETRIEVAL INDEX
 
 Memory Space must remain useful after years of use when one customer may have thousands or tens of thousands of approved memories.
