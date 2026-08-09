@@ -29,7 +29,9 @@ jobs:
           node --check bridge/isolation-test.mjs
           node --check bridge/credential-rotation-test.mjs
           node --check bridge/legacy-owner-retirement-test.mjs
+          node --check bridge/private-oauth-reconnect-test.mjs
           node --check bridge/rotate-master-token.mjs
+          node --check bridge-onboarding.js
       - name: PowerShell syntax check
         shell: pwsh
         run: |
@@ -44,3 +46,5 @@ jobs:
         run: node bridge/credential-rotation-test.mjs
       - name: Run legacy owner retirement regression
         run: node bridge/legacy-owner-retirement-test.mjs
+      - name: Run private OAuth reconnect regression
+        run: node bridge/private-oauth-reconnect-test.mjs
