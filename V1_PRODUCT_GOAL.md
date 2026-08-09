@@ -106,6 +106,21 @@ The small UI cleanup commit `c1cd2a2` also fixes the mobile memory-inspector sta
 
 Do not reopen bridge/OAuth/customer-isolation architecture while stabilising this V1 unless a reproducible fault demonstrates a need. Prefer UI-only fixes and regression checks from this baseline.
 
+### Customer UI safety requirement — owner bridge must not be touchable
+
+The current customer-facing AI Access screen can still display both `WIZZ HP Bridge · Owner` and `WIZZ HP Bridge · Private` as selectable in-app AI providers.
+
+This is not acceptable for the final normal-user UI. The owner/admin bridge exists for owner compatibility and administration, but a customer must not be able to select or interact with it. Pressing the owner entry can switch the active provider away from the customer's scoped private connection and can disrupt the owner's existing connector state.
+
+V1 UI requirement:
+
+- normal customer views must show only the customer's scoped/private bridge provider
+- the owner/admin bridge must be hidden from normal customer UI entirely, not merely disabled with explanatory text
+- owner/admin access may remain available only in an explicit developer/admin surface
+- this is a presentation/control-surface change only; do not redesign the working customer isolation, OAuth or bridge-routing architecture to achieve it
+
+Treat this as a V1 safety/polish item before handing the app to normal users.
+
 ### ChatGPT compatibility proof — 8 Aug 2026
 
 ChatGPT was added as a custom Memory Space connector using the same public MCP endpoint:
@@ -181,6 +196,10 @@ Connect AI -> Authorize -> Connected
 ```
 
 Developer details remain available only under Advanced / Developer.
+
+Remaining AI Access UI safety item:
+
+- hide `WIZZ HP Bridge · Owner` completely from normal customer views so customers cannot switch away from their scoped private bridge or interfere with owner connector state
 
 ### 4. Remove manual bridge chores from the core loop
 
@@ -258,17 +277,19 @@ Current stable baseline after the 9 Aug cleanup:
 - the external-AI button must expose the scoped HTTPS connector address, not a raw bridge token
 - the obsolete private-access-code copy control is removed from the normal AI connector flow
 - mobile inspector stacking no longer allows the Shared Chat Send button to sit above the memory inspector
+- owner/admin bridge still needs to be hidden from customer-facing AI Access before normal-user handoff
 - commit `c1cd2a2` is the current UI-cleanup baseline; avoid unrelated bridge/auth rewrites while stabilising V1
 
 The next productisation focus is no longer MCP interoperability. It is removing the remaining technical setup around the companion runtime and making the first-use/install path simple enough for a non-technical user.
 
 Near-term priorities:
 
-1. bridge auto-start / no PowerShell in normal use
-2. in-app `Install Memory Space` experience where the browser supports it
-3. simplify companion/connector setup language without exposing credentials
-4. persistence hardening and recovery UX
-5. stranger test
+1. hide owner/admin bridge from customer-facing AI Access
+2. bridge auto-start / no PowerShell in normal use
+3. in-app `Install Memory Space` experience where the browser supports it
+4. simplify companion/connector setup language without exposing credentials
+5. persistence hardening and recovery UX
+6. stranger test
 
 ### 7. Stranger test
 
