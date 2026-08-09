@@ -24,6 +24,13 @@ export function createMemoryBridgeOAuth({
   if (!issuer.startsWith('https://')) throw new Error('OAuth publicUrl must be HTTPS');
   if (!pairingToken) throw new Error('OAuth pairingToken is required');
 
+  // Private MSB2 issuers already use an unguessable customer-scoped URL and
+  // explicit human consent. Keep the pairing credential internal for OAuth
+  // state encryption, but never ask the customer to paste that bridge secret
+  // into the external-AI authorization page.
+  const issuerPath = new URL(issuer).pathname.replace(/\/+$/, '');
+  const requiresPairingToken = !/^\/c\/[^/]+$/.test(issuerPath);
+
   const { accessTokens, refreshTokens, dynamicClients } = createPersistentOAuthState({
     issuer,
     pairingToken,
@@ -327,6 +334,9 @@ export function createMemoryBridgeOAuth({
     const hidden = Object.entries(fields)
       .map(([name, value]) => `<input type="hidden" name="${escapeHtml(name)}" value="${escapeHtml(value)}">`)
       .join('');
+    const pairingField = requiresPairingToken
+      ? '<label>Bridge pairing token<input name="pairing_token" type="password" autocomplete="off" required placeholder="Enter your Memory Bridge pairing token"></label>'
+      : '';
 
     return `<!doctype html>
 <html lang="en">
@@ -344,9 +354,9 @@ export function createMemoryBridgeOAuth({
   <p>An external MCP client wants access to the Memory Space currently shared in bridge RAM.</p>
   <div class="scope"><strong>Requested scopes</strong><br>${escapeHtml(request.scope || DEFAULT_SCOPES.join(' '))}</div>
   ${error ? `<p class="warn">${escapeHtml(error)}</p>` : ''}
-  <form method="post" action="/authorize">
+  <form method="post" action="${escapeHtml(`${issuer}/authorize`)}">
     ${hidden}
-    <label>Bridge pairing token<input name="pairing_token" type="password" autocomplete="off" required placeholder="Enter your Memory Bridge pairing token"></label>
+    ${pairingField}
     <div class="actions"><button type="submit">Authorize</button></div>
   </form>
 </main></body></html>`;
@@ -490,7 +500,7 @@ export function createMemoryBridgeOAuth({
       try {
         const params = await readParams(req);
         const request = validateAuthorizeParams(params);
-        if (!timingSafeEqualText(params.get('pairing_token'), pairingToken)) {
+        if (requiresPairingToken && !timingSafeEqualText(params.get('pairing_token'), pairingToken)) {
           log('consent denied', 'pairing-token-mismatch');
           sendHtml(res, 403, consentPage(request, 'Pairing token was not accepted.'));
           return true;
@@ -619,7 +629,7 @@ export function createMemoryBridgeOAuth({
     revokeClient,
     handle,
     challengeHeaders: {
-      'WWW-Authenticate': `Bearer resource_metadata="${issuer}/.well-known/oauth-protected-resource/mcp"`
+      'WWW-Authenticate': `Bearer resource_metadata=\"${issuer}/.well-known/oauth-protected-resource/mcp\"`
     }
   });
 }
