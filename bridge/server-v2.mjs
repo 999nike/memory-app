@@ -29,6 +29,15 @@ const ALLOWED_ORIGINS = new Set(
 const TENANT_OAUTH_DIR = path.resolve(
   String(process.env.MEMORY_BRIDGE_TENANT_OAUTH_DIR || path.join(MODULE_DIR, '.state', 'tenant-oauth'))
 );
+const MCP_TOOL_SCOPES = Object.freeze({
+  list_spaces: 'memory.read',
+  search_memory: 'memory.read',
+  get_current_space_context: 'memory.read',
+  read_memory: 'memory.read',
+  get_current_decisions: 'memory.read',
+  inspect_provenance: 'memory.read',
+  propose_memory: 'memory.propose'
+});
 
 if (!TOKEN) {
   console.error('MEMORY_BRIDGE_TOKEN is required. Refusing to start without pairing authentication.');
@@ -94,6 +103,26 @@ function safeEqual(left, right) {
 
 function isAdminAuthorized(req) {
   return safeEqual(bearer(req), TOKEN);
+}
+
+function mcpScopeCheck(oauth, req, body, adminAuthorized = false) {
+  if (String(body?.method || '') !== 'tools/call') return { allowed: true };
+  const toolName = String(body?.params?.name || '').trim();
+  const requiredScope = Object.prototype.hasOwnProperty.call(MCP_TOOL_SCOPES, toolName)
+    ? MCP_TOOL_SCOPES[toolName]
+    : null;
+  if (!requiredScope) {
+    return {
+      allowed: false,
+      error: `MCP tool has no declared permission scope: ${toolName || '(missing tool name)'}`
+    };
+  }
+  if (adminAuthorized || oauth.isAuthorized(req, requiredScope)) return { allowed: true };
+  return {
+    allowed: false,
+    error: `OAuth scope ${requiredScope} is required for MCP tool ${toolName}`,
+    requiredScope
+  };
 }
 
 function parseTenantPath(pathname) {
@@ -416,6 +445,11 @@ const server = http.createServer(async (req, res) => {
         }
         if (req.method === 'POST') {
           const body = await readBody(req);
+          const scopeCheck = mcpScopeCheck(oauth, req, body);
+          if (!scopeCheck.allowed) {
+            sendJson(res, 403, { error: scopeCheck.error, requiredScope: scopeCheck.requiredScope || null }, origin, { 'MCP-Protocol-Version': MCP_VERSION });
+            return;
+          }
           const response = workspaces.handleMcp(connectionId, body);
           if (response === null) {
             res.writeHead(202, { ...corsHeaders(origin), 'MCP-Protocol-Version': MCP_VERSION });
@@ -438,7 +472,8 @@ const server = http.createServer(async (req, res) => {
 
     const legacyMcp = requestUrl.pathname === '/mcp';
     if (legacyMcp) {
-      if (!isAdminAuthorized(req) && !legacyOauth.isAuthorized(req)) {
+      const adminAuthorized = isAdminAuthorized(req);
+      if (!adminAuthorized && !legacyOauth.isAuthorized(req)) {
         sendJson(res, 401, { error: 'MCP authorization required' }, origin, legacyOauth.challengeHeaders);
         return;
       }
@@ -448,6 +483,11 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === 'POST') {
         const body = await readBody(req);
+        const scopeCheck = mcpScopeCheck(legacyOauth, req, body, adminAuthorized);
+        if (!scopeCheck.allowed) {
+          sendJson(res, 403, { error: scopeCheck.error, requiredScope: scopeCheck.requiredScope || null }, origin, { 'MCP-Protocol-Version': MCP_VERSION });
+          return;
+        }
         const response = workspaces.handleMcp(LEGACY_CONNECTION_ID, body);
         if (response === null) {
           res.writeHead(202, { ...corsHeaders(origin), 'MCP-Protocol-Version': MCP_VERSION });
