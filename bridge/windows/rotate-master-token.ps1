@@ -8,11 +8,22 @@ $ErrorActionPreference = 'Stop'
 $bridgeDir = Split-Path -Parent $PSScriptRoot
 $stateDir = Join-Path $bridgeDir '.state'
 $configPath = Join-Path $stateDir 'windows-runtime.json'
-$credentialPath = Join-Path $stateDir 'windows-token.clixml'
-$credentialTempPath = "$credentialPath.rotate.tmp"
+$ownerCredentialPath = Join-Path $stateDir 'windows-token.clixml'
+$adminCredentialPath = Join-Path $stateDir 'windows-admin-token.clixml'
+$adminCredentialTempPath = "$adminCredentialPath.rotate.tmp"
 $rotationHelper = Join-Path $bridgeDir 'rotate-master-token.mjs'
 
-if (!(Test-Path $configPath) -or !(Test-Path $credentialPath)) {
+function Read-ProtectedToken([string]$Path) {
+    $credential = Import-Clixml -Path $Path
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($credential.Password)
+    try {
+        return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    } finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+}
+
+if (!(Test-Path $configPath) -or !(Test-Path $ownerCredentialPath)) {
     throw 'Memory Bridge autostart is not configured. Run bridge\windows\install-autostart.cmd first.'
 }
 if (!(Test-Path $rotationHelper)) {
@@ -20,13 +31,8 @@ if (!(Test-Path $rotationHelper)) {
 }
 
 $config = Get-Content -Raw -Path $configPath | ConvertFrom-Json
-$credential = Import-Clixml -Path $credentialPath
-$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($credential.Password)
-try {
-    $oldToken = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-} finally {
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-}
+$ownerToken = Read-ProtectedToken $ownerCredentialPath
+$oldAdminToken = if (Test-Path $adminCredentialPath) { Read-ProtectedToken $adminCredentialPath } else { $ownerToken }
 
 $bytes = New-Object byte[] 48
 $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
@@ -35,11 +41,11 @@ try {
 } finally {
     $rng.Dispose()
 }
-$newToken = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+$newAdminToken = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 
-$secureNewToken = ConvertTo-SecureString $newToken -AsPlainText -Force
-$newCredential = New-Object System.Management.Automation.PSCredential('memory-bridge', $secureNewToken)
-$newCredential | Export-Clixml -Path $credentialTempPath
+$secureNewAdminToken = ConvertTo-SecureString $newAdminToken -AsPlainText -Force
+$newAdminCredential = New-Object System.Management.Automation.PSCredential('memory-bridge-admin', $secureNewAdminToken)
+$newAdminCredential | Export-Clixml -Path $adminCredentialTempPath
 
 $nodePath = [string]$config.nodePath
 if ([string]::IsNullOrWhiteSpace($nodePath) -or !(Test-Path $nodePath)) {
@@ -65,21 +71,23 @@ $previousOld = $env:MEMORY_BRIDGE_OLD_TOKEN
 $previousNew = $env:MEMORY_BRIDGE_NEW_TOKEN
 $previousConnectionState = $env:MEMORY_BRIDGE_CONNECTION_STATE_FILE
 $previousOauthState = $env:MEMORY_BRIDGE_OAUTH_STATE_FILE
+$previousRotateOwnerOauth = $env:MEMORY_BRIDGE_ROTATE_OWNER_OAUTH
 
 try {
-    $env:MEMORY_BRIDGE_OLD_TOKEN = $oldToken
-    $env:MEMORY_BRIDGE_NEW_TOKEN = $newToken
+    $env:MEMORY_BRIDGE_OLD_TOKEN = $oldAdminToken
+    $env:MEMORY_BRIDGE_NEW_TOKEN = $newAdminToken
     $env:MEMORY_BRIDGE_CONNECTION_STATE_FILE = $connectionStateFile
     $env:MEMORY_BRIDGE_OAUTH_STATE_FILE = $oauthStateFile
+    $env:MEMORY_BRIDGE_ROTATE_OWNER_OAUTH = '0'
 
     $rotationOutput = & $nodePath $rotationHelper
     if ($LASTEXITCODE -ne 0) {
-        throw 'Bridge credential state rotation failed. The stored Windows credential was not changed.'
+        throw 'Bridge administrator state rotation failed. The stored Windows administrator credential was not changed.'
     }
 
-    Move-Item -Force -Path $credentialTempPath -Destination $credentialPath
+    Move-Item -Force -Path $adminCredentialTempPath -Destination $adminCredentialPath
 } catch {
-    Remove-Item -Force -Path $credentialTempPath -ErrorAction SilentlyContinue
+    Remove-Item -Force -Path $adminCredentialTempPath -ErrorAction SilentlyContinue
     if ($task) { Start-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue }
     throw
 } finally {
@@ -87,6 +95,7 @@ try {
     if ($null -eq $previousNew) { Remove-Item Env:MEMORY_BRIDGE_NEW_TOKEN -ErrorAction SilentlyContinue } else { $env:MEMORY_BRIDGE_NEW_TOKEN = $previousNew }
     if ($null -eq $previousConnectionState) { Remove-Item Env:MEMORY_BRIDGE_CONNECTION_STATE_FILE -ErrorAction SilentlyContinue } else { $env:MEMORY_BRIDGE_CONNECTION_STATE_FILE = $previousConnectionState }
     if ($null -eq $previousOauthState) { Remove-Item Env:MEMORY_BRIDGE_OAUTH_STATE_FILE -ErrorAction SilentlyContinue } else { $env:MEMORY_BRIDGE_OAUTH_STATE_FILE = $previousOauthState }
+    if ($null -eq $previousRotateOwnerOauth) { Remove-Item Env:MEMORY_BRIDGE_ROTATE_OWNER_OAUTH -ErrorAction SilentlyContinue } else { $env:MEMORY_BRIDGE_ROTATE_OWNER_OAUTH = $previousRotateOwnerOauth }
 }
 
 Start-ScheduledTask -TaskName $TaskName
@@ -95,7 +104,7 @@ $healthy = $false
 for ($attempt = 0; $attempt -lt 20; $attempt++) {
     Start-Sleep -Seconds 1
     try {
-        $headers = @{ Authorization = "Bearer $newToken" }
+        $headers = @{ Authorization = "Bearer $newAdminToken" }
         $info = Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:$port/v1/info" -Headers $headers -TimeoutSec 2
         if ($info.protocol -eq 'memory-space-bridge') {
             $healthy = $true
@@ -105,32 +114,10 @@ for ($attempt = 0; $attempt -lt 20; $attempt++) {
 }
 
 if (!$healthy) {
-    throw 'The credential was rotated, but the Memory Bridge did not become healthy within 20 seconds. Check bridge\.state\windows-autostart.log.'
+    throw 'The administrator credential was rotated, but the Memory Bridge did not become healthy within 20 seconds. Check bridge\.state\windows-autostart.log.'
 }
 
-$publicUrl = if ($config.publicUrl) { [string]$config.publicUrl } else { 'https://bridge.w-i-z-z-lab-studios.com' }
-$bridgeName = if ($config.name) { [string]$config.name } else { 'Memory Bridge' }
-$ownerPayload = [ordered]@{
-    version = 1
-    name = $bridgeName
-    baseUrl = $publicUrl.TrimEnd('/')
-    token = $newToken
-} | ConvertTo-Json -Compress
-$ownerBytes = [System.Text.Encoding]::UTF8.GetBytes($ownerPayload)
-$ownerCode = 'MSB1.' + [Convert]::ToBase64String($ownerBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
-
-$copied = $false
-try {
-    Set-Clipboard -Value $ownerCode
-    $copied = $true
-} catch {}
-
-Write-Host 'Memory Bridge master credential rotated successfully.'
-Write-Host 'Private MSB2 customer credentials were preserved.'
-Write-Host 'Owner OAuth recovery state was re-encrypted when available.'
+Write-Host 'Memory Bridge administrator credential rotated successfully.'
+Write-Host 'Existing owner bridge credential was retained, so the owner app should stay connected.'
+Write-Host 'Private MSB2 customer credentials and tenant OAuth state were preserved.'
 if ($rotationOutput) { Write-Host "Rotation state: $rotationOutput" }
-if ($copied) {
-    Write-Host 'A new owner MSB1 access code is now on the clipboard. Use it only to update the owner bridge in Memory Space.'
-} else {
-    Write-Host 'The new owner access code could not be copied to the clipboard automatically. Do not expose the raw master token.'
-}
