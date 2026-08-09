@@ -90,11 +90,13 @@
 
   function refreshBridgeProviders() {
     if (!globalThis.MemoryBridge?.registerBridge) return;
-    for (const bridge of loadBridges()) {
+    const bridges = loadBridges();
+    const multiple = bridges.length > 1;
+    for (const bridge of bridges) {
       try {
         globalThis.MemoryBridge.registerBridge({
           id: providerId(bridge.id),
-          name: bridge.name,
+          name: multiple ? `${bridge.name} · ${bridge.connectionId ? 'Private' : 'Owner'}` : bridge.name,
           baseUrl: bridge.baseUrl,
           token: bridge.token,
           connectionId: bridge.connectionId || null
@@ -161,6 +163,11 @@
   addEventListener('storage', (event) => {
     if (![BRIDGES_KEY, WORKSPACE_KEY, BINDINGS_KEY].includes(event.key)) return;
     setTimeout(selectForActiveSpace, 0);
+  });
+
+  addEventListener('memory-bridge-connected', () => {
+    refreshBridgeProviders();
+    selectForActiveSpace();
   });
 
   function boot(attempts = 80) {
