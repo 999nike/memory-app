@@ -53,6 +53,154 @@ This is intended to let Memory Space grow into a platform rather than forcing ev
 
 ---
 
+## V2 direction — Connector App + future Master App
+
+A major V2 direction is to stop treating every future capability as something that must be inserted into the Memory App itself.
+
+The current Memory App should remain the stable **memory/workspace core**. A separate **Connector App** should sit beside it and own the fast-changing connectivity/integration layer.
+
+Conceptually:
+
+```text
+                    Future Master App
+                 unified user control plane
+                          |
+          +---------------+----------------+
+          |                                |
+          v                                v
+     Memory App                       Connector App
+  trusted workspace                connections / bridges
+  core + secondary memory          providers / clients
+  projects / context               integrations / automation
+          |                                |
+          +---------------+----------------+
+                          |
+                     Memory Bridge
+                          |
+             external AI / apps / agents
+```
+
+This is a **bolt-on architecture**, not a replacement for V1.
+
+### Memory App responsibility
+
+Keep the Memory App focused on the durable user-owned state:
+
+- Core Memories
+- Secondary Memories
+- Spaces / projects
+- trusted context
+- memory lifecycle and provenance
+- human approval boundaries
+- project state and future project-linked artifacts
+
+It should not become a giant networking/settings application just because more external systems become connectable.
+
+### Connector App responsibility
+
+The Connector App is the front end for connectivity and integration. It can evolve faster without destabilising the trusted memory core.
+
+Possible responsibilities:
+
+- Memory Bridge setup and health
+- external AI connections
+- local AI connections
+- provider/client registry
+- tunnel/connection status
+- future app integrations
+- extension/add-on management
+- automation/workflow connections
+- permission visibility
+- revoke/disconnect controls
+- diagnostics expressed in normal user language
+
+For the owner/operator view, it should eventually make client bridge health visible at a glance. The goal is not to expose customer memory internally; it is to see whether the **connection itself** is healthy so bridge failures can be found and fixed quickly.
+
+Possible operator status surface:
+
+```text
+Client / connection
+    -> online / offline
+    -> bridge reachable
+    -> tunnel healthy
+    -> provider authorised
+    -> last successful heartbeat/action
+    -> warning/error state
+```
+
+Use simple live status lights/cards rather than requiring raw logs for routine monitoring.
+
+### Future Master App
+
+Longer term, the product can grow a **Master App** above the subsystems.
+
+The Master App is the user's main house/control plane. Memory App and Connector App become major modules inside it, while later capabilities remain bolt-ons/extensions rather than being welded into one codebase.
+
+Possible shell:
+
+```text
+Master App
+│
+├── Home / overview
+├── Memory Spaces
+├── Projects
+├── AI workers
+├── Connections
+├── Files / artifacts
+├── Graph / project map
+├── Extensions
+└── system / bridge health
+```
+
+The exact packaging is not decided: these may begin as separate applications and later appear inside one shell. Preserve clean subsystem boundaries either way.
+
+### Human workspace / Cline-style visual direction
+
+A key UX target is a more human project workspace rather than one long settings/chat screen.
+
+Useful inspiration is the way coding workspaces can expose different parts of a project in separate visible panes/cards. Memory Space should eventually let a user **see their project, ideas, core memory, connected workers and structure at the same time**.
+
+Possible workspace regions:
+
+```text
++----------------------+----------------------+
+| Project / graph      | Active AI / chat     |
+| structure            | worker conversation  |
+|                      |                      |
++----------------------+----------------------+
+| Core / project       | Files / artifacts    |
+| memory               | outputs / tasks      |
++----------------------+----------------------+
+```
+
+This should not copy any particular product literally. The design principle is the important part: make the project state visible and spatial, with separate boxes/panes for different jobs instead of burying everything in one feed.
+
+The Smart Graph/Organiser described below fits naturally into this workspace as a visual project/memory structure view.
+
+### Extension model
+
+Treat future applications and specialised capabilities as **bolted-on extensions**.
+
+An extension should declare what it needs rather than inheriting broad authority from the Master App.
+
+Examples:
+
+- memory read
+- memory propose
+- project metadata
+- file read/write
+- repository access
+- execution/tool access
+- bridge/network connection
+
+Installing or opening an extension must not silently grant access to every Space, file or tool.
+
+The architectural rule remains:
+
+> One main house, many replaceable rooms/tools, explicit doors between them.
+
+---
+
 ## Core Memories — small, trusted, deliberately limited
 
 Core Memories should stay high-value and human-trusted.
@@ -196,6 +344,7 @@ Examples of future add-ons that should be possible without changing the V1 core 
 - semantic/vector retrieval
 - local AI enhancements
 - agent registry / agent tools
+- Connector App integrations
 - specialised workflow layers
 - future memory engines designed in-house
 
@@ -236,5 +385,7 @@ V1 should remain stable while real users are tested. V2 architecture should be i
 - project context outgrowing Core Memories
 - browser storage becoming a real constraint
 - users asking for automatic organisation
+- users needing a clearer view of connected apps/bridges/providers
+- users wanting project structure, memory and AI work visible in one workspace
 
 Until those problems are observed, keep the V2 design modular and avoid premature implementation.
