@@ -1,391 +1,510 @@
 # Memory Space V2 Product Ledger
 
-This file is for **future V2 ideas only**. It must not be treated as permission to reopen or destabilise the proven V1 core loop.
+**Updated:** 10 Aug 2026
 
-## Core rule
+This is the working V2 architecture / handoff ledger for the Memory Space product family.
 
-V1 remains the trusted foundation:
-
-```text
-Space
-    -> confirmed memory
-    -> AI reads / proposes
-    -> human reviews
-    -> human approves / edits / rejects
-```
-
-V2 should grow by **bolting on new layers beside the core**, not by rewriting the core memory system.
-
-The core memories remain the trusted, user-controlled source of truth. New systems may reference them, organise around them, index them or propose relationships, but they do not silently rewrite or pollute them.
+The V1 Memory App is now the proven trusted foundation. V2 grows **around it through separate applications**. It is not permission to reopen, move, split apart or rebuild the existing Memory App.
 
 ---
 
-## V2 direction — layered Memory Space
-
-The Memory App can evolve into a top-level workspace with separate sections/layers such as:
+## AUTHORITATIVE V2 RULE — MEMORY APP IS FROZEN
 
 ```text
-Memory App
-│
-├── AI / Local AI
-├── Core Memories
-├── Secondary Memories
-├── Projects / Workflow
-├── Files / Storage
-├── Smart Graph / Organiser
-└── future add-ons
+MEMORY SPACE
+999nike/memory-app
+MAIN TRUSTED APP / FOUNDATION / AUTHORITY
+FROZEN — DO NOT REBUILD
 ```
 
-The important architectural decision is that these are **separate modules/layers**. They can be added later without changing the proven V1 bridge/OAuth/propose/review/confirm loop.
+The existing Memory App remains the trusted main application.
 
-### Stable interface between layers
+It already owns working product infrastructure including:
 
-Future add-ons should work through a narrow contract:
+- Core Memory
+- AI Access
+- Permissions / human approval boundary
+- Memory lifecycle / provenance
+- customer / Space authority
+- existing Memory Bridge integration
+- bridge onboarding / customer access path
+- external AI authorisation
+- proposal -> human review -> confirmed memory loop
+- existing provider / bridge connection machinery
 
-- read confirmed core memories
-- reference stable memory IDs
-- create their own metadata / relationships / indexes
-- propose organisation or structural changes
-- require user approval before durable structural changes
-- never silently mutate core memory truth
+**Do not move any of this out into another repository.**
 
-This is intended to let Memory Space grow into a platform rather than forcing every future feature into one memory table.
+**Do not refactor the existing app merely to make the new apps cleaner.**
+
+**Do not rebuild working bridge, OAuth, provider, permission or memory systems in V2 apps.**
+
+New applications must connect to the trusted foundation through explicit interfaces / permissions and leave the proven core alone.
+
+If a future app requires a change to `999nike/memory-app`, that change is not automatically authorised by this ledger. It must be treated separately and explicitly approved.
 
 ---
 
-## V2 direction — Connector App + future Master App
-
-A major V2 direction is to stop treating every future capability as something that must be inserted into the Memory App itself.
-
-The current Memory App should remain the stable **memory/workspace core**. A separate **Connector App** should sit beside it and own the fast-changing connectivity/integration layer.
-
-Conceptually:
+## LOCKED REPOSITORY / PRODUCT STRUCTURE
 
 ```text
-                    Future Master App
-                 unified user control plane
-                          |
-          +---------------+----------------+
-          |                                |
-          v                                v
-     Memory App                       Connector App
-  trusted workspace                connections / bridges
-  core + secondary memory          providers / clients
-  projects / context               integrations / automation
-          |                                |
-          +---------------+----------------+
-                          |
-                     Memory Bridge
-                          |
-             external AI / apps / agents
-```
-
-This is a **bolt-on architecture**, not a replacement for V1.
-
-### Memory App responsibility
-
-Keep the Memory App focused on the durable user-owned state:
-
-- Core Memories
-- Secondary Memories
-- Spaces / projects
-- trusted context
-- memory lifecycle and provenance
-- human approval boundaries
-- project state and future project-linked artifacts
-
-It should not become a giant networking/settings application just because more external systems become connectable.
-
-### Connector App responsibility
-
-The Connector App is the front end for connectivity and integration. It can evolve faster without destabilising the trusted memory core.
-
-Possible responsibilities:
-
-- Memory Bridge setup and health
-- external AI connections
-- local AI connections
-- provider/client registry
-- tunnel/connection status
-- future app integrations
-- extension/add-on management
-- automation/workflow connections
-- permission visibility
-- revoke/disconnect controls
-- diagnostics expressed in normal user language
-
-For the owner/operator view, it should eventually make client bridge health visible at a glance. The goal is not to expose customer memory internally; it is to see whether the **connection itself** is healthy so bridge failures can be found and fixed quickly.
-
-Possible operator status surface:
-
-```text
-Client / connection
-    -> online / offline
-    -> bridge reachable
-    -> tunnel healthy
-    -> provider authorised
-    -> last successful heartbeat/action
-    -> warning/error state
-```
-
-Use simple live status lights/cards rather than requiring raw logs for routine monitoring.
-
-### Future Master App
-
-Longer term, the product can grow a **Master App** above the subsystems.
-
-The Master App is the user's main house/control plane. Memory App and Connector App become major modules inside it, while later capabilities remain bolt-ons/extensions rather than being welded into one codebase.
-
-Possible shell:
-
-```text
-Master App
+MEMORY SPACE
+999nike/memory-app
+main trusted app — FROZEN
 │
-├── Home / overview
-├── Memory Spaces
-├── Projects
-├── AI workers
-├── Connections
-├── Files / artifacts
-├── Graph / project map
-├── Extensions
-└── system / bridge health
+├── Core Memory
+├── AI Access
+├── Permissions
+├── existing Bridges / bridge integration
+│
+└── Apps
+     │
+     ├── Workspace
+     │    999nike/wizz-workspace
+     │    Cline-style project workspace
+     │
+     ├── Graph
+     │    999nike/memory-graph
+     │    visual memory / project graph
+     │
+     └── Connector
+          999nike/memory-connector
+          connections / providers / bridge status surface
 ```
 
-The exact packaging is not decided: these may begin as separate applications and later appear inside one shell. Preserve clean subsystem boundaries either way.
+### No Code Space
 
-### Human workspace / Cline-style visual direction
+There is **no separate Code Space product in the current architecture**.
 
-A key UX target is a more human project workspace rather than one long settings/chat screen.
+Coding/project capability belongs in the Workspace direction where appropriate. Do not create another repository or product called Code Space unless the architecture is explicitly changed later.
 
-Useful inspiration is the way coding workspaces can expose different parts of a project in separate visible panes/cards. Memory Space should eventually let a user **see their project, ideas, core memory, connected workers and structure at the same time**.
+---
+
+## WHAT “APPS” MEANS
+
+The new repos are bolt-on applications that can eventually be installed / launched from Memory Space.
+
+Conceptual user flow:
+
+```text
+Memory Space
+    |
+    | Apps
+    v
+Choose / install app
+    |
+    v
+App requests permissions
+    |
+    | Example:
+    | ✓ read selected Spaces
+    | ✓ propose memories
+    | ✓ access project metadata
+    v
+User approves
+    |
+    v
+App connected
+```
+
+The exact packaging can evolve later. During development the apps can remain completely separate repositories and deployments.
+
+That is preferred over prematurely bundling everything together.
+
+The main app eventually has a reason to remain the **main app**: it is the trusted authority that owns memory and grants scoped access to the other applications.
+
+---
+
+# APP 1 — WIZZ WORKSPACE
+
+Repository:
+
+```text
+999nike/wizz-workspace
+```
+
+## Purpose
+
+A visual, Cline-style project workspace built as a separate application on top of Memory Space authority.
+
+The goal is a human-friendly working environment where project structure is visible instead of everything being buried inside one chat or settings screen.
 
 Possible workspace regions:
 
 ```text
 +----------------------+----------------------+
-| Project / graph      | Active AI / chat     |
-| structure            | worker conversation  |
-|                      |                      |
+| Project structure    | Active AI / chat     |
+| folders / project    | worker conversation  |
+| view                 |                      |
 +----------------------+----------------------+
-| Core / project       | Files / artifacts    |
-| memory               | outputs / tasks      |
+| Project memory       | Outputs / activity   |
+| goals / decisions    | tasks / artifacts    |
 +----------------------+----------------------+
 ```
 
-This should not copy any particular product literally. The design principle is the important part: make the project state visible and spatial, with separate boxes/panes for different jobs instead of burying everything in one feed.
+The design inspiration is the useful human feel of tools such as Cline: multiple visible boxes/panes showing different parts of a project at the same time.
 
-The Smart Graph/Organiser described below fits naturally into this workspace as a visual project/memory structure view.
+It is not intended to copy Cline literally.
 
-### Extension model
+## Workspace responsibilities
 
-Treat future applications and specialised capabilities as **bolted-on extensions**.
+Workspace may eventually handle things such as:
 
-An extension should declare what it needs rather than inheriting broad authority from the Master App.
+- project overview
+- project metadata
+- visible project structure
+- selected Memory Space context
+- AI conversation / workers
+- tasks / current work
+- project files or artifact views where later authorised
+- proposed project-state memories
+
+Workspace does **not** become the source of long-term trusted memory.
+
+Memory Space remains the authority.
+
+## Workspace permission principle
+
+Workspace asks for only what it needs.
+
+Possible grant:
+
+```text
+Workspace
+    ✓ read selected Space
+    ✓ read confirmed project memories
+    ✓ propose new memories
+    ✓ access permitted project metadata
+    ✗ approve its own memory proposals
+    ✗ access unrelated Spaces
+```
+
+Artifact/file/write/execution permissions, if added later, are separate capabilities and must not be silently implied by memory access.
+
+## First Workspace proof
+
+The first useful integration proof should be deliberately small:
+
+```text
+Open Workspace
+    -> connect / identify Memory Space authority
+    -> choose an authorised Space
+    -> read that Space's permitted project context
+    -> display it inside Workspace
+```
+
+Then:
+
+```text
+Workspace / AI does useful project work
+    -> proposes a project-state memory
+    -> proposal returns to Memory Space
+    -> human approves / edits / rejects
+```
+
+Do not start by moving code out of Memory App or recreating its storage / permission system.
+
+---
+
+# APP 2 — MEMORY GRAPH
+
+Repository:
+
+```text
+999nike/memory-graph
+```
+
+## Purpose
+
+A dedicated visual map of memories, projects and relationships.
+
+The graph is an **organisational / visual layer**, not the trusted memory database.
+
+Conceptually:
+
+```text
+Memory Space confirmed memory
+          |
+          v
+     Memory Graph
+          |
+     +----+----+
+     |         |
+  project   decision
+     |         |
+  memories   related nodes
+```
+
+Possible modes:
+
+- graph
+- tree
+- clusters
+- search/highlight
+- project relationships
+- memory relationships
+
+Selecting a node should ultimately resolve back to the actual authoritative Memory Space item.
+
+## Graph rules
+
+Graph may:
+
+- read authorised confirmed memories
+- reference stable IDs
+- maintain its own layout / relationship metadata
+- suggest relationships / clusters
+- visually organise projects and memory
+
+Graph may not:
+
+- silently rewrite core memory
+- become a second competing source of truth
+- approve durable memory changes for itself
+- inherit access to every Space automatically
+
+AI-assisted organisation may later propose:
+
+- related memories
+- project clusters
+- duplicate candidates
+- possibly superseded decisions
+- useful graph branches / labels
+
+Human authority remains the final boundary for trusted changes.
+
+---
+
+# APP 3 — MEMORY CONNECTOR
+
+Repository:
+
+```text
+999nike/memory-connector
+```
+
+## Purpose
+
+A separate visibility / management application for the growing network of connections around Memory Space.
+
+**Important:** Connector does NOT replace the bridge system already built in `memory-app`.
+
+The bridge stays in the main app / existing runtime architecture.
+
+No bridge code is moved out merely because Connector exists.
+
+Connector's job is to provide a clearer surface over connections such as:
+
+- connected providers
+- connected external AI clients
+- bridge connection status
+- provider status
+- customer / connection health where authorised
+- online / offline indicators
+- last known healthy contact / heartbeat where available
+- revoke / disconnect visibility where the main authority exposes it
+- normal-language diagnostics
+
+Conceptual view:
+
+```text
+Memory Connector
+│
+├── Providers
+│    ├── Claude      connected
+│    ├── Grok        connected
+│    └── ...
+│
+├── Bridges
+│    ├── Bridge A    online
+│    └── Bridge B    warning
+│
+└── Connections
+     ├── customer / client status
+     └── permission / health summary
+```
+
+The operator goal is to make connection problems visible quickly without exposing customer memory content unnecessarily.
+
+## Connector boundary
+
+Connector can display / manage connection state through approved interfaces.
+
+It does not own Memory Space truth and does not gain unrestricted access to customer memories simply because it can observe bridge health.
+
+A connection-health app and a memory-authority app are different trust roles.
+
+---
+
+# SHARED APP CONTRACT
+
+Every bolt-on app follows the same basic model:
+
+```text
+Memory Space = authority
+App          = scoped client / worker surface
+User         = final permission authority
+```
+
+An app declares required capabilities.
+
+Possible future capability vocabulary:
+
+```text
+memory.read
+memory.propose
+project.read
+project.metadata
+files.read
+files.write
+repo.read
+repo.write
+execution.run
+connection.status
+```
+
+These names are conceptual until the actual cross-app protocol is designed.
+
+The architectural rule is already fixed:
+
+**Permission in one layer must not silently imply permission in another.**
 
 Examples:
 
-- memory read
-- memory propose
-- project metadata
-- file read/write
-- repository access
-- execution/tool access
-- bridge/network connection
-
-Installing or opening an extension must not silently grant access to every Space, file or tool.
-
-The architectural rule remains:
-
-> One main house, many replaceable rooms/tools, explicit doors between them.
+- reading memory does not mean writing files
+- seeing project metadata does not mean reading every private Space
+- seeing bridge health does not mean reading customer memory
+- proposing memory does not mean approving memory
+- repository access does not mean execution access
 
 ---
 
-## Core Memories — small, trusted, deliberately limited
+# PACKAGING DIRECTION
 
-Core Memories should stay high-value and human-trusted.
-
-Nothing automated should dump large volumes of secondary context into Core Memories.
-
-A future free tier may cap Core Memories at roughly **100–200 confirmed memories per user**. The exact number is **not decided yet** and should be based on real usage data, average memory size, retrieval quality and infrastructure cost rather than an arbitrary round number.
-
-Current product hypothesis:
-
-- 100 may become restrictive quickly once automatic proposals are used regularly
-- 200 may be a safer free personal-core allowance
-- measure before deciding
-
-Hitting the Core Memory limit should not mean losing data. The user should be able to move/archive less-critical information into secondary layers or add additional memory capabilities.
-
----
-
-## Secondary Memories
-
-Secondary Memories are a separate layer for context that should not occupy the trusted Core Memory allowance.
-
-Possible future uses:
-
-- lower-priority memories
-- archived context
-- automatically extracted context awaiting organisation
-- project-specific supporting material
-- expanded long-term context that does not belong in the core truth layer
-
-Secondary Memories can have their own list/tree/map view and remain separate from Core Memories.
-
----
-
-## Smart organiser / visual memory graph
-
-Manual filing will not scale once users reach hundreds or thousands of memories. Normal users should not be expected to spend hours maintaining folders and categories.
-
-A future smart organiser should be able to read a memory layer and build a **proposed visual structure** for the user to inspect.
-
-Possible UI modes:
+Build the new applications separately first.
 
 ```text
-List
-Tree
-Map / Graph
-Search
+999nike/memory-app          stable authority
+999nike/wizz-workspace      separate app
+999nike/memory-graph        separate app
+999nike/memory-connector    separate app
 ```
 
-When a user opens `Core Memories` or `Secondary Memories`, they should eventually be able to switch to a visual node/tree/root system where:
-
-- each memory can appear as a clickable node
-- related memories are linked
-- projects, workflows, decisions and themes can form branches/clusters
-- selecting a node opens the actual memory
-- search finds matching memories and highlights their node/location
-- the graph is an organisational layer, not the memory itself
-
-The smart organiser may propose things such as:
-
-- related memories to group
-- project/topic clusters
-- duplicate or near-duplicate material
-- older decisions possibly superseded by newer decisions
-- memories that may belong in Secondary rather than Core
-- useful branch/node names
-
-The user remains the approval boundary.
-
-### Reasoning engine placement
-
-The organiser does **not** need to live inside the Core Memory implementation.
-
-Preferred conceptual split:
+Later they can be presented to the user as one Memory Space product family:
 
 ```text
-Memory Core = trusted truth
-Memory Organiser = reasoning / clustering engine
-Visual Sandbox = proposed tree / graph
-User approval = accepted organisation
+Memory Space
+     |
+     +-- Apps
+           |
+           +-- Workspace   [Open / Install]
+           +-- Graph       [Open / Install]
+           +-- Connector   [Open / Install]
 ```
 
-The organiser could later run:
+The eventual user experience may feel like one application suite even if the internal products remain separate deployments / repositories.
 
-- locally in the browser/device
-- in the companion local runtime
-- on the user's own server
-- as an optional hosted/paid service
-
-The app can still render the graph as a native part of Memory Space while the reasoning engine remains outside the core storage layer.
-
-### Possible future implementation ingredients
-
-Do not commit to a specific vendor or architecture yet. Candidate techniques may include:
-
-- embeddings / semantic similarity for candidate links
-- deterministic metadata such as project, type, date and provenance
-- explicit user-created links
-- an LLM for semantic interpretation, cluster naming and proposed organisation
-- human approval before durable changes
-
-No external memory product such as Mem0 is assumed or required for this design.
+Do not force bundling before the individual app contracts are proven.
 
 ---
 
-## Projects and file storage
+# BUILD ORDER
 
-If Memory Space later moves beyond ordinary browser-local storage capacity, it may grow project sections that include files as well as memories.
+Current working order:
 
-Possible future model:
+## 1. Workspace
+
+Build `999nike/wizz-workspace` first.
+
+Reason: this establishes the basic external-app pattern and is the clearest proof that Memory Space can act as the stable project brain underneath a richer working application.
+
+First target:
 
 ```text
-Project
-├── memories
-├── decisions
-├── notes
-├── files
-├── screenshots
-├── documents
-└── project-specific AI context
+Workspace starts independently
+    -> has its own UI/state
+    -> can later request authorised Memory Space context
+    -> Memory App itself remains unchanged
 ```
 
-The browser can remain the UI while a local companion runtime or filesystem-backed store handles larger project data.
+Then establish the smallest safe Memory Space connection contract.
 
-This would allow the local AI and external authorised AIs to work with scoped project context without turning Core Memories into file storage.
+## 2. Graph
 
-Storage expansion is a future system and should not be forced into V1 browser persistence prematurely.
+Once the app connection pattern is understood, build the visual graph against the same authority model rather than inventing a second integration method.
 
----
+## 3. Connector
 
-## Add-on architecture
+Build the dedicated connections/status application around the existing connection/bridge information without moving or replacing the bridge implementation.
 
-The long-term goal is to make new capabilities bolt-ons rather than rewrites.
-
-Examples of future add-ons that should be possible without changing the V1 core loop:
-
-- Secondary Memory
-- visual graph/tree organiser
-- Projects
-- file storage
-- semantic/vector retrieval
-- local AI enhancements
-- agent registry / agent tools
-- Connector App integrations
-- specialised workflow layers
-- future memory engines designed in-house
-
-Each add-on should have its own schema/state and link back to stable core IDs where needed.
-
-The guiding rule is:
-
-> Build new systems around the proven core. Do not keep rebuilding the core every time the product grows.
+This order can change if practical testing exposes a better dependency order, but **the frozen Memory App rule does not change.**
 
 ---
 
-## Paid / advanced memory direction
+# BANKED V2 IDEAS
 
-A future advanced tier may provide automatic organisation for users who do not want to manually maintain hundreds or thousands of memories.
+These remain valid directions but are not reasons to disturb the foundation:
 
-The value proposition is not simply "more memory". It is **less maintenance**.
+- secondary / lower-priority memory layers
+- larger-memory organisation
+- smart graph clustering
+- project-linked files / artifacts
+- local reasoning / organiser engines
+- richer AI worker surfaces
+- teams / shared project rooms
+- optional advanced organisation services
+- future app marketplace / install model
 
-Example future behaviour:
-
-> You have 387 memories and 64 project files. I found several project clusters, related decisions, possible duplicates and stale material. I built a proposed organisation for you to review.
-
-The advanced organiser should do the heavy work while preserving the same human-control philosophy as V1.
-
-The user should be able to review a proper visual sandbox/graph rather than approving tiny isolated text suggestions one by one.
+They should become separate capabilities/modules when there is a real product need.
 
 ---
 
-## Explicitly not V2 implementation work yet
+# DO NOT DO
 
-These ideas are deliberately parked.
+Do not:
 
-Do **not** treat this ledger as a current patch list.
+- rebuild `999nike/memory-app`
+- move the bridge out of Memory App
+- create a separate Code Space repo/app
+- split working V1 systems into new repos for architectural neatness
+- duplicate the trusted memory database in Workspace / Graph / Connector
+- let an app approve its own lasting memory changes
+- give apps blanket access to every Space
+- mix memory, file and execution authority into one implicit permission
+- turn V2 planning into a reason to keep rewriting V1
 
-V1 should remain stable while real users are tested. V2 architecture should be informed by actual pain points such as:
+---
 
-- users struggling with 100+ memories
-- search becoming insufficient
-- project context outgrowing Core Memories
-- browser storage becoming a real constraint
-- users asking for automatic organisation
-- users needing a clearer view of connected apps/bridges/providers
-- users wanting project structure, memory and AI work visible in one workspace
+# CURRENT HANDOFF
 
-Until those problems are observed, keep the V2 design modular and avoid premature implementation.
+Memory App is the finished/proven foundation for this phase.
+
+The next active development repo is:
+
+```text
+999nike/wizz-workspace
+```
+
+Take this ledger into the Workspace development context as the architectural workplan.
+
+For Workspace development:
+
+1. treat `999nike/memory-app` as frozen external infrastructure
+2. build Workspace as its own application
+3. do not copy/rebuild the Memory App internals
+4. establish the Workspace UX independently first
+5. identify the smallest permission/interface needed to read an authorised Space
+6. connect through that contract
+7. prove read -> useful work -> memory proposal -> human approval without granting Workspace authority over trusted memory
+8. record only tested milestones back into this ledger
+
+---
+
+# GUIDING PRINCIPLE
+
+Memory Space is the trusted house.
+
+Workspace, Graph and Connector are applications the user can add to that house.
+
+They get keys to specific rooms and capabilities. They do not inherit ownership of the building.
+
+**Build around the foundation. Do not rebuild the foundation.**
