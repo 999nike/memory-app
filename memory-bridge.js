@@ -85,6 +85,13 @@
     });
   }
 
+  async function getOfficeJobFeedAccess(config) {
+    return request(config, '/v1/jobs/access', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+  }
+
   async function listExternalClients(config) {
     const data = await request(config, '/v1/oauth/clients', { method: 'GET' });
     return Array.isArray(data?.clients) ? data.clients : [];
@@ -164,6 +171,7 @@
     testBridge,
     publishWorkspace,
     pullExternalProposals,
+    getOfficeJobFeedAccess,
     listExternalClients,
     revokeExternalClient
   });

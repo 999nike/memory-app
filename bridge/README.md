@@ -18,6 +18,7 @@ The browser remains the owner of workspace data. Before any model call, the exis
 - Normal model requests receive only the context already approved by the Memory Space context firewall.
 - Superseded, archived, and deleted memories are excluded before the bridge is called.
 - Permanent memory changes still require approval inside Memory Space.
+- Office job-feed access uses a derived, connection-scoped token that can only list ready jobs and acknowledge successful collection. It cannot read general memory or publish workspace state.
 
 Changing the bridge pairing token intentionally makes the previous encrypted OAuth state unreadable, which effectively requires external AI apps to authorize again.
 
@@ -64,6 +65,16 @@ Request:
 ```
 
 The bridge forwards the request to its configured local model runtime and returns a normal reply.
+
+### Office job feed
+
+Memory Space obtains a job-only feed credential with authenticated `POST /v1/jobs/access`. The returned token is deliberately narrower than the Memory Bridge pairing credential.
+
+- `GET /v1/jobs/ready` returns only `type: "job"`, `status: "ready"` items with no Office acknowledgement.
+- `POST /v1/jobs/:memoryJobId/collected` records the actual accepted Office job ID after Office persistence succeeds.
+- Private customer connections use the same routes beneath `/c/:connectionId`, preserving the existing connection isolation.
+
+The published workspace snapshot remains RAM-only at the bridge. The browser-owned Memory workspace remains durable and receives acknowledgements on its next automatic snapshot sync. Office deduplicates by source job ID, so a bridge restart before that sync causes a safe acknowledgement retry rather than another Office job.
 
 ## Run the companion
 

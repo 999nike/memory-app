@@ -17,8 +17,10 @@ const MCP_TOOLS = [
       properties: {
         title: { type: 'string', minLength: 1, maxLength: 100 },
         content: { type: 'string', minLength: 1, maxLength: 2000 },
-        type: { type: 'string', enum: ['decision', 'fact', 'goal', 'question', 'note'] },
+        type: { type: 'string', enum: ['decision', 'fact', 'goal', 'question', 'note', 'job'] },
         importance: { type: 'string', enum: ['critical', 'high', 'normal', 'low'] },
+        project: { type: 'string', maxLength: 100 },
+        priority: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'] },
         reason: { type: 'string', maxLength: 500 }
       },
       required: ['title', 'content'],
@@ -40,9 +42,15 @@ function validateWorkspace(body) {
     id: String(memory?.id || ''),
     spaceId: String(memory?.spaceId || ''),
     title: String(memory?.title || ''),
-    content: String(memory?.content || ''),
+    content: String(memory?.content || memory?.details || ''),
+    details: String(memory?.details || memory?.content || ''),
     type: String(memory?.type || 'note'),
     importance: String(memory?.importance || 'normal'),
+    project: String(memory?.project || ''),
+    priority: String(memory?.priority || 'normal'),
+    createdBy: String(memory?.createdBy || 'user'),
+    officeCollectedAt: memory?.officeCollectedAt || null,
+    officeJobId: memory?.officeJobId == null ? null : String(memory.officeJobId),
     source: String(memory?.source || ''),
     locked: Boolean(memory?.locked),
     status: String(memory?.status || 'confirmed'),
@@ -52,7 +60,10 @@ function validateWorkspace(body) {
   for (const memory of memories) {
     if (!memory.id || !memory.title || !memory.content) throw new Error('Every shared memory needs id, title, and content');
     if (memory.spaceId !== space.id) throw new Error('Shared memories must belong to the shared space');
-    if (memory.status !== 'confirmed') throw new Error('Only current confirmed memories may be published');
+    const confirmedMemory = memory.status === 'confirmed' && memory.type !== 'job';
+    const sourceJob = memory.status === 'ready' && memory.type === 'job';
+    if (!confirmedMemory && !sourceJob) throw new Error('Only current confirmed memories and ready jobs may be published');
+    if (sourceJob && !memory.project) throw new Error('Every ready job needs a project');
   }
   return {
     version: Number(workspace.version || 1),
@@ -74,6 +85,12 @@ function toolError(message) {
 export function createWorkspaceRuntime() {
   const published = new Map();
   const proposals = new Map();
+  const jobAcknowledgements = new Map();
+
+  function acknowledgementQueue(connectionId) {
+    if (!jobAcknowledgements.has(connectionId)) jobAcknowledgements.set(connectionId, new Map());
+    return jobAcknowledgements.get(connectionId);
+  }
 
   function proposalQueue(connectionId) {
     if (!proposals.has(connectionId)) proposals.set(connectionId, []);
@@ -96,6 +113,56 @@ export function createWorkspaceRuntime() {
     return workspace.memories.filter((memory) => memory.spaceId === workspace.activeSpaceId && memory.status === 'confirmed');
   }
 
+  function readyJobs(connectionId) {
+    const workspace = requireWorkspace(connectionId);
+    return workspace.memories
+      .filter((memory) => memory.spaceId === workspace.activeSpaceId
+        && memory.type === 'job'
+        && memory.status === 'ready'
+        && !memory.officeCollectedAt
+        && !memory.officeJobId)
+      .map((memory) => ({
+        id: memory.id,
+        spaceId: memory.spaceId,
+        type: 'job',
+        title: memory.title,
+        details: memory.details || memory.content,
+        project: memory.project,
+        status: 'ready',
+        priority: memory.priority || 'normal',
+        createdBy: memory.createdBy || 'user',
+        createdAt: memory.createdAt || null,
+        officeCollectedAt: null,
+        officeJobId: null
+      }));
+  }
+
+  function acknowledgeJob(connectionId, memoryJobId, officeJobId, collectedAt = new Date()) {
+    const workspace = requireWorkspace(connectionId);
+    const id = String(memoryJobId || '');
+    const acceptedOfficeJobId = String(officeJobId || '').trim();
+    if (!id || !acceptedOfficeJobId) throw new Error('Memory job id and Office job id are required');
+    const job = workspace.memories.find((memory) => memory.id === id
+      && memory.spaceId === workspace.activeSpaceId
+      && memory.type === 'job'
+      && memory.status === 'ready');
+    if (!job) throw new Error('Ready Memory job not found in the authorised Space');
+    if (job.officeJobId && job.officeJobId !== acceptedOfficeJobId) {
+      throw new Error('Memory job was already collected into a different Office job');
+    }
+    const timestamp = job.officeCollectedAt || collectedAt.toISOString();
+    job.officeCollectedAt = timestamp;
+    job.officeJobId = acceptedOfficeJobId;
+    const acknowledgement = { memoryJobId: id, officeJobId: acceptedOfficeJobId, officeCollectedAt: timestamp };
+    acknowledgementQueue(connectionId).set(id, acknowledgement);
+    return acknowledgement;
+  }
+
+  function listJobAcknowledgements(connectionId) {
+    requireWorkspace(connectionId);
+    return [...acknowledgementQueue(connectionId).values()];
+  }
+
   function currentContext(connectionId) {
     const space = activeSpace(connectionId);
     const memories = activeMemories(connectionId);
@@ -112,10 +179,20 @@ export function createWorkspaceRuntime() {
 
   function publishWorkspace(connectionId, body) {
     const workspace = validateWorkspace(body);
+    const acknowledgements = acknowledgementQueue(connectionId);
+    for (const memory of workspace.memories) {
+      const acknowledgement = acknowledgements.get(memory.id);
+      if (!acknowledgement || memory.type !== 'job') continue;
+      if (memory.officeJobId && memory.officeJobId !== acknowledgement.officeJobId) {
+        throw new Error('Published job acknowledgement conflicts with the Office job already recorded by Memory Space');
+      }
+      memory.officeCollectedAt = acknowledgement.officeCollectedAt;
+      memory.officeJobId = acknowledgement.officeJobId;
+    }
     const publishedAt = new Date().toISOString();
     published.set(connectionId, { workspace, publishedAt });
     proposals.set(connectionId, proposalQueue(connectionId).filter((proposal) => proposal.spaceId === workspace.activeSpaceId));
-    return { workspace, publishedAt };
+    return { workspace, publishedAt, jobAcknowledgements: [...acknowledgements.values()] };
   }
 
   function pullProposals(connectionId) {
@@ -134,6 +211,7 @@ export function createWorkspaceRuntime() {
   function clear(connectionId) {
     published.delete(connectionId);
     proposals.delete(connectionId);
+    jobAcknowledgements.delete(connectionId);
   }
 
   function callTool(connectionId, name, args = {}) {
@@ -144,7 +222,13 @@ export function createWorkspaceRuntime() {
         const workspace = requireWorkspace(connectionId);
         return textResult({
           publishedAt: entry?.publishedAt || null,
-          spaces: workspace.spaces.map((space) => ({ id: space.id, name: space.name, description: space.description, active: space.id === workspace.activeSpaceId, memoryCount: workspace.memories.filter((memory) => memory.spaceId === space.id).length }))
+          spaces: workspace.spaces.map((space) => ({
+            id: space.id,
+            name: space.name,
+            description: space.description,
+            active: space.id === workspace.activeSpaceId,
+            memoryCount: workspace.memories.filter((memory) => memory.spaceId === space.id && memory.status === 'confirmed').length
+          }))
         });
       }
       case 'search_memory': {
@@ -177,13 +261,16 @@ export function createWorkspaceRuntime() {
           spaceId: activeSpace(connectionId).id,
           title: title.slice(0, 100),
           content: content.slice(0, 2000),
-          type: ['decision', 'fact', 'goal', 'question', 'note'].includes(args.type) ? args.type : 'note',
+          type: ['decision', 'fact', 'goal', 'question', 'note', 'job'].includes(args.type) ? args.type : 'note',
           importance: ['critical', 'high', 'normal', 'low'].includes(args.importance) ? args.importance : 'normal',
+          project: String(args.project || '').trim().slice(0, 100),
+          priority: ['low', 'normal', 'high', 'urgent'].includes(args.priority) ? args.priority : 'normal',
           reason: String(args.reason || 'External AI suggested this as durable context.').slice(0, 500),
           status: 'pending',
           sourceKind: 'external-mcp',
           createdAt: new Date().toISOString()
         };
+        if (proposal.type === 'job' && !proposal.project) return toolError('project is required when proposing a job');
         proposalQueue(connectionId).push(proposal);
         return textResult({ acceptedAsProposal: true, proposalId: proposal.id, message: 'Proposal queued for human review. It is not confirmed memory.' });
       }
@@ -206,5 +293,5 @@ export function createWorkspaceRuntime() {
     return { jsonrpc: '2.0', id, error: { code: -32601, message: `Method not found: ${method}` } };
   }
 
-  return Object.freeze({ publishWorkspace, pullProposals, status, clear, handleMcp });
+  return Object.freeze({ publishWorkspace, pullProposals, status, clear, handleMcp, readyJobs, acknowledgeJob, listJobAcknowledgements });
 }

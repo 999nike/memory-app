@@ -31,16 +31,18 @@
     return bridges.length === 1 ? bridges[0] : null;
   }
 
-  function buildSharedActiveSpace() {
+  function buildSharedActiveSpace({ includeConfirmed = true, includeJobs = false } = {}) {
     const workspace = loadJson(WORKSPACE_KEY, null);
     if (!workspace || !Array.isArray(workspace.spaces) || !Array.isArray(workspace.memories)) return null;
 
     const space = workspace.spaces.find((item) => item.id === workspace.activeSpaceId) || workspace.spaces[0];
     if (!space) return null;
 
-    const memories = workspace.memories.filter((memory) =>
-      memory.spaceId === space.id && String(memory.status || 'confirmed') === 'confirmed'
-    );
+    const memories = workspace.memories.filter((memory) => {
+      if (memory.spaceId !== space.id) return false;
+      if (includeConfirmed && String(memory.status || 'confirmed') === 'confirmed') return true;
+      return includeJobs && memory.type === 'job' && memory.status === 'ready';
+    });
 
     return {
       version: Number(workspace.version || 1),
@@ -48,6 +50,26 @@
       spaces: [{ ...space }],
       memories: memories.map((memory) => ({ ...memory }))
     };
+  }
+
+  function applyJobAcknowledgements(acknowledgements) {
+    if (!Array.isArray(acknowledgements) || !acknowledgements.length) return 0;
+    const workspace = loadJson(WORKSPACE_KEY, null);
+    if (!workspace || !Array.isArray(workspace.memories)) return 0;
+    let changed = 0;
+    for (const acknowledgement of acknowledgements) {
+      const job = workspace.memories.find((memory) => memory.id === acknowledgement?.memoryJobId && memory.type === 'job');
+      if (!job || (job.officeJobId && job.officeJobId !== acknowledgement.officeJobId)) continue;
+      if (job.officeCollectedAt === acknowledgement.officeCollectedAt && job.officeJobId === acknowledgement.officeJobId) continue;
+      job.officeCollectedAt = acknowledgement.officeCollectedAt;
+      job.officeJobId = acknowledgement.officeJobId;
+      changed += 1;
+    }
+    if (changed) {
+      localStorage.setItem(WORKSPACE_KEY, JSON.stringify(workspace));
+      window.dispatchEvent(new CustomEvent('memory-job-acknowledged', { detail: { count: changed } }));
+    }
+    return changed;
   }
 
   function refreshPermissionSurface() {
@@ -66,18 +88,20 @@
     syncing = true;
     try {
       const clients = await globalThis.MemoryBridge.listExternalClients(bridge);
-      if (!clients.length) {
+      const officeEnabled = bridge.officeJobFeedEnabled === true;
+      if (!clients.length && !officeEnabled) {
         publishedSignatures.delete(bridge.id);
         return;
       }
 
-      const workspace = buildSharedActiveSpace();
+      const workspace = buildSharedActiveSpace({ includeConfirmed: clients.length > 0, includeJobs: officeEnabled });
       if (!workspace) return;
 
       const signature = JSON.stringify(workspace);
       if (!force && publishedSignatures.get(bridge.id) === signature) return;
 
       const result = await globalThis.MemoryBridge.publishWorkspace(bridge, workspace);
+      applyJobAcknowledgements(result?.jobAcknowledgements);
       publishedSignatures.set(bridge.id, signature);
       window.dispatchEvent(new CustomEvent('memory-external-space-synced', {
         detail: {

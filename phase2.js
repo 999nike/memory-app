@@ -8,7 +8,8 @@
     fact: 'Fact',
     goal: 'Goal',
     question: 'Question',
-    note: 'Note'
+    note: 'Note',
+    job: 'Job'
   };
 
   let chatState = loadChatState();
@@ -50,7 +51,9 @@
   }
 
   function memoriesForSpace(workspace, spaceId) {
-    return workspace.memories.filter((memory) => memory.spaceId === spaceId && memory.status !== 'deleted');
+    return workspace.memories.filter((memory) => memory.spaceId === spaceId
+      && (memory.status || 'confirmed') === 'confirmed'
+      && memory.type !== 'job');
   }
 
   function messagesForSpace(spaceId) {
@@ -300,6 +303,8 @@
           content: proposal.content,
           type: proposal.type,
           importance: proposal.importance,
+          project: proposal.project || '',
+          priority: proposal.priority || 'normal',
           reason: proposal.reason,
           sourceMessage: text,
           status: 'pending',
@@ -375,6 +380,14 @@
       content: proposal.content,
       type: proposal.type,
       importance: proposal.importance,
+      ...(proposal.type === 'job' ? {
+        details: proposal.content,
+        project: proposal.project,
+        priority: proposal.priority || 'normal',
+        createdBy: 'external-ai',
+        officeCollectedAt: null,
+        officeJobId: null
+      } : {}),
       source: sourceMessage
         ? `AI proposal approved by user · Chat: ${sourceMessage.slice(0, 120)}`
         : 'AI proposal approved by user',
@@ -383,7 +396,7 @@
       proposalReason: proposal.reason || '',
       approvedAt,
       locked: false,
-      status: 'confirmed',
+      status: proposal.type === 'job' ? 'ready' : 'confirmed',
       createdAt: approvedAt,
       updatedAt: approvedAt
     });
@@ -407,6 +420,10 @@
     document.getElementById('memoryContentInput').value = proposal.content;
     document.getElementById('memoryTypeInput').value = proposal.type;
     document.getElementById('memoryImportanceInput').value = proposal.importance;
+    document.getElementById('memoryProjectInput').value = proposal.project || '';
+    document.getElementById('memoryPriorityInput').value = proposal.priority || 'normal';
+    document.getElementById('memoryCreatedByInput').value = 'external-ai';
+    document.getElementById('memoryTypeInput').dispatchEvent(new Event('change'));
     const sourceMessage = String(proposal.sourceMessage || '').trim();
     document.getElementById('memorySourceInput').value = sourceMessage
       ? `AI proposal · Chat: ${sourceMessage.slice(0, 120)}`

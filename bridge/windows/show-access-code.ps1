@@ -29,7 +29,7 @@ function Read-ProtectedToken([string]$Path) {
 }
 
 try {
-    if (!(Test-Path $configPath) -or !(Test-Path $credentialPath)) {
+    if (!(Test-Path $configPath) -or (!(Test-Path $credentialPath) -and !(Test-Path $adminCredentialPath))) {
         throw 'Memory Bridge is not configured yet. Run the Memory Space Bridge installer first.'
     }
 

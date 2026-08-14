@@ -84,7 +84,9 @@
 
     document.querySelectorAll('.memory-card[data-memory-id]').forEach((card) => {
       const memory = byId.get(card.dataset.memoryId);
-      const shouldHide = Boolean(memory && (memory.status || ACTIVE_STATUS) !== ACTIVE_STATUS);
+      const shouldHide = Boolean(memory
+        && (memory.status || ACTIVE_STATUS) !== ACTIVE_STATUS
+        && !(memory.type === 'job' && memory.status === 'ready'));
       if (card.hidden !== shouldHide) card.hidden = shouldHide;
     });
 
@@ -124,6 +126,7 @@
     const workspace = loadWorkspace();
     const existing = workspace?.memories.find((memory) => memory.id === id);
     if (!workspace || !existing) return;
+    if (existing.type === 'job') return;
 
     event.preventDefault();
     event.stopImmediatePropagation();

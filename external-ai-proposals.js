@@ -51,6 +51,8 @@
         content: String(proposal.content || ''),
         type: proposal.type || 'note',
         importance: proposal.importance || 'normal',
+        project: String(proposal.project || ''),
+        priority: proposal.priority || 'normal',
         reason: proposal.reason || 'External AI suggested this as durable context.',
         sourceMessage: 'External MCP client proposal',
         sourceKind: 'external-mcp',

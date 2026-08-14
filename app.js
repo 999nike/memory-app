@@ -7,7 +7,8 @@
     fact: 'Fact',
     goal: 'Goal',
     question: 'Question',
-    note: 'Note'
+    note: 'Note',
+    job: 'Job'
   };
 
   const now = () => new Date().toISOString();
@@ -113,6 +114,10 @@
     memoryContentInput: document.getElementById('memoryContentInput'),
     memoryTypeInput: document.getElementById('memoryTypeInput'),
     memoryImportanceInput: document.getElementById('memoryImportanceInput'),
+    memoryJobFields: document.getElementById('memoryJobFields'),
+    memoryProjectInput: document.getElementById('memoryProjectInput'),
+    memoryPriorityInput: document.getElementById('memoryPriorityInput'),
+    memoryCreatedByInput: document.getElementById('memoryCreatedByInput'),
     memorySourceInput: document.getElementById('memorySourceInput'),
     memoryLockedInput: document.getElementById('memoryLockedInput'),
     spaceDialog: document.getElementById('spaceDialog'),
@@ -199,7 +204,7 @@
     const query = searchTerm.trim().toLowerCase();
     return memoriesForSpace()
       .filter((memory) => activeFilter === 'all' || memory.type === activeFilter)
-      .filter((memory) => !query || [memory.title, memory.content, memory.source, memory.type, memory.importance]
+      .filter((memory) => !query || [memory.title, memory.content, memory.source, memory.type, memory.importance, memory.project, memory.priority]
         .some((value) => String(value || '').toLowerCase().includes(query)))
       .sort((a, b) => {
         const order = { critical: 0, high: 1, normal: 2, low: 3 };
@@ -222,7 +227,9 @@
         <p>${escapeHtml(memory.content)}</p>
         <span class="card-footer">
           <span>${formatDate(memory.updatedAt)}</span>
-          ${memory.locked ? '<span class="lock-badge">Locked</span>' : '<span>Editable</span>'}
+          ${memory.type === 'job'
+            ? `<span>${memory.officeCollectedAt ? 'Collected' : 'Ready for Office'}</span>`
+            : memory.locked ? '<span class="lock-badge">Locked</span>' : '<span>Editable</span>'}
         </span>
       </button>`).join('');
   }
@@ -254,6 +261,7 @@
         <label>Status</label>
         <p>${escapeHtml(capitalise(memory.status || 'confirmed'))}</p>
       </div>
+      ${memory.type === 'job' ? `<div class="detail-block"><label>Office feed</label><p>${escapeHtml(memory.project)} · ${escapeHtml(capitalise(memory.priority || 'normal'))}${memory.officeJobId ? ` · Office job ${escapeHtml(memory.officeJobId)}` : ' · Waiting for collection'}</p></div>` : ''}
       <div class="detail-block">
         <label>Created</label>
         <p>${formatDateTime(memory.createdAt)}</p>
@@ -291,8 +299,12 @@
     els.memoryContentInput.value = memory?.content || '';
     els.memoryTypeInput.value = memory?.type || 'decision';
     els.memoryImportanceInput.value = memory?.importance || 'normal';
+    els.memoryProjectInput.value = memory?.project || '';
+    els.memoryPriorityInput.value = memory?.priority || 'normal';
+    els.memoryCreatedByInput.value = memory?.createdBy || 'user';
     els.memorySourceInput.value = memory?.source || 'User confirmed';
     els.memoryLockedInput.checked = Boolean(memory?.locked);
+    updateJobFields();
     els.memoryDialog.showModal();
     requestAnimationFrame(() => els.memoryTitleInput.focus());
   }
@@ -307,6 +319,14 @@
       return;
     }
 
+    const isJob = els.memoryTypeInput.value === 'job';
+    const project = els.memoryProjectInput.value.trim();
+    if (isJob && !project) {
+      showToast('Choose the Code Space project for this job');
+      els.memoryProjectInput.focus();
+      return;
+    }
+
     const payload = {
       title: els.memoryTitleInput.value.trim(),
       content: els.memoryContentInput.value.trim(),
@@ -314,12 +334,28 @@
       importance: els.memoryImportanceInput.value,
       source: els.memorySourceInput.value.trim() || 'User confirmed',
       locked: els.memoryLockedInput.checked,
-      status: 'confirmed',
+      status: isJob ? 'ready' : 'confirmed',
+      ...(isJob ? {
+        details: els.memoryContentInput.value.trim(),
+        project,
+        priority: els.memoryPriorityInput.value,
+        createdBy: els.memoryCreatedByInput.value || existing?.createdBy || 'user',
+        officeCollectedAt: existing?.officeCollectedAt || null,
+        officeJobId: existing?.officeJobId || null
+      } : {}),
       updatedAt: now()
     };
 
     if (existing) {
       Object.assign(existing, payload);
+      if (!isJob) {
+        delete existing.details;
+        delete existing.project;
+        delete existing.priority;
+        delete existing.createdBy;
+        delete existing.officeCollectedAt;
+        delete existing.officeJobId;
+      }
       selectedMemoryId = existing.id;
     } else {
       const memory = {
@@ -416,7 +452,9 @@
 
   function buildContext() {
     const space = activeSpace();
-    const memories = memoriesForSpace().sort((a, b) => {
+    const memories = memoriesForSpace()
+      .filter((memory) => (memory.status || 'confirmed') === 'confirmed' && memory.type !== 'job')
+      .sort((a, b) => {
       const order = { critical: 0, high: 1, normal: 2, low: 3 };
       return (order[a.importance] - order[b.importance]) || a.type.localeCompare(b.type);
     });
@@ -442,6 +480,12 @@
   function showContext() {
     els.contextPreview.textContent = buildContext();
     els.contextDialog.showModal();
+  }
+
+  function updateJobFields() {
+    const isJob = els.memoryTypeInput.value === 'job';
+    els.memoryJobFields.hidden = !isJob;
+    els.memoryProjectInput.required = isJob;
   }
 
   function exportWorkspace() {
@@ -576,6 +620,11 @@
   });
 
   els.memoryForm.addEventListener('submit', submitMemory);
+  els.memoryTypeInput.addEventListener('change', updateJobFields);
+  window.addEventListener('memory-job-acknowledged', () => {
+    state = loadState();
+    render();
+  });
   els.spaceForm.addEventListener('submit', submitSpace);
   els.importInput.addEventListener('change', () => {
     const file = els.importInput.files?.[0];

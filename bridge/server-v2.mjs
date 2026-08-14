@@ -115,6 +115,44 @@ function isOwnerAuthorized(req) {
   return safeEqual(bearer(req), OWNER_TOKEN);
 }
 
+function jobFeedCredential(connectionId) {
+  return connectionId === LEGACY_CONNECTION_ID ? OWNER_TOKEN : connections.credentialFor(connectionId);
+}
+
+function jobFeedToken(connectionId) {
+  return crypto.createHmac('sha256', jobFeedCredential(connectionId))
+    .update(`memory-space-office-job-feed:${connectionId}`)
+    .digest('base64url');
+}
+
+function jobFeedBaseUrl(connectionId) {
+  return connectionId === LEGACY_CONNECTION_ID
+    ? `${PUBLIC_URL}/v1/jobs`
+    : `${PUBLIC_URL}/c/${encodeURIComponent(connectionId)}/v1/jobs`;
+}
+
+async function handleJobFeed({ req, res, origin, connectionId, pathName }) {
+  if (pathName !== '/v1/jobs/ready' && !/^\/v1\/jobs\/[^/]+\/collected$/.test(pathName)) return false;
+  if (!safeEqual(bearer(req), jobFeedToken(connectionId))) {
+    sendJson(res, 401, { error: 'Office job-feed authorization required' }, origin);
+    return true;
+  }
+  if (req.method === 'GET' && pathName === '/v1/jobs/ready') {
+    const jobs = workspaces.readyJobs(connectionId);
+    sendJson(res, 200, { jobs, count: jobs.length }, origin);
+    return true;
+  }
+  if (req.method === 'POST') {
+    const memoryJobId = decodeURIComponent(pathName.slice('/v1/jobs/'.length, -'/collected'.length));
+    const body = await readBody(req);
+    const acknowledgement = workspaces.acknowledgeJob(connectionId, memoryJobId, body?.officeJobId);
+    sendJson(res, 200, { collected: true, ...acknowledgement }, origin);
+    return true;
+  }
+  sendJson(res, 405, { error: 'Method not allowed' }, origin, { Allow: pathName.endsWith('/collected') ? 'POST' : 'GET' });
+  return true;
+}
+
 function mcpScopeCheck(oauth, req, body, adminAuthorized = false) {
   if (String(body?.method || '') !== 'tools/call') return { allowed: true };
   const toolName = String(body?.params?.name || '').trim();
@@ -281,6 +319,15 @@ async function runLocalModel(body) {
 }
 
 async function handleApi({ req, res, origin, connectionId, oauth, pathName, mcpPath }) {
+  if (req.method === 'POST' && pathName === '/v1/jobs/access') {
+    sendJson(res, 200, {
+      source: 'memory-space',
+      feedUrl: jobFeedBaseUrl(connectionId),
+      token: jobFeedToken(connectionId),
+      spaceIsolation: connectionId === LEGACY_CONNECTION_ID ? 'legacy-owner' : connectionId
+    }, origin);
+    return true;
+  }
   if (req.method === 'GET' && pathName === '/v1/oauth/clients') {
     const clients = oauth.listAuthorizedClients();
     sendJson(res, 200, { clients, count: clients.length }, origin);
@@ -334,7 +381,7 @@ async function handleApi({ req, res, origin, connectionId, oauth, pathName, mcpP
   }
   if (req.method === 'PUT' && pathName === '/v1/workspace/snapshot') {
     const body = await readBody(req);
-    const { workspace, publishedAt } = workspaces.publishWorkspace(connectionId, body);
+    const { workspace, publishedAt, jobAcknowledgements } = workspaces.publishWorkspace(connectionId, body);
     console.log(`[bridge] shared connection=${connectionId} activeSpace=${workspace.activeSpaceId} memories=${workspace.memories.length}`);
     sendJson(res, 200, {
       shared: true,
@@ -342,7 +389,9 @@ async function handleApi({ req, res, origin, connectionId, oauth, pathName, mcpP
       storedOnDisk: false,
       publishedAt,
       spaceId: workspace.activeSpaceId,
-      memoryCount: workspace.memories.length,
+      memoryCount: workspace.memories.filter((memory) => memory.status === 'confirmed').length,
+      readyJobCount: workspace.memories.filter((memory) => memory.type === 'job' && memory.status === 'ready' && !memory.officeCollectedAt).length,
+      jobAcknowledgements,
       mcpEndpoint: mcpPath
     }, origin);
     return true;
@@ -444,6 +493,8 @@ const server = http.createServer(async (req, res) => {
       const oauth = getTenantOauth(connectionId);
       const mcpPath = `/c/${encodeURIComponent(connectionId)}/mcp`;
 
+      if (await handleJobFeed({ req, res, origin, connectionId, pathName: tenantRoute.suffix })) return;
+
       if (tenantRoute.suffix === '/mcp') {
         if (!oauth.isAuthorized(req)) {
           sendJson(res, 401, { error: 'MCP authorization required for this private connection' }, origin, oauth.challengeHeaders);
@@ -510,6 +561,8 @@ const server = http.createServer(async (req, res) => {
         return;
       }
     }
+
+    if (await handleJobFeed({ req, res, origin, connectionId: LEGACY_CONNECTION_ID, pathName: requestUrl.pathname })) return;
 
     if (!isAdminAuthorized(req) && !isOwnerAuthorized(req)) {
       sendJson(res, 401, { error: 'Bridge pairing token is invalid' }, origin);

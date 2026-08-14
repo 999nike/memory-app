@@ -44,7 +44,8 @@
         id: providerId(bridge.id),
         name: bridge.name,
         baseUrl: bridge.baseUrl,
-        token: bridge.token
+        token: bridge.token,
+        connectionId: bridge.connectionId || null
       });
       if (select) globalThis.MemoryAI.setActiveProvider(providerId(bridge.id));
     } catch (error) {
@@ -74,9 +75,11 @@
     const space = workspace.spaces.find((item) => item.id === workspace.activeSpaceId) || workspace.spaces[0];
     if (!space) throw new Error('No active Memory Space to share');
 
-    const memories = workspace.memories.filter((memory) =>
-      memory.spaceId === space.id && String(memory.status || 'confirmed') === 'confirmed'
-    );
+    const memories = workspace.memories.filter((memory) => {
+      if (memory.spaceId !== space.id) return false;
+      if (String(memory.status || 'confirmed') === 'confirmed') return true;
+      return memory.type === 'job' && memory.status === 'ready';
+    });
 
     return {
       version: Number(workspace.version || 1),
@@ -97,6 +100,7 @@
     try {
       const workspace = buildSharedActiveSpace();
       const result = await globalThis.MemoryBridge.publishWorkspace(bridge, workspace);
+      applyJobAcknowledgements(result?.jobAcknowledgements);
       const count = result.memoryCount ?? workspace.memories.length;
       const spaceName = workspace.spaces[0]?.name || workspace.activeSpaceId;
       setBridgeStatus(dialog, bridge.id, `Shared ${spaceName} · ${count} confirmed memories · MCP ready`, 'success');
@@ -116,6 +120,60 @@
         button.disabled = false;
         button.textContent = 'Failed';
         setTimeout(() => { button.textContent = original; }, 1800);
+      }
+    }
+  }
+
+  function applyJobAcknowledgements(acknowledgements) {
+    if (!Array.isArray(acknowledgements) || !acknowledgements.length) return 0;
+    let workspace;
+    try { workspace = JSON.parse(localStorage.getItem(WORKSPACE_KEY) || 'null'); } catch { return 0; }
+    if (!workspace || !Array.isArray(workspace.memories)) return 0;
+    let changed = 0;
+    for (const acknowledgement of acknowledgements) {
+      const job = workspace.memories.find((memory) => memory.id === acknowledgement?.memoryJobId && memory.type === 'job');
+      if (!job || (job.officeJobId && job.officeJobId !== acknowledgement.officeJobId)) continue;
+      if (job.officeCollectedAt === acknowledgement.officeCollectedAt && job.officeJobId === acknowledgement.officeJobId) continue;
+      job.officeCollectedAt = acknowledgement.officeCollectedAt;
+      job.officeJobId = acknowledgement.officeJobId;
+      changed += 1;
+    }
+    if (changed) {
+      localStorage.setItem(WORKSPACE_KEY, JSON.stringify(workspace));
+      window.dispatchEvent(new CustomEvent('memory-job-acknowledged', { detail: { count: changed } }));
+    }
+    return changed;
+  }
+
+  async function copyOfficeFeedConfig(bridge, button) {
+    if (!ready()) return;
+    const dialog = button?.closest('dialog');
+    const original = button?.textContent || 'Office feed';
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Preparing…';
+    }
+    try {
+      const access = await globalThis.MemoryBridge.getOfficeJobFeedAccess(bridge);
+      if (!access?.feedUrl || !access?.token) throw new Error('Memory Bridge returned incomplete Office feed access');
+      const config = `$env:MEMORY_SPACE_JOB_FEED_URL='${access.feedUrl}'\n$env:MEMORY_SPACE_JOB_FEED_TOKEN='${access.token}'`;
+      await navigator.clipboard.writeText(config);
+      const items = loadBridges();
+      const saved = items.find((item) => item.id === bridge.id);
+      if (saved) {
+        saved.officeJobFeedEnabled = true;
+        saveBridges(items);
+      }
+      globalThis.MemoryExternalSync?.refresh?.();
+      setBridgeStatus(dialog, bridge.id, 'Office job feed enabled · setup copied', 'success');
+      toast('Office job-feed setup copied');
+    } catch (error) {
+      setBridgeStatus(dialog, bridge.id, error?.message || 'Could not prepare Office job feed', 'error');
+      toast(error?.message || 'Could not prepare Office job feed');
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = original;
       }
     }
   }
@@ -143,6 +201,8 @@
         content: String(proposal.content || ''),
         type: proposal.type || 'note',
         importance: proposal.importance || 'normal',
+        project: String(proposal.project || ''),
+        priority: proposal.priority || 'normal',
         reason: proposal.reason || 'External AI suggested this as durable context.',
         sourceMessage: 'External MCP client proposal',
         sourceKind: 'external-mcp',
@@ -381,6 +441,13 @@
       return;
     }
 
+    const officeFeed = event.target.closest('[data-bridge-office-feed]');
+    if (officeFeed) {
+      const bridge = loadBridges().find((item) => item.id === officeFeed.dataset.bridgeOfficeFeed);
+      if (bridge) copyOfficeFeedConfig(bridge, officeFeed);
+      return;
+    }
+
     const copyMcp = event.target.closest('[data-bridge-copy-mcp]');
     if (copyMcp) {
       const bridge = loadBridges().find((item) => item.id === copyMcp.dataset.bridgeCopyMcp);
@@ -437,6 +504,7 @@
             <button type="button" data-bridge-use="${escapeHtml(bridge.id)}">Use</button>
             <button type="button" data-bridge-share="${escapeHtml(bridge.id)}">Share</button>
             <button type="button" data-bridge-pull="${escapeHtml(bridge.id)}">Pull</button>
+            <button type="button" data-bridge-office-feed="${escapeHtml(bridge.id)}">Office feed</button>
             <button type="button" data-bridge-copy-mcp="${escapeHtml(bridge.id)}">MCP URL</button>
             <button type="button" class="danger" data-bridge-remove="${escapeHtml(bridge.id)}">Remove</button>
           </div>

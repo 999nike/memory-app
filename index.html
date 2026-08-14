@@ -84,6 +84,7 @@
           <button class="filter-chip" data-filter="goal">Goals</button>
           <button class="filter-chip" data-filter="question">Questions</button>
           <button class="filter-chip" data-filter="note">Notes</button>
+          <button class="filter-chip" data-filter="job">Jobs</button>
         </div>
       </section>
 
@@ -150,6 +151,7 @@
             <option value="goal">Goal</option>
             <option value="question">Open question</option>
             <option value="note">Note</option>
+            <option value="job">Approved job</option>
           </select>
         </label>
         <label>
@@ -162,6 +164,22 @@
           </select>
         </label>
       </div>
+      <div class="form-grid" id="memoryJobFields" hidden>
+        <label>
+          Code Space project
+          <input id="memoryProjectInput" maxlength="100" placeholder="Example: space-junkz">
+        </label>
+        <label>
+          Job priority
+          <select id="memoryPriorityInput">
+            <option value="low">Low</option>
+            <option value="normal" selected>Normal</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+          </select>
+        </label>
+      </div>
+      <input type="hidden" id="memoryCreatedByInput" value="user">
       <label>
         Source
         <input id="memorySourceInput" maxlength="160" placeholder="User confirmed, meeting note, file name…">
