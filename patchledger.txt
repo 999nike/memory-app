@@ -81,7 +81,7 @@ Small patches only. Build one ledger step at a time, test the meaningful boundar
 TICK SYSTEM
 [x] 01 - Memory Graph view added to Memory Space
 [x] 02 - Isolated memory-graph.js + memory-graph.css added
-[ ] 03 - Active Space + real confirmed memories render as nodes
+[x] 03 - Active Space + real confirmed memories render as nodes
 [ ] 04 - Active Space gravity centre working
 [ ] 05 - Node importance / relationship / recency weighting working
 [ ] 06 - Real Space->Memory + revision edges working
@@ -100,8 +100,17 @@ STEP 02 VERIFIED
 - runtime shell commit: 69c5fe9a8c39eb3cdef659415067a4a47eb22698
 - index load commit: 278957a91cbc47d42bde8a93c3c9075db00b06e4
 - memory-graph.css and memory-graph.js are isolated files.
-- runtime only marks the graph surface ready; it does not read or write workspace memory yet.
-- bridge, OAuth, MCP, provider and proposal files remain untouched.
+- runtime shell does not alter Memory Space data.
+
+STEP 03 VERIFIED
+- graph render commit: 6a1a932198980c5d1fd7bdaec71cf1d9fb1fc244
+- canvas styling commit: 3221715157edc394e37cb6af4675054abc6a752b
+- cache-bump commit: 55c394a982d52c0d1208ae64739b7eeb310934bb
+- memory-graph.js passed node --check before commit.
+- graph reads memory-space-v1 read-only and filters to the active Space plus confirmed memories only.
+- active Space and real confirmed memory titles render as Canvas nodes.
+- workspace UI changes trigger a graph redraw without writing back to workspace storage.
+- no Memory Bridge, OAuth, MCP, provider, proposal, lifecycle or memory-engine files were changed.
 
 CURRENT NEXT PATCH
-Step 03 only: replace the placeholder with a Canvas and read the existing local workspace read-only to render the active Space plus current confirmed memories as nodes. No gravity simulation yet; Step 04 owns centring/force behaviour. Do not touch bridge/provider logic.
+Step 04 only: replace the static radial placement with a contained force/gravity simulation that keeps the active Space anchored at the visual centre while memory nodes settle around it. No weighting beyond basic force yet; Step 05 owns importance/relationship/recency weighting.
