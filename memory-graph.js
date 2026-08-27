@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 2;
+  const VERSION = 3;
   const WORKSPACE_KEY = 'memory-space-v1';
   const MAX_SIMULATION_FRAMES = 900;
   const SETTLED_SPEED = 0.035;
@@ -205,7 +205,6 @@
       }
     }
 
-    // Every rendered memory has one real Space -> Memory relationship.
     return 1 + relatedIds.size;
   }
 
@@ -452,8 +451,11 @@
       pointerId: event.pointerId,
       mode: node?.kind === 'memory' ? 'node' : 'pan',
       node: node?.kind === 'memory' ? node : null,
+      startX: point.x,
+      startY: point.y,
       lastX: point.x,
-      lastY: point.y
+      lastY: point.y,
+      moved: false
     };
 
     if (pointerState.node) {
@@ -478,6 +480,10 @@
       return;
     }
 
+    if (Math.hypot(point.x - pointerState.startX, point.y - pointerState.startY) > 6) {
+      pointerState.moved = true;
+    }
+
     if (pointerState.mode === 'node' && pointerState.node) {
       const world = screenToWorld(point);
       pointerState.node.x = world.x;
@@ -500,6 +506,7 @@
     if (!pointerState || pointerState.pointerId !== event.pointerId) return;
 
     const draggedNode = pointerState.node;
+    const shouldOpen = Boolean(draggedNode && !pointerState.moved);
     if (draggedNode) {
       draggedNode.dragging = false;
       draggedNode.vx = 0;
@@ -508,12 +515,28 @@
       startSimulation();
     }
 
+    if (shouldOpen) openExistingInspector(draggedNode.id);
+
     pointerState = null;
     canvas?.removeAttribute('data-interacting');
     try {
       canvas?.releasePointerCapture?.(event.pointerId);
     } catch {}
     drawGraph();
+  }
+
+  function openExistingInspector(memoryId) {
+    const memoryGrid = document.getElementById('memoryGrid');
+    if (!memoryGrid || !memoryId) return false;
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.hidden = true;
+    trigger.dataset.memoryId = String(memoryId);
+    memoryGrid.appendChild(trigger);
+    trigger.click();
+    trigger.remove();
+    return true;
   }
 
   function handleWheel(event) {
