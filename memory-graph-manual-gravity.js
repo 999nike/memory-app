@@ -1,11 +1,13 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
   const PHYSICS_INTERVAL_MS = 14;
   const PERSIST_DELAY_MS = 420;
+  const OVERLAY_FRAME_MS = 40;
+  const DRAG_OVERLAY_FRAME_MS = 28;
 
   const baseRotation = globalThis.MemoryGraphRotation || null;
   if (!baseRotation || baseRotation.__manualGravityPhysicsWrapped) return;
@@ -14,10 +16,14 @@
   let lastMatrix = null;
   let pendingLabelMemoryId = null;
   let lastPhysicsAt = 0;
+  let physicsFrameLocked = false;
+  let groupProjectionDirty = true;
   let persistTimer = 0;
+  let redrawFrame = 0;
   let overlayCanvas = null;
   let overlayContext = null;
   let overlayFrame = 0;
+  let lastOverlayPaint = 0;
   let drag = null;
   let memoryDrag = null;
   let canvas = null;
@@ -25,57 +31,47 @@
 
   const bodies = new Map();
   const projectedMemories = new Map();
+  const projectedGroups = new Map();
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
   }
 
-  function readJson(key, fallback = null) {
-    try {
-      const value = JSON.parse(localStorage.getItem(key) || 'null');
-      return value && typeof value === 'object' ? value : fallback;
-    } catch {
-      return fallback;
-    }
+  function groupsApi() {
+    return globalThis.MemoryGraphManualGroups || null;
   }
 
-  function workspace() {
-    const value = readJson(WORKSPACE_KEY, null);
-    return value && Array.isArray(value.spaces) && Array.isArray(value.memories) ? value : null;
-  }
-
-  function activeSpaceId() {
-    const value = workspace();
-    return String(value?.activeSpaceId || value?.spaces?.[0]?.id || '');
-  }
-
-  function groupStore() {
-    const value = readJson(GROUP_KEY, { version: 1, spaces: {} });
-    if (!value.spaces || typeof value.spaces !== 'object') value.spaces = {};
-    return value;
-  }
-
-  function groupsForSpace(spaceId = activeSpaceId()) {
-    if (!spaceId) return [];
-    const groups = groupStore().spaces?.[spaceId];
-    return Array.isArray(groups) ? groups : [];
-  }
-
-  function writeGroups(groups, spaceId = activeSpaceId()) {
-    if (!spaceId) return false;
-    const store = groupStore();
-    store.spaces[spaceId] = groups;
-    try {
-      localStorage.setItem(GROUP_KEY, JSON.stringify(store));
-      return true;
-    } catch {
-      return false;
-    }
+  function groupsForSpace() {
+    return groupsApi()?.groups?.() || [];
   }
 
   function groupForMemory(memoryId) {
-    const id = String(memoryId || '');
-    return groupsForSpace().find((group) => (group.members || []).some((memberId) => String(memberId) === id)) || null;
+    return groupsApi()?.groupForMemory?.(memoryId) || null;
+  }
+
+  function detachMemory(memoryId) {
+    const changed = groupsApi()?.detachMemory?.(memoryId) === true;
+    if (changed) markGroupStructureChanged();
+    return changed;
+  }
+
+  function addMemoryToGroup(memoryId, groupId) {
+    const changed = groupsApi()?.addMemoryToGroup?.(memoryId, groupId) === true;
+    if (changed) markGroupStructureChanged();
+    return changed;
+  }
+
+  function replaceGroups(groups) {
+    return groupsApi()?.replaceGroups?.(groups) === true;
+  }
+
+  function readWorkspace() {
+    try {
+      const value = JSON.parse(localStorage.getItem(WORKSPACE_KEY) || 'null');
+      return value && Array.isArray(value.spaces) && Array.isArray(value.memories) ? value : null;
+    } catch {
+      return null;
+    }
   }
 
   function groupRadius(group) {
@@ -109,13 +105,21 @@
         y: hasSaved ? Number(graph.centreY) + savedY * height : Number(graph.centreY) + Math.sin(angle) * orbit,
         vx: 0,
         vy: 0,
-        dragging: false
+        dragging: false,
+        radius: 35,
+        memberCount: 0,
+        gravityWeight: 1,
+        targetOrbit: orbit
       };
       bodies.set(id, body);
+      groupProjectionDirty = true;
     }
 
-    body.radius = groupRadius(group);
-    body.memberCount = Array.isArray(group.members) ? group.members.length : 0;
+    const nextRadius = groupRadius(group);
+    const nextCount = Array.isArray(group.members) ? group.members.length : 0;
+    if (body.radius !== nextRadius || body.memberCount !== nextCount) groupProjectionDirty = true;
+    body.radius = nextRadius;
+    body.memberCount = nextCount;
     body.gravityWeight = 1.08 + Math.min(1.30, body.memberCount * 0.095);
     body.targetOrbit = naturalOrbit(group, graph);
     return body;
@@ -161,15 +165,24 @@
     return ids;
   }
 
+  function lockPhysicsForFrame() {
+    physicsFrameLocked = true;
+    requestAnimationFrame(() => {
+      physicsFrameLocked = false;
+    });
+  }
+
   function stepPhysics(graph) {
     const now = performance.now();
-    if (now - lastPhysicsAt < PHYSICS_INTERVAL_MS) return;
+    if (physicsFrameLocked || now - lastPhysicsAt < PHYSICS_INTERVAL_MS) return;
     lastPhysicsAt = now;
+    lockPhysicsForFrame();
 
     const entries = syncBodies(graph);
     if (!entries.length) return;
     const grouped = groupedMemoryIds();
     const memories = (graph.memoryNodes || []).filter((node) => !grouped.has(String(node.id)));
+    let moved = false;
 
     for (let i = 0; i < entries.length; i += 1) {
       const { body } = entries[i];
@@ -222,14 +235,20 @@
         }
       }
 
+      const beforeX = body.x;
+      const beforeY = body.y;
       body.vx = (Number(body.vx || 0) + fx) * 0.90;
       body.vy = (Number(body.vy || 0) + fy) * 0.90;
       body.x += body.vx;
       body.y += body.vy;
       containBody(body, graph);
+      if (Math.abs(body.x - beforeX) > 0.001 || Math.abs(body.y - beforeY) > 0.001) moved = true;
     }
 
-    schedulePersist();
+    if (moved) {
+      groupProjectionDirty = true;
+      schedulePersist();
+    }
   }
 
   function persistBodies() {
@@ -248,7 +267,7 @@
         physicsOffsetY: (body.y - centreY) / height
       };
     });
-    writeGroups(groups);
+    replaceGroups(groups);
   }
 
   function schedulePersist() {
@@ -277,10 +296,48 @@
     };
   }
 
+  function projectBody(group, graph = lastGraph) {
+    if (!group || !graph) return null;
+    const body = bodyFromGroup(group, graph);
+    const proxy = {
+      id: `manual-gravity:${group.id}`,
+      kind: 'group',
+      x: body.x,
+      y: body.y,
+      radius: body.radius
+    };
+    return baseRotation.project?.(proxy, graph) || proxy;
+  }
+
+  function syncProjectedGroups(graph) {
+    const groups = groupsForSpace();
+    const liveIds = new Set();
+    for (const group of groups) {
+      const id = String(group.id);
+      liveIds.add(id);
+      const projected = projectBody(group, graph);
+      if (projected) projectedGroups.set(id, projected);
+    }
+    for (const id of [...projectedGroups.keys()]) {
+      if (!liveIds.has(id)) projectedGroups.delete(id);
+    }
+    groupProjectionDirty = false;
+  }
+
   function project(node, graph) {
     if (!node || !graph) return baseRotation.project?.(node, graph) || node;
-    lastGraph = graph;
+
+    if (lastGraph !== graph) {
+      lastGraph = graph;
+      projectedMemories.clear();
+      projectedGroups.clear();
+      groupProjectionDirty = true;
+    } else {
+      lastGraph = graph;
+    }
+
     stepPhysics(graph);
+    if (groupProjectionDirty) syncProjectedGroups(graph);
 
     if (node.kind !== 'memory') {
       pendingLabelMemoryId = null;
@@ -307,19 +364,6 @@
     const projected = baseRotation.project?.(proxy, graph) || proxy;
     projectedMemories.set(String(node.id), projected);
     return { ...projected, alpha: Math.min(Number(projected.alpha || 1), 0.96) };
-  }
-
-  function projectBody(group, graph = lastGraph) {
-    if (!group || !graph) return null;
-    const body = bodyFromGroup(group, graph);
-    const proxy = {
-      id: `manual-gravity:${group.id}`,
-      kind: 'group',
-      x: body.x,
-      y: body.y,
-      radius: body.radius
-    };
-    return baseRotation.project?.(proxy, graph) || proxy;
   }
 
   function normalisedMatrix(context) {
@@ -365,7 +409,7 @@
   function queryMatchesMemory(memoryId) {
     const query = document.getElementById('searchInput')?.value?.trim().toLowerCase() || '';
     if (!query) return false;
-    const value = workspace();
+    const value = readWorkspace();
     const memory = value?.memories?.find((item) => String(item.id) === String(memoryId));
     if (!memory) return false;
     return [memory.title, memory.content, memory.source, memory.type, memory.importance, memory.project, memory.priority]
@@ -385,7 +429,7 @@
     const previousFillText = proto.fillText;
     const previousStroke = proto.stroke;
 
-    proto.fillText = function manualGravityPhysicsFillText(text, x, y, ...rest) {
+    proto.fillText = function manualGravityFillText(text, x, y, ...rest) {
       if (this?.canvas?.classList?.contains('memory-graph-canvas')) {
         lastMatrix = normalisedMatrix(this) || lastMatrix;
         if (/(?:^|\s)11px\b/.test(String(this.font || '')) && pendingLabelMemoryId && groupForMemory(pendingLabelMemoryId) && !queryMatchesMemory(pendingLabelMemoryId)) {
@@ -395,7 +439,7 @@
       return previousFillText.call(this, text, x, y, ...rest);
     };
 
-    proto.stroke = function manualGravityPhysicsStroke(...args) {
+    proto.stroke = function manualGravityStroke(...args) {
       if (this?.canvas?.classList?.contains('memory-graph-canvas')) {
         const width = Math.max(0.5, Number(this.lineWidth) || 1);
         const blue = String(this.strokeStyle || '').includes('120, 184, 255');
@@ -405,7 +449,9 @@
             for (const memberId of group.members || []) {
               const projected = projectedMemories.get(String(memberId));
               if (!projected) continue;
-              if (Math.hypot(Number(end.x) - Number(projected.x), Number(end.y) - Number(projected.y)) <= 1.2) return undefined;
+              if (Math.hypot(Number(end.x) - Number(projected.x), Number(end.y) - Number(projected.y)) <= 1.2) {
+                return undefined;
+              }
             }
           }
         }
@@ -425,7 +471,7 @@
     const groups = groupsForSpace();
     for (let index = groups.length - 1; index >= 0; index -= 1) {
       const group = groups[index];
-      const projected = projectBody(group, lastGraph);
+      const projected = projectedGroups.get(String(group.id)) || projectBody(group, lastGraph);
       const screen = worldToScreen(projected);
       if (!screen) continue;
       if (Math.hypot(point.x - screen.x, point.y - screen.y) <= Number(projected.radius || 35) * scale + 12) return group;
@@ -435,43 +481,13 @@
 
   function memoryAtScreen(point) {
     const scale = matrixScale();
-    const items = [...projectedMemories.entries()].reverse();
+    const items = [...projectedMemories.entries()].sort((a, b) => Number(b[1].depth || 0) - Number(a[1].depth || 0));
     for (const [id, projected] of items) {
       const screen = worldToScreen(projected);
       if (!screen) continue;
       if (Math.hypot(point.x - screen.x, point.y - screen.y) <= Number(projected.radius || 12) * scale + 8) return id;
     }
     return null;
-  }
-
-  function detachMemory(memoryId) {
-    const id = String(memoryId || '');
-    if (!id) return false;
-    let changed = false;
-    const groups = groupsForSpace().map((group) => {
-      const members = (group.members || []).filter((memberId) => String(memberId) !== id);
-      if (members.length !== (group.members || []).length) changed = true;
-      return { ...group, members };
-    });
-    if (changed) writeGroups(groups);
-    return changed;
-  }
-
-  function addMemoryToGroup(memoryId, groupId) {
-    const id = String(memoryId || '');
-    const targetId = String(groupId || '');
-    if (!id || !targetId) return false;
-    let found = false;
-    const groups = groupsForSpace().map((group) => {
-      const members = (group.members || []).filter((memberId) => String(memberId) !== id);
-      if (String(group.id) === targetId) {
-        members.push(id);
-        found = true;
-      }
-      return { ...group, members };
-    });
-    if (!found) return false;
-    return writeGroups(groups);
   }
 
   function rotationActive() {
@@ -484,12 +500,39 @@
     event.stopImmediatePropagation?.();
   }
 
-  function scheduleGraphRefresh(force = false) {
-    if (force) {
-      globalThis.MemoryGraph?.refresh?.();
+  function redrawGraph() {
+    const api = globalThis.MemoryGraph;
+    if (!api) return;
+    if (typeof api.redraw === 'function') {
+      api.redraw();
       return;
     }
-    requestAnimationFrame(() => globalThis.MemoryGraph?.refresh?.());
+    if (!rotationActive() && typeof api.resetRotation === 'function') {
+      // resetRotation already performs a cheap draw without rebuilding graph data.
+      api.resetRotation();
+      return;
+    }
+    api.refresh?.();
+  }
+
+  function scheduleGraphRedraw(immediate = false) {
+    if (immediate) {
+      if (redrawFrame) cancelAnimationFrame(redrawFrame);
+      redrawFrame = 0;
+      redrawGraph();
+      return;
+    }
+    if (redrawFrame) return;
+    redrawFrame = requestAnimationFrame(() => {
+      redrawFrame = 0;
+      redrawGraph();
+    });
+  }
+
+  function markGroupStructureChanged() {
+    projectedMemories.clear();
+    projectedGroups.clear();
+    groupProjectionDirty = true;
   }
 
   function installPointerHooks() {
@@ -505,14 +548,15 @@
         drag = {
           pointerId: event.pointerId,
           groupId: String(group.id),
-          moved: false,
           startX: point.x,
-          startY: point.y
+          startY: point.y,
+          moved: false
         };
         body.dragging = true;
         body.vx = 0;
         body.vy = 0;
         canvas.dataset.draggingGroup = 'true';
+        canvas.dataset.interacting = 'true';
         canvas.setPointerCapture?.(event.pointerId);
         stopGroupEvent(event);
         return;
@@ -546,8 +590,9 @@
           body.vx = 0;
           body.vy = 0;
           containBody(body, lastGraph);
+          groupProjectionDirty = true;
           schedulePersist();
-          scheduleGraphRefresh(false);
+          scheduleGraphRedraw(false);
         }
         stopGroupEvent(event);
         return;
@@ -573,8 +618,10 @@
         drag = null;
         canvas.removeAttribute('data-dragging-group');
         canvas.removeAttribute('data-hover-group');
+        canvas.removeAttribute('data-interacting');
         persistBodies();
-        scheduleGraphRefresh(true);
+        groupProjectionDirty = true;
+        scheduleGraphRedraw(true);
         try { canvas.releasePointerCapture?.(event.pointerId); } catch {}
         stopGroupEvent(event);
         return;
@@ -587,8 +634,7 @@
           const target = groupAtScreen(point);
           if (target) {
             window.setTimeout(() => {
-              addMemoryToGroup(active.memoryId, target.id);
-              scheduleGraphRefresh(true);
+              if (addMemoryToGroup(active.memoryId, target.id)) scheduleGraphRedraw(true);
             }, 0);
           }
         }
@@ -602,6 +648,9 @@
         if (body) body.dragging = false;
         drag = null;
         canvas.removeAttribute('data-dragging-group');
+        canvas.removeAttribute('data-hover-group');
+        canvas.removeAttribute('data-interacting');
+        groupProjectionDirty = true;
       }
       if (memoryDrag?.pointerId === event.pointerId) memoryDrag = null;
     }, true);
@@ -609,8 +658,6 @@
 
   function ensureOverlay() {
     if (!surface) return false;
-    const old = surface.querySelector('.memory-graph-manual-group-canvas');
-    if (old) old.style.opacity = '0';
 
     if (!overlayCanvas || !overlayCanvas.isConnected) {
       overlayCanvas = document.createElement('canvas');
@@ -714,25 +761,33 @@
 
   function drawOverlay(timestamp) {
     overlayFrame = requestAnimationFrame(drawOverlay);
+    const frameMs = drag ? DRAG_OVERLAY_FRAME_MS : OVERLAY_FRAME_MS;
+    if (timestamp - lastOverlayPaint < frameMs) return;
+    lastOverlayPaint = timestamp;
     if (!ensureOverlay() || !lastGraph || !lastMatrix || document.hidden) return;
+
     const rect = overlayCanvas.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;
     overlayContext.clearRect(0, 0, rect.width, rect.height);
+
     const centreScreen = worldToScreen({ x: Number(lastGraph.centreX || 0), y: Number(lastGraph.centreY || 0) });
     if (!centreScreen) return;
     const scale = matrixScale();
 
     for (const group of groupsForSpace()) {
-      const projectedGroup = projectBody(group, lastGraph);
+      const projectedGroup = projectedGroups.get(String(group.id)) || projectBody(group, lastGraph);
       const groupScreen = worldToScreen(projectedGroup);
       if (!groupScreen) continue;
       const radius = Number(projectedGroup.radius || groupRadius(group)) * scale;
       const seed = Math.abs(Math.sin(String(group.id).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) * 0.17));
       traceLightning(overlayContext, centreScreen, groupScreen, seed, timestamp, 1.05);
+
       for (let index = 0; index < (group.members || []).length; index += 1) {
         const projectedMemory = projectedMemories.get(String(group.members[index]));
         const memoryScreen = worldToScreen(projectedMemory);
         if (memoryScreen) traceLightning(overlayContext, groupScreen, memoryScreen, seed + index * 0.193, timestamp, 0.72);
       }
+
       drawGroupBubble(overlayContext, group, groupScreen, radius, timestamp);
     }
   }
@@ -775,6 +830,8 @@
     surface = document.getElementById('memoryGraphSurface');
     canvas = document.querySelector('.memory-graph-canvas');
     if (!surface || !canvas) return false;
+
+    surface.querySelectorAll('.memory-graph-manual-group-canvas').forEach((legacy) => legacy.remove());
     installStyles();
     installPointerHooks();
     ensureOverlay();
@@ -792,13 +849,17 @@
   window.addEventListener('storage', (event) => {
     if (event.key === GROUP_KEY || event.key === WORKSPACE_KEY) {
       projectedMemories.clear();
+      projectedGroups.clear();
+      groupProjectionDirty = true;
       if (event.key === GROUP_KEY) bodies.clear();
+      scheduleGraphRedraw(false);
     }
   });
 
   globalThis.MemoryGraphManualGravity = Object.freeze({
     version: VERSION,
     bodyCount: () => bodies.size,
-    persist: persistBodies
+    persist: persistBodies,
+    redraw: () => scheduleGraphRedraw(true)
   });
 })();
