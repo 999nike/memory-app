@@ -41,14 +41,15 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 ## Tick system
 
 [ ] 01 - Cluster / group memories
-[ ] 02 - Focused memory card polish
-[~] 03 - Nebula / dust-cloud layer patched; waiting for live desktop test
+[~] 02 - Focused memory card polish patched; waiting for live visual test
+[x] 03 - Nebula / dust-cloud layer live-tested and approved
 [x] 04 - Pseudo-3D rotation mode live-tested and approved
 [ ] 05 - True 3D graph mode later
 
 ## Step 04 confirmed checkpoint
 
-- User live-tested Ctrl-drag pseudo-3D and confirmed the effect is good.
+- User live-tested Ctrl-drag pseudo-3D and confirmed the effect is good and rotates smoothly.
+- Escape stops/resets the pseudo-3D mode correctly.
 - Safety checkpoint branch before Step 04: `backup/pre-pseudo3d-rotation-2026-08-27`
 - Isolated rotation module: `96436434a98b59f557f16f83ec5aac0b6b8d7a88`
 - Graph runtime integration: `ddc29586193d7cd2a63cfd5fd5470505028ca65e`
@@ -60,8 +61,10 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 - Rotation is transient presentation state and is not written into `memory-space-v1` or the durable graph layout store.
 - Mobile activation is disabled by the rotation module; the current mobile graph treatment remains separate.
 
-## Step 03 current patch
+## Step 03 confirmed checkpoint
 
+- User live-tested the nebula pass and approved it as good to move on.
+- The visible effect is deliberately faint: a few subtle nebula-style blobs behind the graph rather than a heavy animated wallpaper.
 - Safety checkpoint branch before Step 03: `backup/pre-nebula-2026-08-27`
 - Isolated nebula runtime: `581709c61d55a88bb24d7a506073dd51032508e9`
 - Loader update: `2fbb37ca3a8d51a4d10a2ba433990335f5651369`
@@ -74,3 +77,15 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 - A lightweight dust field moves with the same rotation state.
 - No CSS filters or per-frame blur are used; cloud textures are generated once and reused as cached canvases.
 - Nebula state is presentation-only and does not write to memory or graph layout storage.
+
+## Step 02 current patch
+
+- Safety checkpoint branch before Step 02: `backup/pre-focus-card-2026-08-27`
+- Isolated focused-card stylesheet: `76cc4fa9f44455c7e7a6ca2f3a1846c16cdf49c3`
+- Focus stylesheet loader through existing graph CSS: `abd3ef6e2771431d99fa45e8121f32a247e7e510`
+- Existing inspector logic is unchanged; this is visual-only.
+- Opening a memory gives the real inspector a glass/shiny-card treatment with blue/lime depth lighting, a one-shot sheen, and a small active-memory glow marker.
+- Inspector detail blocks become inset glass compartments while retaining all existing controls and text.
+- The corresponding Shared Memory card gets a stronger lifted selected state.
+- Mobile receives the same visual language but no graph/layout changes.
+- No memory data, Memory Bridge, provider, permission, or lifecycle code is touched.
