@@ -1,0 +1,93 @@
+MEMORY SPACE PATCH LEDGER
+Started: 27 Aug 2026
+Active job: Front-line Memory Graph / gravity visual
+
+BACKUP BEFORE THIS JOB
+- main snapshot at start: b9f681b7114252108cc6823684065daef6ef5763
+- backup branch: backup/pre-memory-graph-2026-08-27
+
+GOAL
+Add a living force-directed / gravity graph to Memory Space as a new first-class visual surface.
+
+The graph is NOT a replacement memory database. Existing Memory Space remains the source of truth. The graph reads the existing workspace and visualises it.
+
+Core idea:
+- every Space / memory / note / job / repo can become a node
+- related things are connected by lines
+- important or heavily linked nodes pull closer toward the centre
+- similar memories naturally cluster
+- weak / old material drifts further out
+- active jobs or hot memories can glow / pulse
+- clicking a node opens the real existing memory / inspector behind it
+- Wizz / DevMaster can ultimately act as the central/root node across the wider system
+
+HARD BOUNDARIES FOR THIS JOB
+- DO NOT redesign Memory Bridge
+- DO NOT change OAuth / MCP / provider connection behaviour
+- DO NOT change external AI proposal rules
+- DO NOT change trusted-memory approval boundaries
+- DO NOT replace the current memory engine or lifecycle
+- DO NOT rewrite the app architecture
+- graph code should be isolated from the existing memory core
+- moving graph nodes must never alter/corrupt memory records
+- normal Memory view stays available, but can become visually smaller so the graph becomes the front-line feature
+
+VISUAL / GRAVITY RULES
+- active Space = strong central gravity point for that Space view
+- critical / important memories = larger nodes
+- highly connected memories = stronger pull / more central
+- recently touched memories = brighter
+- old / weakly connected memories = further outward
+- locked memories = distinct solid ring
+- pending AI proposals = later pulse/glow state
+- archived / superseded memories = later faded/history-only state
+- explicit relationships = strongest edge
+- revision relationships = real edge
+- same project/tag/entity = medium edge later
+- calculated similarity = weaker inferred edge later
+- agent/job activity = animated ring/pulse later
+
+IMPLEMENTATION SHAPE
+Prefer an isolated Canvas-based force graph so the app can eventually handle hundreds or thousands of nodes without turning the DOM into a brick.
+
+Keep graph UI/state separate from durable memory data. Persist only harmless view state such as node positions, zoom and pan in a separate graph storage key if needed.
+
+FIRST 10 STEPS
+1. Add a Memory Graph view to the existing Memory Space UI.
+2. Add isolated memory-graph.js and memory-graph.css files; do not alter the memory engine.
+3. Render the active Space and its real confirmed memories as nodes.
+4. Put the active Space at the gravitational centre of the graph.
+5. Size / weight nodes using importance, relationship count and recency.
+6. Draw real Space -> Memory and revision relationships first; do not invent fake semantic links just for looks.
+7. Add pan, zoom and drag interaction.
+8. Clicking a memory node must open the existing real inspector / memory controls.
+9. Search must be able to locate and centre/focus the matching node.
+10. Persist graph layout/view state separately from memory records so visual movement cannot change durable truth.
+
+AFTER THE FIRST 10 STEPS
+- explicit user-created memory links
+- automatic similarity links
+- project clustering
+- Office jobs as nodes
+- Code Space / repo nodes
+- agent presence / activity animation
+- graph history mode for archived / superseded memories
+- larger cross-Space DevMaster / Wizz galaxy view
+
+WORKING RULE
+Small patches only. Build one ledger step at a time, test the meaningful boundary, then tick it below. Do not let this feature break or absorb the existing Memory Bridge / AI access stack.
+
+TICK SYSTEM
+[ ] 01 - Memory Graph view added to Memory Space
+[ ] 02 - Isolated memory-graph.js + memory-graph.css added
+[ ] 03 - Active Space + real confirmed memories render as nodes
+[ ] 04 - Active Space gravity centre working
+[ ] 05 - Node importance / relationship / recency weighting working
+[ ] 06 - Real Space->Memory + revision edges working
+[ ] 07 - Pan / zoom / drag working
+[ ] 08 - Node click opens existing inspector
+[ ] 09 - Search can focus matching graph node
+[ ] 10 - Graph layout state persists separately and safely
+
+CURRENT NEXT PATCH
+Step 01 only: add the Memory Graph view/surface with the smallest safe UI change. Do not touch bridge/provider logic.
