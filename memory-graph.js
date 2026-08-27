@@ -1,8 +1,10 @@
 (() => {
   'use strict';
 
-  const VERSION = 4;
+  const VERSION = 5;
   const WORKSPACE_KEY = 'memory-space-v1';
+  const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
+  const GRAPH_STATE_VERSION = 1;
   const MAX_SIMULATION_FRAMES = 900;
   const SETTLED_SPEED = 0.035;
   const MIN_SCALE = 0.45;
@@ -32,6 +34,7 @@
   let interactionsBound = false;
   let searchBound = false;
   let focusedNodeId = null;
+  let persistTimer = 0;
   const view = {
     x: 0,
     y: 0,
@@ -46,6 +49,25 @@
     } catch {
       return null;
     }
+  }
+
+  function loadGraphState() {
+    try {
+      const value = JSON.parse(localStorage.getItem(GRAPH_STATE_KEY) || 'null');
+      if (!value || value.version !== GRAPH_STATE_VERSION || !value.spaces || typeof value.spaces !== 'object') {
+        return { version: GRAPH_STATE_VERSION, spaces: {} };
+      }
+      return value;
+    } catch {
+      return { version: GRAPH_STATE_VERSION, spaces: {} };
+    }
+  }
+
+  function savedStateForSpace(spaceId) {
+    if (!spaceId) return null;
+    const store = loadGraphState();
+    const saved = store.spaces?.[spaceId];
+    return saved && typeof saved === 'object' ? saved : null;
   }
 
   function activeGraphData() {
@@ -109,9 +131,12 @@
     }
 
     const previousSpaceId = graph?.spaceNode?.id || null;
+    const savedState = savedStateForSpace(data.space.id);
     if (previousSpaceId && previousSpaceId !== data.space.id) resetView();
 
-    graph = buildGraph(data, width, height);
+    graph = buildGraph(data, width, height, savedState);
+    for (const node of graph.memoryNodes) containNode(node);
+    restoreSavedView(savedState?.view, width, height);
     if (count) count.textContent = String(graph.nodes.length);
     simulationFrames = 0;
 
@@ -127,7 +152,7 @@
     if (graph.memoryNodes.length) startSimulation();
   }
 
-  function buildGraph(data, width, height) {
+  function buildGraph(data, width, height, savedState = null) {
     const centreX = width / 2;
     const centreY = height / 2;
     const baseOrbit = Math.max(88, Math.min(width, height) * 0.27);
@@ -148,12 +173,16 @@
     const memoryNodes = memories.map((memory, index) => {
       const angle = -Math.PI / 2 + (index / Math.max(1, memories.length)) * Math.PI * 2;
       const profile = memoryProfile(memory, data.allMemories);
+      const savedNode = savedState?.nodes?.[memory.id];
+      const savedOffsetX = Number(savedNode?.offsetX);
+      const savedOffsetY = Number(savedNode?.offsetY);
+      const hasSavedPosition = Number.isFinite(savedOffsetX) && Number.isFinite(savedOffsetY);
       return {
         id: memory.id,
         kind: 'memory',
         label: memory.title || 'Untitled memory',
-        x: centreX + Math.cos(angle) * startRing,
-        y: centreY + Math.sin(angle) * startRing,
+        x: hasSavedPosition ? centreX + savedOffsetX * width : centreX + Math.cos(angle) * startRing,
+        y: hasSavedPosition ? centreY + savedOffsetY * height : centreY + Math.sin(angle) * startRing,
         vx: 0,
         vy: 0,
         radius: profile.radius,
@@ -216,6 +245,7 @@
       }
     }
 
+    // Every rendered memory has one real Space -> Memory relationship.
     return 1 + relatedIds.size;
   }
 
@@ -281,6 +311,8 @@
 
     if (simulationFrames < MAX_SIMULATION_FRAMES && speed > SETTLED_SPEED) {
       animationFrame = requestAnimationFrame(tick);
+    } else {
+      persistGraphState(false);
     }
   }
 
@@ -552,6 +584,10 @@
 
     if (shouldOpen) openExistingInspector(draggedNode.id);
 
+    if (pointerState.moved) {
+      persistGraphState(pointerState.mode === 'pan');
+    }
+
     pointerState = null;
     canvas?.removeAttribute('data-interacting');
     try {
@@ -590,6 +626,7 @@
     view.x = point.x - worldBefore.x * view.scale;
     view.y = point.y - worldBefore.y * view.scale;
     drawGraph();
+    schedulePersistGraphState(true, 180);
     event.preventDefault();
   }
 
@@ -619,6 +656,83 @@
     const space = graph.spaceNode;
     if (space && Math.hypot(x - space.x, y - space.y) <= space.radius + 5) return space;
     return null;
+  }
+
+  function restoreSavedView(savedView, width, height) {
+    if (!savedView) return false;
+
+    const scale = Number(savedView.scale);
+    const centreX = Number(savedView.centreX);
+    const centreY = Number(savedView.centreY);
+    if (!Number.isFinite(scale) || !Number.isFinite(centreX) || !Number.isFinite(centreY)) return false;
+
+    view.scale = clamp(scale, MIN_SCALE, MAX_SCALE);
+    view.x = width / 2 - centreX * view.scale;
+    view.y = height / 2 - centreY * view.scale;
+    return true;
+  }
+
+  function serialiseView() {
+    if (!graph) return null;
+    const centre = screenToWorld({ x: graph.width / 2, y: graph.height / 2 });
+    return {
+      scale: view.scale,
+      centreX: centre.x,
+      centreY: centre.y
+    };
+  }
+
+  function serialiseNodes() {
+    if (!graph) return {};
+    const width = Math.max(1, graph.width);
+    const height = Math.max(1, graph.height);
+    const nodes = {};
+
+    for (const node of graph.memoryNodes) {
+      nodes[node.id] = {
+        offsetX: (node.x - graph.centreX) / width,
+        offsetY: (node.y - graph.centreY) / height
+      };
+    }
+
+    return nodes;
+  }
+
+  function persistGraphState(includeView = true) {
+    if (!graph?.spaceNode?.id) return false;
+
+    const store = loadGraphState();
+    const spaceId = String(graph.spaceNode.id);
+    const current = store.spaces?.[spaceId] && typeof store.spaces[spaceId] === 'object'
+      ? store.spaces[spaceId]
+      : {};
+
+    const next = {
+      ...current,
+      nodes: serialiseNodes(),
+      updatedAt: new Date().toISOString()
+    };
+
+    if (includeView) {
+      next.view = serialiseView();
+    }
+
+    store.spaces[spaceId] = next;
+
+    try {
+      localStorage.setItem(GRAPH_STATE_KEY, JSON.stringify(store));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function schedulePersistGraphState(includeView = true, delay = 150) {
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = window.setTimeout(() => {
+      persistTimer = 0;
+      persistGraphState(includeView);
+    }, delay);
   }
 
   function focusMemory(memoryId, redraw = true) {
