@@ -2,6 +2,31 @@
   margin-top: 24px;
 }
 
+@media (min-width: 1051px) {
+  .memory-graph-section .phase2-layout {
+    row-gap: 0;
+  }
+
+  .memory-graph-section .phase2-memory-pane {
+    display: contents;
+  }
+
+  .memory-graph-section .phase2-memory-pane > .section-heading.large {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .memory-graph-section .phase2-memory-pane > #memoryGraphSurface {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .memory-graph-section .phase2-chat-pane {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
 .memory-graph-section #memoryGraphSurface {
   position: relative;
   isolation: isolate;
