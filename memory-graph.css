@@ -83,16 +83,16 @@
   height: 100%;
 }
 
-.memory-graph-canvas {
+.memory-graph-spark-canvas {
   z-index: 1;
+  pointer-events: none;
+}
+
+.memory-graph-canvas {
+  z-index: 2;
   touch-action: none;
   user-select: none;
   cursor: grab;
-}
-
-.memory-graph-spark-canvas {
-  z-index: 2;
-  pointer-events: none;
 }
 
 .memory-graph-canvas[data-interacting="true"] {
