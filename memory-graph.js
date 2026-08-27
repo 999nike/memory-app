@@ -138,10 +138,14 @@
         relationshipCount: profile.relationshipCount,
         recencyLevel: profile.recencyLevel,
         importance: profile.importance,
+        supersedesId: memory.supersedesId || null,
+        supersededById: memory.supersededById || null,
         locked: Boolean(memory.locked),
         fixed: false
       };
     });
+
+    const edges = buildRealEdges(spaceNode, memoryNodes);
 
     return {
       width,
@@ -151,7 +155,8 @@
       orbitRadius: baseOrbit,
       spaceNode,
       memoryNodes,
-      nodes: [spaceNode, ...memoryNodes]
+      nodes: [spaceNode, ...memoryNodes],
+      edges
     };
   }
 
@@ -200,6 +205,36 @@
     if (ageDays <= 90) return 0.48;
     if (ageDays <= 365) return 0.24;
     return 0.08;
+  }
+
+  function buildRealEdges(spaceNode, memoryNodes) {
+    const edges = memoryNodes.map((node) => ({
+      source: spaceNode,
+      target: node,
+      kind: 'space'
+    }));
+
+    const byId = new Map(memoryNodes.map((node) => [node.id, node]));
+    const seenRevisionPairs = new Set();
+
+    for (const node of memoryNodes) {
+      for (const relatedId of [node.supersedesId, node.supersededById]) {
+        if (!relatedId) continue;
+        const related = byId.get(String(relatedId));
+        if (!related || related.id === node.id) continue;
+
+        const key = [String(node.id), String(related.id)].sort().join('::');
+        if (seenRevisionPairs.has(key)) continue;
+        seenRevisionPairs.add(key);
+        edges.push({
+          source: node,
+          target: related,
+          kind: 'revision'
+        });
+      }
+    }
+
+    return edges;
   }
 
   function startSimulation() {
@@ -297,8 +332,25 @@
   function drawGraph() {
     if (!graph || !context) return;
     context.clearRect(0, 0, graph.width, graph.height);
+    for (const edge of graph.edges || []) drawEdge(edge);
     drawNode(graph.spaceNode);
     for (const node of graph.memoryNodes) drawNode(node);
+  }
+
+  function drawEdge(edge) {
+    const revision = edge.kind === 'revision';
+
+    context.save();
+    context.beginPath();
+    context.moveTo(edge.source.x, edge.source.y);
+    context.lineTo(edge.target.x, edge.target.y);
+    context.lineWidth = revision ? 1.35 : 0.85;
+    context.strokeStyle = revision
+      ? 'rgba(199, 255, 86, 0.34)'
+      : 'rgba(120, 184, 255, 0.16)';
+    if (revision) context.setLineDash([5, 4]);
+    context.stroke();
+    context.restore();
   }
 
   function drawNode(node) {
