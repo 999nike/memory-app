@@ -3,11 +3,17 @@
 
   const VERSION = 1;
   const WORKSPACE_KEY = 'memory-space-v1';
+  const MAX_SIMULATION_FRAMES = 900;
+  const SETTLED_SPEED = 0.035;
+
   let surface = null;
   let canvas = null;
   let context = null;
   let resizeObserver = null;
   let workspaceObserver = null;
+  let graph = null;
+  let animationFrame = 0;
+  let simulationFrames = 0;
 
   function loadWorkspace() {
     try {
@@ -60,57 +66,172 @@
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    renderGraph(width, height);
+    rebuildGraph(width, height);
   }
 
-  function renderGraph(width, height) {
-    if (!context) return;
+  function rebuildGraph(width, height) {
+    stopSimulation();
     context.clearRect(0, 0, width, height);
 
     const data = activeGraphData();
     const count = document.getElementById('memoryGraphCount');
     if (!data) {
+      graph = null;
       if (count) count.textContent = '0';
       drawMessage(width, height, 'Memory Space is unavailable');
       return;
     }
 
-    const nodes = buildStaticNodes(data, width, height);
-    if (count) count.textContent = String(nodes.length);
+    graph = buildGraph(data, width, height);
+    if (count) count.textContent = String(graph.nodes.length);
+    simulationFrames = 0;
+    drawGraph();
 
-    for (const node of nodes) drawNode(node);
+    if (graph.memoryNodes.length) startSimulation();
   }
 
-  function buildStaticNodes(data, width, height) {
+  function buildGraph(data, width, height) {
     const centreX = width / 2;
     const centreY = height / 2;
-    const nodes = [{
+    const spaceNode = {
       id: data.space.id,
       kind: 'space',
       label: data.space.name || 'Memory Space',
       x: centreX,
       y: centreY,
-      radius: 40
-    }];
+      vx: 0,
+      vy: 0,
+      radius: 40,
+      fixed: true
+    };
 
     const memories = data.memories;
-    if (!memories.length) return nodes;
-
-    const ring = Math.max(90, Math.min(width, height) * 0.34);
-    memories.forEach((memory, index) => {
-      const angle = -Math.PI / 2 + (index / memories.length) * Math.PI * 2;
-      nodes.push({
+    const startRing = Math.max(90, Math.min(width, height) * 0.32);
+    const memoryNodes = memories.map((memory, index) => {
+      const angle = -Math.PI / 2 + (index / Math.max(1, memories.length)) * Math.PI * 2;
+      return {
         id: memory.id,
         kind: 'memory',
         label: memory.title || 'Untitled memory',
-        x: centreX + Math.cos(angle) * ring,
-        y: centreY + Math.sin(angle) * ring,
+        x: centreX + Math.cos(angle) * startRing,
+        y: centreY + Math.sin(angle) * startRing,
+        vx: 0,
+        vy: 0,
         radius: 15,
-        locked: Boolean(memory.locked)
-      });
+        locked: Boolean(memory.locked),
+        fixed: false
+      };
     });
 
-    return nodes;
+    return {
+      width,
+      height,
+      centreX,
+      centreY,
+      orbitRadius: Math.max(88, Math.min(width, height) * 0.27),
+      spaceNode,
+      memoryNodes,
+      nodes: [spaceNode, ...memoryNodes]
+    };
+  }
+
+  function startSimulation() {
+    if (animationFrame) return;
+    animationFrame = requestAnimationFrame(tick);
+  }
+
+  function stopSimulation() {
+    if (animationFrame) cancelAnimationFrame(animationFrame);
+    animationFrame = 0;
+  }
+
+  function tick() {
+    animationFrame = 0;
+    if (!graph) return;
+
+    const speed = simulateStep();
+    drawGraph();
+    simulationFrames += 1;
+
+    if (simulationFrames < MAX_SIMULATION_FRAMES && speed > SETTLED_SPEED) {
+      animationFrame = requestAnimationFrame(tick);
+    }
+  }
+
+  function simulateStep() {
+    const nodes = graph.memoryNodes;
+    const centreX = graph.centreX;
+    const centreY = graph.centreY;
+    let totalSpeed = 0;
+
+    for (let i = 0; i < nodes.length; i += 1) {
+      const node = nodes[i];
+      let fx = 0;
+      let fy = 0;
+
+      const dx = node.x - centreX;
+      const dy = node.y - centreY;
+      const distance = Math.max(1, Math.hypot(dx, dy));
+      const radialOffset = distance - graph.orbitRadius;
+      const radialForce = -radialOffset * 0.0019;
+      fx += (dx / distance) * radialForce;
+      fy += (dy / distance) * radialForce;
+
+      for (let j = i + 1; j < nodes.length; j += 1) {
+        const other = nodes[j];
+        const pairX = node.x - other.x;
+        const pairY = node.y - other.y;
+        const pairDistanceSq = Math.max(100, pairX * pairX + pairY * pairY);
+        const pairDistance = Math.sqrt(pairDistanceSq);
+        const repulsion = Math.min(0.9, 900 / pairDistanceSq);
+        const pushX = (pairX / pairDistance) * repulsion;
+        const pushY = (pairY / pairDistance) * repulsion;
+        fx += pushX;
+        fy += pushY;
+        other.vx -= pushX;
+        other.vy -= pushY;
+      }
+
+      node.vx = (node.vx + fx) * 0.90;
+      node.vy = (node.vy + fy) * 0.90;
+      node.x += node.vx;
+      node.y += node.vy;
+      containNode(node);
+      totalSpeed += Math.hypot(node.vx, node.vy);
+    }
+
+    return nodes.length ? totalSpeed / nodes.length : 0;
+  }
+
+  function containNode(node) {
+    const margin = node.radius + 34;
+    const minX = margin;
+    const maxX = Math.max(margin, graph.width - margin);
+    const minY = margin;
+    const maxY = Math.max(margin, graph.height - margin);
+
+    if (node.x < minX) {
+      node.x = minX;
+      node.vx *= -0.35;
+    } else if (node.x > maxX) {
+      node.x = maxX;
+      node.vx *= -0.35;
+    }
+
+    if (node.y < minY) {
+      node.y = minY;
+      node.vy *= -0.35;
+    } else if (node.y > maxY) {
+      node.y = maxY;
+      node.vy *= -0.35;
+    }
+  }
+
+  function drawGraph() {
+    if (!graph || !context) return;
+    context.clearRect(0, 0, graph.width, graph.height);
+    drawNode(graph.spaceNode);
+    for (const node of graph.memoryNodes) drawNode(node);
   }
 
   function drawNode(node) {
