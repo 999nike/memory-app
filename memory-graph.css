@@ -4,33 +4,70 @@
 
 .memory-graph-section #memoryGraphSurface {
   position: relative;
+  isolation: isolate;
   min-height: clamp(340px, 52vh, 620px);
   overflow: hidden;
-  border: 1px solid var(--line);
+  border: 1px solid rgb(120 184 255 / 0.22);
   border-radius: var(--radius);
   background:
-    radial-gradient(circle at 50% 48%, rgb(120 184 255 / 0.10), transparent 22rem),
-    radial-gradient(circle at 22% 28%, rgb(199 255 86 / 0.04), transparent 18rem),
-    var(--panel);
+    radial-gradient(circle at 50% 50%, rgb(120 184 255 / 0.18), transparent 18rem),
+    radial-gradient(circle at 22% 28%, rgb(199 255 86 / 0.07), transparent 16rem),
+    radial-gradient(circle at 78% 72%, rgb(120 184 255 / 0.06), transparent 18rem),
+    linear-gradient(180deg, rgb(10 17 27 / 0.98), rgb(7 12 20 / 0.99));
+  box-shadow:
+    inset 0 0 120px rgb(0 0 0 / 0.42),
+    inset 0 0 42px rgb(120 184 255 / 0.05),
+    0 0 0 1px rgb(255 255 255 / 0.01);
+}
+
+.memory-graph-section #memoryGraphSurface::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.52;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgb(120 184 255 / 0.48) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 31% 72%, rgb(199 255 86 / 0.32) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 64% 22%, rgb(120 184 255 / 0.42) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 84% 58%, rgb(199 255 86 / 0.24) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 72% 86%, rgb(120 184 255 / 0.34) 0 1px, transparent 1.4px);
+  background-size:
+    143px 121px,
+    179px 157px,
+    211px 173px,
+    257px 223px,
+    307px 269px;
+  mix-blend-mode: screen;
 }
 
 .memory-graph-section #memoryGraphSurface[data-memory-graph-ready="true"] {
-  box-shadow: inset 0 0 80px rgb(0 0 0 / 0.18);
+  box-shadow:
+    inset 0 0 140px rgb(0 0 0 / 0.40),
+    inset 0 0 54px rgb(120 184 255 / 0.07),
+    0 0 22px rgb(120 184 255 / 0.035);
 }
 
 .memory-graph-canvas {
   position: absolute;
   inset: 0;
+  z-index: 1;
   display: block;
   width: 100%;
   height: 100%;
   touch-action: none;
   user-select: none;
   cursor: grab;
+  filter: saturate(1.18) contrast(1.08) brightness(1.05);
 }
 
 .memory-graph-canvas[data-interacting="true"] {
   cursor: grabbing;
+}
+
+.memory-graph-canvas[data-hover-node="true"] {
+  cursor: pointer;
 }
 
 .memory-graph-section #memoryGraphSurface .empty-icon {
