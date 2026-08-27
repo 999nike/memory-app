@@ -40,7 +40,7 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 
 ## Tick system
 
-[~] 01 - Cluster / group memories works live; performance optimization waiting for retest
+[x] 01 - Cluster / group memories live-tested and performance-approved
 [x] 02 - Focused memory card polish accepted; moved on
 [x] 03 - Nebula / dust-cloud layer live-tested and approved
 [x] 04 - Pseudo-3D rotation mode live-tested and approved
@@ -91,7 +91,7 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 - No memory data, Memory Bridge, provider, permission, or lifecycle code is touched.
 - User moved on to the next roadmap item after this pass.
 
-## Step 01 current patch
+## Step 01 confirmed checkpoint
 
 - Safety checkpoint branch before Step 01: `backup/pre-memory-grouping-2026-08-27`
 - Optional grouping runtime: `58b363110382b8766a7246608bd3478bbc424196`
@@ -107,7 +107,7 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 - While grouping is active, normal node repositioning is treated as inspect/pan rather than rewriting individual graph positions.
 - The pre-group normal graph layout is snapshotted into the separate grouping state when grouping is enabled and restored when grouping is switched Off.
 - Grouping controls work on desktop and mobile but the mode starts Off on every untouched Space.
-- User live-tested grouping and confirmed it works, but reported the grouped view was a little laggy.
+- User live-tested grouping and confirmed it works.
 
 ## Step 01 performance pass
 
@@ -120,4 +120,4 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 - Ctrl-drag rotation keeps a lightweight in-memory yaw/pitch snapshot, so grouped nodes can rotate without rebuilding group geometry on every projection call.
 - Cache invalidation is tied to memory/space UI mutations, grouping controls, storage events and rotation state changes.
 - This pass does not change grouping visuals, controls, memory truth, durable graph layout, Bridge, provider, permission, or lifecycle behavior.
-- Waiting for live smoothness retest before marking Step 01 complete.
+- User live-tested the optimized grouping pass and confirmed it is good; Step 01 is complete.
