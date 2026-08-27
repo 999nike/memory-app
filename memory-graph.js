@@ -1,10 +1,12 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const WORKSPACE_KEY = 'memory-space-v1';
   const MAX_SIMULATION_FRAMES = 900;
   const SETTLED_SPEED = 0.035;
+  const MIN_SCALE = 0.45;
+  const MAX_SCALE = 2.8;
   const IMPORTANCE_WEIGHT = {
     critical: 1.42,
     high: 1.20,
@@ -26,6 +28,13 @@
   let graph = null;
   let animationFrame = 0;
   let simulationFrames = 0;
+  let pointerState = null;
+  let interactionsBound = false;
+  const view = {
+    x: 0,
+    y: 0,
+    scale: 1
+  };
 
   function loadWorkspace() {
     try {
@@ -64,6 +73,7 @@
     canvas.setAttribute('aria-label', 'Memory graph showing the active Space and confirmed memories');
     surface.appendChild(canvas);
     context = canvas.getContext('2d');
+    bindInteractions();
     return Boolean(context);
   }
 
@@ -94,6 +104,9 @@
       drawMessage(width, height, 'Memory Space is unavailable');
       return;
     }
+
+    const previousSpaceId = graph?.spaceNode?.id || null;
+    if (previousSpaceId && previousSpaceId !== data.space.id) resetView();
 
     graph = buildGraph(data, width, height);
     if (count) count.textContent = String(graph.nodes.length);
@@ -141,7 +154,8 @@
         supersedesId: memory.supersedesId || null,
         supersededById: memory.supersededById || null,
         locked: Boolean(memory.locked),
-        fixed: false
+        fixed: false,
+        dragging: false
       };
     });
 
@@ -265,9 +279,12 @@
     const centreX = graph.centreX;
     const centreY = graph.centreY;
     let totalSpeed = 0;
+    let simulatedCount = 0;
 
     for (let i = 0; i < nodes.length; i += 1) {
       const node = nodes[i];
+      if (node.dragging) continue;
+
       let fx = 0;
       let fy = 0;
 
@@ -290,8 +307,10 @@
         const pushY = (pairY / pairDistance) * repulsion;
         fx += pushX / Math.max(0.85, node.gravityWeight || 1);
         fy += pushY / Math.max(0.85, node.gravityWeight || 1);
-        other.vx -= pushX / Math.max(0.85, other.gravityWeight || 1);
-        other.vy -= pushY / Math.max(0.85, other.gravityWeight || 1);
+        if (!other.dragging) {
+          other.vx -= pushX / Math.max(0.85, other.gravityWeight || 1);
+          other.vy -= pushY / Math.max(0.85, other.gravityWeight || 1);
+        }
       }
 
       node.vx = (node.vx + fx) * 0.90;
@@ -300,9 +319,10 @@
       node.y += node.vy;
       containNode(node);
       totalSpeed += Math.hypot(node.vx, node.vy);
+      simulatedCount += 1;
     }
 
-    return nodes.length ? totalSpeed / nodes.length : 0;
+    return simulatedCount ? totalSpeed / simulatedCount : 0;
   }
 
   function containNode(node) {
@@ -332,9 +352,14 @@
   function drawGraph() {
     if (!graph || !context) return;
     context.clearRect(0, 0, graph.width, graph.height);
+
+    context.save();
+    context.translate(view.x, view.y);
+    context.scale(view.scale, view.scale);
     for (const edge of graph.edges || []) drawEdge(edge);
     drawNode(graph.spaceNode);
     for (const node of graph.memoryNodes) drawNode(node);
+    context.restore();
   }
 
   function drawEdge(edge) {
@@ -403,6 +428,149 @@
     const text = String(value || '').trim();
     if (text.length <= limit) return text;
     return `${text.slice(0, Math.max(1, limit - 1)).trim()}…`;
+  }
+
+  function bindInteractions() {
+    if (!canvas || interactionsBound) return;
+    interactionsBound = true;
+
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', handlePointerUp);
+    canvas.addEventListener('pointercancel', handlePointerUp);
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+  }
+
+  function handlePointerDown(event) {
+    if (!graph || event.button !== 0) return;
+
+    const point = pointerPoint(event);
+    const world = screenToWorld(point);
+    const node = findNodeAt(world.x, world.y);
+
+    pointerState = {
+      pointerId: event.pointerId,
+      mode: node?.kind === 'memory' ? 'node' : 'pan',
+      node: node?.kind === 'memory' ? node : null,
+      lastX: point.x,
+      lastY: point.y
+    };
+
+    if (pointerState.node) {
+      pointerState.node.dragging = true;
+      pointerState.node.vx = 0;
+      pointerState.node.vy = 0;
+      stopSimulation();
+    }
+
+    canvas.setPointerCapture?.(event.pointerId);
+    canvas.dataset.interacting = 'true';
+    event.preventDefault();
+  }
+
+  function handlePointerMove(event) {
+    if (!graph || !canvas) return;
+
+    const point = pointerPoint(event);
+    if (!pointerState || pointerState.pointerId !== event.pointerId) {
+      const world = screenToWorld(point);
+      canvas.dataset.hoverNode = findNodeAt(world.x, world.y)?.kind === 'memory' ? 'true' : 'false';
+      return;
+    }
+
+    if (pointerState.mode === 'node' && pointerState.node) {
+      const world = screenToWorld(point);
+      pointerState.node.x = world.x;
+      pointerState.node.y = world.y;
+      pointerState.node.vx = 0;
+      pointerState.node.vy = 0;
+      containNode(pointerState.node);
+    } else {
+      view.x += point.x - pointerState.lastX;
+      view.y += point.y - pointerState.lastY;
+    }
+
+    pointerState.lastX = point.x;
+    pointerState.lastY = point.y;
+    drawGraph();
+    event.preventDefault();
+  }
+
+  function handlePointerUp(event) {
+    if (!pointerState || pointerState.pointerId !== event.pointerId) return;
+
+    const draggedNode = pointerState.node;
+    if (draggedNode) {
+      draggedNode.dragging = false;
+      draggedNode.vx = 0;
+      draggedNode.vy = 0;
+      simulationFrames = 0;
+      startSimulation();
+    }
+
+    pointerState = null;
+    canvas?.removeAttribute('data-interacting');
+    try {
+      canvas?.releasePointerCapture?.(event.pointerId);
+    } catch {}
+    drawGraph();
+  }
+
+  function handleWheel(event) {
+    if (!graph || !canvas) return;
+
+    const point = pointerPoint(event);
+    const worldBefore = screenToWorld(point);
+    const zoomFactor = Math.exp(-event.deltaY * 0.0012);
+    const nextScale = clamp(view.scale * zoomFactor, MIN_SCALE, MAX_SCALE);
+    if (nextScale === view.scale) {
+      event.preventDefault();
+      return;
+    }
+
+    view.scale = nextScale;
+    view.x = point.x - worldBefore.x * view.scale;
+    view.y = point.y - worldBefore.y * view.scale;
+    drawGraph();
+    event.preventDefault();
+  }
+
+  function pointerPoint(event) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+  }
+
+  function screenToWorld(point) {
+    return {
+      x: (point.x - view.x) / view.scale,
+      y: (point.y - view.y) / view.scale
+    };
+  }
+
+  function findNodeAt(x, y) {
+    if (!graph) return null;
+
+    for (let i = graph.memoryNodes.length - 1; i >= 0; i -= 1) {
+      const node = graph.memoryNodes[i];
+      if (Math.hypot(x - node.x, y - node.y) <= node.radius + 5) return node;
+    }
+
+    const space = graph.spaceNode;
+    if (space && Math.hypot(x - space.x, y - space.y) <= space.radius + 5) return space;
+    return null;
+  }
+
+  function resetView() {
+    view.x = 0;
+    view.y = 0;
+    view.scale = 1;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
   }
 
   function refresh() {
