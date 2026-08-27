@@ -1,0 +1,29 @@
+.memory-graph-section {
+  margin-top: 24px;
+}
+
+.memory-graph-section #memoryGraphSurface {
+  position: relative;
+  min-height: clamp(340px, 52vh, 620px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 50% 48%, rgb(120 184 255 / 0.10), transparent 22rem),
+    radial-gradient(circle at 22% 28%, rgb(199 255 86 / 0.04), transparent 18rem),
+    var(--panel);
+}
+
+.memory-graph-section #memoryGraphSurface[data-memory-graph-ready="true"] {
+  box-shadow: inset 0 0 80px rgb(0 0 0 / 0.18);
+}
+
+.memory-graph-section #memoryGraphSurface .empty-icon {
+  color: var(--info);
+}
+
+@media (max-width: 760px) {
+  .memory-graph-section #memoryGraphSurface {
+    min-height: 420px;
+  }
+}
