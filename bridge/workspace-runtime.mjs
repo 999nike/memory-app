@@ -27,6 +27,39 @@ const MCP_TOOLS = [
       additionalProperties: false
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false }
+  },
+  {
+    name: 'propose_memory_bundle',
+    description: 'Propose a titled visual memory group containing several normal memories. Nothing is saved or grouped until the user approves the bundle in Memory Space.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        group_title: { type: 'string', minLength: 1, maxLength: 48 },
+        reason: { type: 'string', maxLength: 500 },
+        memories: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 24,
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', minLength: 1, maxLength: 100 },
+              content: { type: 'string', minLength: 1, maxLength: 2000 },
+              type: { type: 'string', enum: ['decision', 'fact', 'goal', 'question', 'note', 'job'] },
+              importance: { type: 'string', enum: ['critical', 'high', 'normal', 'low'] },
+              project: { type: 'string', maxLength: 100 },
+              priority: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'] },
+              reason: { type: 'string', maxLength: 500 }
+            },
+            required: ['title', 'content'],
+            additionalProperties: false
+          }
+        }
+      },
+      required: ['group_title', 'memories'],
+      additionalProperties: false
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false }
   }
 ];
 
@@ -273,6 +306,60 @@ export function createWorkspaceRuntime() {
         if (proposal.type === 'job' && !proposal.project) return toolError('project is required when proposing a job');
         proposalQueue(connectionId).push(proposal);
         return textResult({ acceptedAsProposal: true, proposalId: proposal.id, message: 'Proposal queued for human review. It is not confirmed memory.' });
+      }
+      case 'propose_memory_bundle': {
+        requireWorkspace(connectionId);
+        const groupTitle = String(args.group_title || '').trim().slice(0, 48);
+        const inputMemories = Array.isArray(args.memories) ? args.memories : [];
+        if (!groupTitle) return toolError('group_title is required');
+        if (!inputMemories.length || inputMemories.length > 24) return toolError('memories must contain between 1 and 24 items');
+
+        const bundleMemories = [];
+        for (let index = 0; index < inputMemories.length; index += 1) {
+          const item = inputMemories[index] || {};
+          const title = String(item.title || '').trim();
+          const content = String(item.content || '').trim();
+          if (!title || !content) return toolError(`memory ${index + 1} requires title and content`);
+          const type = ['decision', 'fact', 'goal', 'question', 'note', 'job'].includes(item.type) ? item.type : 'note';
+          const project = String(item.project || '').trim().slice(0, 100);
+          if (type === 'job' && !project) return toolError(`memory ${index + 1} requires project when type is job`);
+          bundleMemories.push({
+            title: title.slice(0, 100),
+            content: content.slice(0, 2000),
+            type,
+            importance: ['critical', 'high', 'normal', 'low'].includes(item.importance) ? item.importance : 'normal',
+            project,
+            priority: ['low', 'normal', 'high', 'urgent'].includes(item.priority) ? item.priority : 'normal',
+            reason: String(item.reason || '').trim().slice(0, 500)
+          });
+        }
+
+        const proposal = {
+          id: `external_bundle_${crypto.randomUUID()}`,
+          spaceId: activeSpace(connectionId).id,
+          title: groupTitle,
+          content: `${bundleMemories.length} proposed memories will be created and visually grouped as “${groupTitle}” only if the user approves this bundle.`,
+          type: 'note',
+          importance: 'normal',
+          project: '',
+          priority: 'normal',
+          reason: String(args.reason || 'External AI suggested these memories as one user-approved visual bundle.').slice(0, 500),
+          status: 'pending',
+          sourceKind: 'external-mcp',
+          proposalKind: 'memory-bundle',
+          groupTitle,
+          memories: bundleMemories,
+          createdAt: new Date().toISOString()
+        };
+        proposalQueue(connectionId).push(proposal);
+        return textResult({
+          acceptedAsProposal: true,
+          proposalId: proposal.id,
+          proposalKind: proposal.proposalKind,
+          groupTitle,
+          memoryCount: bundleMemories.length,
+          message: 'Bundle queued for one human approval. No memory or visual group has been created yet.'
+        });
       }
       default: return toolError(`Unknown tool: ${name}`);
     }
