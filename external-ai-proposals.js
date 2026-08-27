@@ -33,6 +33,19 @@
     return bridges.length === 1 ? bridges[0] : null;
   }
 
+  function sanitiseBundleMemories(proposal) {
+    if (proposal?.proposalKind !== 'memory-bundle' || !Array.isArray(proposal.memories)) return [];
+    return proposal.memories.slice(0, 24).map((memory) => ({
+      title: String(memory?.title || '').trim().slice(0, 100),
+      content: String(memory?.content || '').trim().slice(0, 2000),
+      type: ['decision', 'fact', 'goal', 'question', 'note', 'job'].includes(memory?.type) ? memory.type : 'note',
+      importance: ['critical', 'high', 'normal', 'low'].includes(memory?.importance) ? memory.importance : 'normal',
+      project: String(memory?.project || '').trim().slice(0, 100),
+      priority: ['low', 'normal', 'high', 'urgent'].includes(memory?.priority) ? memory.priority : 'normal',
+      reason: String(memory?.reason || '').trim().slice(0, 500)
+    })).filter((memory) => memory.title && memory.content);
+  }
+
   function mergeExternalProposals(proposals) {
     if (!Array.isArray(proposals) || !proposals.length) return 0;
     let chatState = loadJson(CHAT_KEY, null);
@@ -44,6 +57,8 @@
     let added = 0;
     for (const proposal of proposals) {
       if (!proposal?.id || existing.has(proposal.id)) continue;
+      const proposalKind = proposal.proposalKind === 'memory-bundle' ? 'memory-bundle' : 'memory';
+      const bundleMemories = sanitiseBundleMemories(proposal);
       chatState.proposals.push({
         id: proposal.id,
         spaceId: proposal.spaceId,
@@ -54,9 +69,12 @@
         project: String(proposal.project || ''),
         priority: proposal.priority || 'normal',
         reason: proposal.reason || 'External AI suggested this as durable context.',
-        sourceMessage: 'External MCP client proposal',
+        sourceMessage: proposalKind === 'memory-bundle' ? 'External MCP memory bundle proposal' : 'External MCP client proposal',
         sourceKind: 'external-mcp',
         sourceLabel: 'External AI via MCP',
+        proposalKind,
+        groupTitle: proposalKind === 'memory-bundle' ? String(proposal.groupTitle || proposal.title || '').trim().slice(0, 48) : '',
+        memories: bundleMemories,
         status: 'pending',
         createdAt: proposal.createdAt || new Date().toISOString()
       });
