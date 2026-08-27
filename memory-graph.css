@@ -5,6 +5,7 @@
 .memory-graph-section #memoryGraphSurface {
   position: relative;
   isolation: isolate;
+  contain: paint;
   min-height: clamp(340px, 52vh, 620px);
   overflow: hidden;
   border: 1px solid rgb(120 184 255 / 0.22);
@@ -15,8 +16,8 @@
     radial-gradient(circle at 78% 72%, rgb(120 184 255 / 0.06), transparent 18rem),
     linear-gradient(180deg, rgb(10 17 27 / 0.98), rgb(7 12 20 / 0.99));
   box-shadow:
-    inset 0 0 120px rgb(0 0 0 / 0.42),
-    inset 0 0 42px rgb(120 184 255 / 0.05),
+    inset 0 0 90px rgb(0 0 0 / 0.34),
+    inset 0 0 34px rgb(120 184 255 / 0.045),
     0 0 0 1px rgb(255 255 255 / 0.01);
 }
 
@@ -26,7 +27,7 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.52;
+  opacity: 0.44;
   background-image:
     radial-gradient(circle at 12% 18%, rgb(120 184 255 / 0.48) 0 1px, transparent 1.6px),
     radial-gradient(circle at 31% 72%, rgb(199 255 86 / 0.32) 0 1px, transparent 1.5px),
@@ -39,14 +40,13 @@
     211px 173px,
     257px 223px,
     307px 269px;
-  mix-blend-mode: screen;
 }
 
 .memory-graph-section #memoryGraphSurface[data-memory-graph-ready="true"] {
   box-shadow:
-    inset 0 0 140px rgb(0 0 0 / 0.40),
-    inset 0 0 54px rgb(120 184 255 / 0.07),
-    0 0 22px rgb(120 184 255 / 0.035);
+    inset 0 0 100px rgb(0 0 0 / 0.34),
+    inset 0 0 42px rgb(120 184 255 / 0.055),
+    0 0 16px rgb(120 184 255 / 0.025);
 }
 
 .memory-graph-canvas {
@@ -59,7 +59,6 @@
   touch-action: none;
   user-select: none;
   cursor: grab;
-  filter: saturate(1.18) contrast(1.08) brightness(1.05);
 }
 
 .memory-graph-canvas[data-interacting="true"] {
