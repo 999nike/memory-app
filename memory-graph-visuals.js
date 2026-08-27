@@ -15,6 +15,16 @@
   const originalArc = proto.arc;
   const originalFill = proto.fill;
   const originalStroke = proto.stroke;
+  const originalClearRect = proto.clearRect;
+  const originalMoveTo = proto.moveTo;
+  const originalLineTo = proto.lineTo;
+
+  let sparkCanvas = null;
+  let sparkContext = null;
+  let sparkSourceCanvas = null;
+  let sparkSegments = [];
+  let sparkFrame = 0;
+  let lastSparkPaint = 0;
 
   function isMemoryGraph(context) {
     const canvas = context?.canvas;
@@ -47,9 +57,160 @@
     return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : fallback;
   }
 
+  function ensureSparkLayer(sourceCanvas) {
+    if (!sourceCanvas?.parentElement) return false;
+
+    if (!sparkCanvas || sparkSourceCanvas !== sourceCanvas || !sparkCanvas.isConnected) {
+      sparkCanvas?.remove();
+      sparkCanvas = document.createElement('canvas');
+      sparkCanvas.className = 'memory-graph-spark-canvas';
+      sparkCanvas.setAttribute('aria-hidden', 'true');
+      sourceCanvas.parentElement.appendChild(sparkCanvas);
+      sparkContext = sparkCanvas.getContext('2d');
+      sparkSourceCanvas = sourceCanvas;
+    }
+
+    if (!sparkContext) return false;
+
+    const rect = sourceCanvas.getBoundingClientRect();
+    const width = Math.max(1, Math.round(rect.width));
+    const height = Math.max(1, Math.round(rect.height));
+    const dpr = Math.max(1, sourceCanvas.width / Math.max(1, width));
+    const pixelWidth = Math.max(1, Math.round(width * dpr));
+    const pixelHeight = Math.max(1, Math.round(height * dpr));
+
+    if (sparkCanvas.width !== pixelWidth || sparkCanvas.height !== pixelHeight) {
+      sparkCanvas.width = pixelWidth;
+      sparkCanvas.height = pixelHeight;
+      sparkContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    sparkCanvas.style.width = `${width}px`;
+    sparkCanvas.style.height = `${height}px`;
+    startSparkLoop();
+    return true;
+  }
+
+  function captureSparkSegment(context) {
+    const start = context.__memoryGraphLineStart;
+    const end = context.__memoryGraphLineEnd;
+    const sourceCanvas = context.canvas;
+    if (!start || !end || !ensureSparkLayer(sourceCanvas)) return;
+
+    const rect = sourceCanvas.getBoundingClientRect();
+    const dpr = Math.max(1, sourceCanvas.width / Math.max(1, rect.width));
+    const matrix = context.getTransform();
+    const startX = (matrix.a * start.x + matrix.c * start.y + matrix.e) / dpr;
+    const startY = (matrix.b * start.x + matrix.d * start.y + matrix.f) / dpr;
+    const endX = (matrix.a * end.x + matrix.c * end.y + matrix.e) / dpr;
+    const endY = (matrix.b * end.x + matrix.d * end.y + matrix.f) / dpr;
+
+    sparkSegments.push({
+      centreX: startX,
+      centreY: startY,
+      outerX: endX,
+      outerY: endY,
+      seed: Math.abs(Math.sin(startX * 0.013 + startY * 0.017 + endX * 0.019 + endY * 0.023))
+    });
+  }
+
+  function startSparkLoop() {
+    if (sparkFrame) return;
+    sparkFrame = requestAnimationFrame(drawSparkFrame);
+  }
+
+  function drawSparkFrame(timestamp) {
+    sparkFrame = requestAnimationFrame(drawSparkFrame);
+    if (!sparkContext || !sparkCanvas || !sparkSourceCanvas?.isConnected) return;
+
+    if (timestamp - lastSparkPaint < 32) return;
+    lastSparkPaint = timestamp;
+
+    const rect = sparkSourceCanvas.getBoundingClientRect();
+    const width = Math.max(1, rect.width);
+    const height = Math.max(1, rect.height);
+    sparkContext.clearRect(0, 0, width, height);
+
+    if (!sparkSegments.length || document.hidden || sparkSourceCanvas.dataset.interacting === 'true') return;
+    if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;
+
+    for (const segment of sparkSegments) {
+      drawElectricSpark(segment, timestamp);
+    }
+  }
+
+  function drawElectricSpark(segment, timestamp) {
+    const dx = segment.centreX - segment.outerX;
+    const dy = segment.centreY - segment.outerY;
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const ux = dx / length;
+    const uy = dy / length;
+    const px = -uy;
+    const py = ux;
+    const duration = 1050 + segment.seed * 650;
+    const progress = ((timestamp + segment.seed * duration * 0.84) % duration) / duration;
+    const eased = Math.min(0.985, progress);
+    const headX = segment.outerX + dx * eased;
+    const headY = segment.outerY + dy * eased;
+    const tailLength = Math.min(13, Math.max(7, length * 0.055));
+    const tailX = headX - ux * tailLength;
+    const tailY = headY - uy * tailLength;
+    const jitter = 1.05 + segment.seed * 0.95;
+
+    sparkContext.save();
+    sparkContext.beginPath();
+    sparkContext.moveTo(tailX, tailY);
+    for (let step = 1; step <= 4; step += 1) {
+      const amount = step / 4;
+      const wave = step === 4 ? 0 : (step % 2 ? 1 : -1) * jitter;
+      sparkContext.lineTo(
+        tailX + (headX - tailX) * amount + px * wave,
+        tailY + (headY - tailY) * amount + py * wave
+      );
+    }
+    sparkContext.lineWidth = 1.15;
+    sparkContext.strokeStyle = 'rgba(202, 235, 255, 0.88)';
+    sparkContext.stroke();
+
+    sparkContext.beginPath();
+    sparkContext.arc(headX, headY, 4.2, 0, Math.PI * 2);
+    sparkContext.fillStyle = 'rgba(120, 184, 255, 0.16)';
+    sparkContext.fill();
+
+    sparkContext.beginPath();
+    sparkContext.arc(headX, headY, 1.45, 0, Math.PI * 2);
+    sparkContext.fillStyle = 'rgba(244, 252, 255, 0.96)';
+    sparkContext.fill();
+    sparkContext.restore();
+  }
+
+  proto.clearRect = function memoryGraphClearRect(...args) {
+    if (isMemoryGraph(this)) sparkSegments = [];
+    return originalClearRect.apply(this, args);
+  };
+
   proto.beginPath = function memoryGraphBeginPath(...args) {
-    if (isMemoryGraph(this)) this.__memoryGraphCircle = null;
+    if (isMemoryGraph(this)) {
+      this.__memoryGraphCircle = null;
+      this.__memoryGraphLineStart = null;
+      this.__memoryGraphLineEnd = null;
+    }
     return originalBeginPath.apply(this, args);
+  };
+
+  proto.moveTo = function memoryGraphMoveTo(x, y, ...rest) {
+    if (isMemoryGraph(this)) {
+      this.__memoryGraphLineStart = { x: Number(x), y: Number(y) };
+      this.__memoryGraphLineEnd = null;
+    }
+    return originalMoveTo.call(this, x, y, ...rest);
+  };
+
+  proto.lineTo = function memoryGraphLineTo(x, y, ...rest) {
+    if (isMemoryGraph(this) && this.__memoryGraphLineStart) {
+      this.__memoryGraphLineEnd = { x: Number(x), y: Number(y) };
+    }
+    return originalLineTo.call(this, x, y, ...rest);
   };
 
   proto.arc = function memoryGraphArc(x, y, radius, startAngle, endAngle, ...rest) {
@@ -114,6 +275,12 @@
     if (!colour) return originalStroke.apply(this, args);
 
     const sourceWidth = Math.max(0.5, Number(this.lineWidth) || 1);
+
+    // Space -> Memory edges are the thin blue links. Capture their transformed
+    // screen geometry for the separate low-cost spark overlay.
+    if (colour === 'blue' && sourceWidth <= 1.6 && this.__memoryGraphLineStart && this.__memoryGraphLineEnd) {
+      captureSparkSegment(this);
+    }
 
     // Nodes already receive a native glow pass in memory-graph.js. Doubling those
     // strokes here was the expensive part of the first graphics pass.
