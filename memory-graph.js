@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 5;
+  const VERSION = 6;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -391,26 +391,67 @@
     }
   }
 
+  function rotationApi() {
+    return globalThis.MemoryGraphRotation || null;
+  }
+
+  function rotationActive() {
+    return rotationApi()?.isActive?.() === true;
+  }
+
+  function projectedNode(node) {
+    const projected = rotationApi()?.project?.(node, graph);
+    if (projected && Number.isFinite(projected.x) && Number.isFinite(projected.y)) return projected;
+    return {
+      x: node.x,
+      y: node.y,
+      radius: node.radius,
+      depth: 0,
+      alpha: 1,
+      scale: 1
+    };
+  }
+
+  function orderedMemoryNodes() {
+    if (!rotationActive()) return graph.memoryNodes;
+    return [...graph.memoryNodes].sort((a, b) => projectedNode(a).depth - projectedNode(b).depth);
+  }
+
+  function syncRotationState() {
+    if (!surface) return;
+    surface.dataset.rotationActive = rotationActive() ? 'true' : 'false';
+  }
+
   function drawGraph() {
     if (!graph || !context) return;
     context.clearRect(0, 0, graph.width, graph.height);
+    syncRotationState();
 
     context.save();
     context.translate(view.x, view.y);
     context.scale(view.scale, view.scale);
     for (const edge of graph.edges || []) drawEdge(edge);
-    drawNode(graph.spaceNode);
-    for (const node of graph.memoryNodes) drawNode(node);
+
+    if (rotationActive()) {
+      for (const node of orderedMemoryNodes()) drawNode(node);
+      drawNode(graph.spaceNode);
+    } else {
+      drawNode(graph.spaceNode);
+      for (const node of graph.memoryNodes) drawNode(node);
+    }
+
     context.restore();
   }
 
   function drawEdge(edge) {
     const revision = edge.kind === 'revision';
+    const source = projectedNode(edge.source);
+    const target = projectedNode(edge.target);
 
     context.save();
     context.beginPath();
-    context.moveTo(edge.source.x, edge.source.y);
-    context.lineTo(edge.target.x, edge.target.y);
+    context.moveTo(source.x, source.y);
+    context.lineTo(target.x, target.y);
     context.lineWidth = revision ? 1.35 : 0.85;
     context.strokeStyle = revision
       ? 'rgba(199, 255, 86, 0.34)'
@@ -428,10 +469,16 @@
     const glowAlpha = isSpace ? 0.55 : 0.18 + recency * 0.30;
     const glowBlur = isSpace ? 24 : 7 + recency * 13;
     const focused = node.id === focusedNodeId;
+    const projected = projectedNode(node);
+    const nodeX = projected.x;
+    const nodeY = projected.y;
+    const nodeRadius = projected.radius;
+    const depthAlpha = isSpace ? 1 : Number(projected.alpha || 1);
 
     context.save();
+    context.globalAlpha = depthAlpha;
     context.beginPath();
-    context.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+    context.arc(nodeX, nodeY, nodeRadius, 0, Math.PI * 2);
     context.fillStyle = isSpace ? 'rgba(120, 184, 255, 0.24)' : `rgba(199, 255, 86, ${fillAlpha.toFixed(3)})`;
     context.fill();
 
@@ -451,7 +498,7 @@
     if (focused) {
       context.save();
       context.beginPath();
-      context.arc(node.x, node.y, node.radius + 8, 0, Math.PI * 2);
+      context.arc(nodeX, nodeY, nodeRadius + 8, 0, Math.PI * 2);
       context.lineWidth = 2.5;
       context.strokeStyle = 'rgba(120, 184, 255, 0.98)';
       context.shadowBlur = 18;
@@ -461,11 +508,12 @@
     }
 
     context.save();
+    context.globalAlpha = depthAlpha;
     context.fillStyle = isSpace ? 'rgba(242, 244, 247, 0.94)' : `rgba(242, 244, 247, ${(0.70 + recency * 0.24).toFixed(3)})`;
     context.font = isSpace ? '700 14px Inter, system-ui, sans-serif' : '600 11px Inter, system-ui, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'top';
-    context.fillText(shortLabel(node.label, isSpace ? 26 : 22), node.x, node.y + node.radius + 8);
+    context.fillText(shortLabel(node.label, isSpace ? 26 : 22), nodeX, nodeY + nodeRadius + 8);
     context.restore();
   }
 
@@ -494,6 +542,7 @@
     canvas.addEventListener('pointerup', handlePointerUp);
     canvas.addEventListener('pointercancel', handlePointerUp);
     canvas.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener('keydown', handleGraphKeyDown);
   }
 
   function bindSearch() {
@@ -507,33 +556,60 @@
     });
   }
 
+  function handleGraphKeyDown(event) {
+    if (event.key !== 'Escape' || !rotationActive()) return;
+    rotationApi()?.reset?.();
+    syncRotationState();
+    drawGraph();
+  }
+
   function handlePointerDown(event) {
     if (!graph || event.button !== 0) return;
 
     const point = pointerPoint(event);
-    const world = screenToWorld(point);
-    const node = findNodeAt(world.x, world.y);
+    const rotation = rotationApi();
+    const rotateMode = rotation?.shouldStart?.(event) === true;
 
-    pointerState = {
-      pointerId: event.pointerId,
-      mode: node?.kind === 'memory' ? 'node' : 'pan',
-      node: node?.kind === 'memory' ? node : null,
-      startX: point.x,
-      startY: point.y,
-      lastX: point.x,
-      lastY: point.y,
-      moved: false
-    };
-
-    if (pointerState.node) {
-      pointerState.node.dragging = true;
-      pointerState.node.vx = 0;
-      pointerState.node.vy = 0;
+    if (rotateMode) {
+      rotation.begin?.();
       stopSimulation();
+      pointerState = {
+        pointerId: event.pointerId,
+        mode: 'rotate',
+        node: null,
+        startX: point.x,
+        startY: point.y,
+        lastX: point.x,
+        lastY: point.y,
+        moved: false
+      };
+    } else {
+      const world = screenToWorld(point);
+      const node = findNodeAt(world.x, world.y);
+      const rotated = rotationActive();
+
+      pointerState = {
+        pointerId: event.pointerId,
+        mode: node?.kind === 'memory' ? (rotated ? 'inspect' : 'node') : 'pan',
+        node: node?.kind === 'memory' ? node : null,
+        startX: point.x,
+        startY: point.y,
+        lastX: point.x,
+        lastY: point.y,
+        moved: false
+      };
+
+      if (pointerState.mode === 'node' && pointerState.node) {
+        pointerState.node.dragging = true;
+        pointerState.node.vx = 0;
+        pointerState.node.vy = 0;
+        stopSimulation();
+      }
     }
 
     canvas.setPointerCapture?.(event.pointerId);
     canvas.dataset.interacting = 'true';
+    syncRotationState();
     event.preventDefault();
   }
 
@@ -551,7 +627,13 @@
       pointerState.moved = true;
     }
 
-    if (pointerState.mode === 'node' && pointerState.node) {
+    const deltaX = point.x - pointerState.lastX;
+    const deltaY = point.y - pointerState.lastY;
+
+    if (pointerState.mode === 'rotate') {
+      rotationApi()?.update?.(deltaX, deltaY);
+      syncRotationState();
+    } else if (pointerState.mode === 'node' && pointerState.node) {
       const world = screenToWorld(point);
       pointerState.node.x = world.x;
       pointerState.node.y = world.y;
@@ -559,8 +641,8 @@
       pointerState.node.vy = 0;
       containNode(pointerState.node);
     } else {
-      view.x += point.x - pointerState.lastX;
-      view.y += point.y - pointerState.lastY;
+      view.x += deltaX;
+      view.y += deltaY;
     }
 
     pointerState.lastX = point.x;
@@ -572,20 +654,28 @@
   function handlePointerUp(event) {
     if (!pointerState || pointerState.pointerId !== event.pointerId) return;
 
-    const draggedNode = pointerState.node;
-    const shouldOpen = Boolean(draggedNode && !pointerState.moved);
-    if (draggedNode) {
-      draggedNode.dragging = false;
-      draggedNode.vx = 0;
-      draggedNode.vy = 0;
+    const mode = pointerState.mode;
+    const selectedNode = pointerState.node;
+    const shouldOpen = Boolean(selectedNode && !pointerState.moved && (mode === 'node' || mode === 'inspect'));
+
+    if (mode === 'rotate') {
+      rotationApi()?.end?.();
+      simulationFrames = 0;
+      startSimulation();
+    } else if (mode === 'node' && selectedNode) {
+      selectedNode.dragging = false;
+      selectedNode.vx = 0;
+      selectedNode.vy = 0;
       simulationFrames = 0;
       startSimulation();
     }
 
-    if (shouldOpen) openExistingInspector(draggedNode.id);
+    if (shouldOpen) openExistingInspector(selectedNode.id);
 
-    if (pointerState.moved) {
-      persistGraphState(pointerState.mode === 'pan');
+    if (pointerState.moved && (mode === 'pan' || mode === 'inspect')) {
+      persistGraphState(true);
+    } else if (pointerState.moved && mode === 'node') {
+      persistGraphState(false);
     }
 
     pointerState = null;
@@ -593,6 +683,7 @@
     try {
       canvas?.releasePointerCapture?.(event.pointerId);
     } catch {}
+    syncRotationState();
     drawGraph();
   }
 
@@ -648,13 +739,20 @@
   function findNodeAt(x, y) {
     if (!graph) return null;
 
-    for (let i = graph.memoryNodes.length - 1; i >= 0; i -= 1) {
-      const node = graph.memoryNodes[i];
-      if (Math.hypot(x - node.x, y - node.y) <= node.radius + 5) return node;
+    const candidates = rotationActive()
+      ? [...graph.memoryNodes].sort((a, b) => projectedNode(b).depth - projectedNode(a).depth)
+      : [...graph.memoryNodes].reverse();
+
+    for (const node of candidates) {
+      const projected = projectedNode(node);
+      if (Math.hypot(x - projected.x, y - projected.y) <= projected.radius + 5) return node;
     }
 
     const space = graph.spaceNode;
-    if (space && Math.hypot(x - space.x, y - space.y) <= space.radius + 5) return space;
+    if (space) {
+      const projected = projectedNode(space);
+      if (Math.hypot(x - projected.x, y - projected.y) <= projected.radius + 5) return space;
+    }
     return null;
   }
 
@@ -740,10 +838,11 @@
     const node = graph.memoryNodes.find((item) => String(item.id) === String(memoryId));
     if (!node) return false;
 
+    const projected = projectedNode(node);
     focusedNodeId = node.id;
     view.scale = clamp(Math.max(view.scale, 1.15), MIN_SCALE, MAX_SCALE);
-    view.x = graph.width / 2 - node.x * view.scale;
-    view.y = graph.height / 2 - node.y * view.scale;
+    view.x = graph.width / 2 - projected.x * view.scale;
+    view.y = graph.height / 2 - projected.y * view.scale;
     if (redraw) drawGraph();
     return true;
   }
@@ -796,6 +895,8 @@
     view.y = 0;
     view.scale = 1;
     focusedNodeId = null;
+    rotationApi()?.reset?.();
+    syncRotationState();
   }
 
   function clamp(value, min, max) {
@@ -824,6 +925,7 @@
 
     surface.dataset.memoryGraphReady = 'true';
     section.dataset.memoryGraphVersion = String(VERSION);
+    syncRotationState();
 
     bindSearch();
 
@@ -842,7 +944,12 @@
     mount,
     refresh,
     focusMemory,
-    focusSearchTerm
+    focusSearchTerm,
+    resetRotation() {
+      rotationApi()?.reset?.();
+      syncRotationState();
+      drawGraph();
+    }
   });
 
   if (document.readyState === 'loading') {
