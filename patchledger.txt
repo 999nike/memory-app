@@ -82,7 +82,7 @@ TICK SYSTEM
 [x] 01 - Memory Graph view added to Memory Space
 [x] 02 - Isolated memory-graph.js + memory-graph.css added
 [x] 03 - Active Space + real confirmed memories render as nodes
-[ ] 04 - Active Space gravity centre working
+[x] 04 - Active Space gravity centre working
 [ ] 05 - Node importance / relationship / recency weighting working
 [ ] 06 - Real Space->Memory + revision edges working
 [ ] 07 - Pan / zoom / drag working
@@ -110,7 +110,16 @@ STEP 03 VERIFIED
 - graph reads memory-space-v1 read-only and filters to the active Space plus confirmed memories only.
 - active Space and real confirmed memory titles render as Canvas nodes.
 - workspace UI changes trigger a graph redraw without writing back to workspace storage.
+
+STEP 04 VERIFIED
+- gravity runtime commit: b7cfa4a9d234f8eedc503e9e884db54775ed80ea
+- cache-bump commit: 2752d23c32c07b9faa0b4f3447065d8fcb3ed22f
+- gravity runtime passed node --check before commit.
+- active Space is fixed at the Canvas centre and cannot drift.
+- memory nodes use contained attraction/repulsion and settle around the Space.
+- simulation stops after settling / frame cap rather than running forever.
+- simulation state remains in memory only and never writes node motion into Memory Space records.
 - no Memory Bridge, OAuth, MCP, provider, proposal, lifecycle or memory-engine files were changed.
 
 CURRENT NEXT PATCH
-Step 04 only: replace the static radial placement with a contained force/gravity simulation that keeps the active Space anchored at the visual centre while memory nodes settle around it. No weighting beyond basic force yet; Step 05 owns importance/relationship/recency weighting.
+Step 05 only: derive node radius / attraction / brightness from existing memory importance, real relationship count where available, and recency. Do not invent semantic relationships; Step 06 owns actual edge drawing.
