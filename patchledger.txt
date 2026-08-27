@@ -87,7 +87,7 @@ TICK SYSTEM
 [x] 06 - Real Space->Memory + revision edges working
 [x] 07 - Pan / zoom / drag working
 [x] 08 - Node click opens existing inspector
-[ ] 09 - Search can focus matching graph node
+[x] 09 - Search can focus matching graph node
 [ ] 10 - Graph layout state persists separately and safely
 
 STEP 01 VERIFIED
@@ -157,13 +157,22 @@ STEP 08 VERIFIED
 - clicking a graph memory routes through the existing Memory Space card/inspector path; no duplicate inspector logic was added.
 - dragging still resumes gravity and does not intentionally open the inspector.
 
-STEP 09 PATCHED - LIVE TEST PENDING
+STEP 09 VERIFIED
 - search focus runtime commit: f5ef153d6eab109e9a6c8673a5658d851dcd2105
+- user live-tested search on 27 Aug 2026; screenshot confirmed `space junk` focuses the Space junk node with the blue graph focus ring while Shared Memory filtering remains active.
 - the existing Search this space input is observed by memory-graph.js without changing app.js.
 - title matches are ranked exact -> starts-with -> contains; existing searchable memory fields are fallback matches.
-- the first matching confirmed memory is centred in the graph and receives a blue focus ring.
 - clearing search removes the focus ring without resetting the user's pan/zoom view.
 - search focus changes graph runtime/view state only and does not write memory-space-v1.
 
+STEP 10 PATCHED - LIVE TEST PENDING
+- layout persistence runtime commit: fc3661f1c0d407f5b2f31d932d6ba039219a2f8c
+- graph layout is stored under a separate localStorage key: memory-graph-layout-v1.
+- memory-space-v1 remains read-only inside memory-graph.js; the graph never writes layout data into durable memory records.
+- node positions are stored as normalised offsets per Space so the layout can survive canvas resizing.
+- user pan/zoom is stored as scale plus the world point at the canvas centre, also per Space.
+- gravity-settled node positions are persisted without overwriting a user's saved camera view.
+- search focus remains transient and is not deliberately saved as the user's normal camera view.
+
 CURRENT NEXT PATCH
-Live-test Step 09. Search for a known memory title/word and confirm the matching node centres with a blue focus ring while the existing Shared Memory search still behaves normally. After confirmation, tick Step 09 and move to Step 10 persistence.
+Live-test Step 10 only. Pan/zoom the graph and drag one obvious node somewhere distinctive, wait a moment for it to settle, then refresh the page. The camera and node layout should come back. If confirmed, tick Step 10 and close the first 10-step foundation.
