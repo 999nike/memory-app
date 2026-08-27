@@ -5,6 +5,18 @@
   const WORKSPACE_KEY = 'memory-space-v1';
   const MAX_SIMULATION_FRAMES = 900;
   const SETTLED_SPEED = 0.035;
+  const IMPORTANCE_WEIGHT = {
+    critical: 1.42,
+    high: 1.20,
+    normal: 1,
+    low: 0.86
+  };
+  const IMPORTANCE_RADIUS = {
+    critical: 23,
+    high: 19,
+    normal: 15,
+    low: 12
+  };
 
   let surface = null;
   let canvas = null;
@@ -32,11 +44,12 @@
     const space = workspace.spaces.find((item) => item.id === workspace.activeSpaceId) || workspace.spaces[0];
     if (!space) return null;
 
-    const memories = workspace.memories.filter((memory) =>
-      memory.spaceId === space.id && String(memory.status || 'confirmed') === 'confirmed'
+    const allMemories = workspace.memories.filter((memory) => memory.spaceId === space.id);
+    const memories = allMemories.filter((memory) =>
+      String(memory.status || 'confirmed') === 'confirmed'
     );
 
-    return { space, memories };
+    return { space, memories, allMemories };
   }
 
   function ensureCanvas() {
@@ -93,6 +106,7 @@
   function buildGraph(data, width, height) {
     const centreX = width / 2;
     const centreY = height / 2;
+    const baseOrbit = Math.max(88, Math.min(width, height) * 0.27);
     const spaceNode = {
       id: data.space.id,
       kind: 'space',
@@ -109,6 +123,7 @@
     const startRing = Math.max(90, Math.min(width, height) * 0.32);
     const memoryNodes = memories.map((memory, index) => {
       const angle = -Math.PI / 2 + (index / Math.max(1, memories.length)) * Math.PI * 2;
+      const profile = memoryProfile(memory, data.allMemories);
       return {
         id: memory.id,
         kind: 'memory',
@@ -117,7 +132,12 @@
         y: centreY + Math.sin(angle) * startRing,
         vx: 0,
         vy: 0,
-        radius: 15,
+        radius: profile.radius,
+        targetOrbit: Math.max(62, baseOrbit / profile.gravityWeight),
+        gravityWeight: profile.gravityWeight,
+        relationshipCount: profile.relationshipCount,
+        recencyLevel: profile.recencyLevel,
+        importance: profile.importance,
         locked: Boolean(memory.locked),
         fixed: false
       };
@@ -128,11 +148,58 @@
       height,
       centreX,
       centreY,
-      orbitRadius: Math.max(88, Math.min(width, height) * 0.27),
+      orbitRadius: baseOrbit,
       spaceNode,
       memoryNodes,
       nodes: [spaceNode, ...memoryNodes]
     };
+  }
+
+  function memoryProfile(memory, allMemories) {
+    const importance = String(memory.importance || 'normal').toLowerCase();
+    const importanceWeight = IMPORTANCE_WEIGHT[importance] || IMPORTANCE_WEIGHT.normal;
+    const baseRadius = IMPORTANCE_RADIUS[importance] || IMPORTANCE_RADIUS.normal;
+    const relationshipCount = countRealRelationships(memory, allMemories);
+    const relationshipWeight = 1 + Math.min(4, Math.max(0, relationshipCount - 1)) * 0.07;
+    const recencyLevel = recencyScore(memory.updatedAt || memory.createdAt);
+    const recencyWeight = 0.93 + recencyLevel * 0.17;
+    const radius = baseRadius + Math.min(3, Math.max(0, relationshipCount - 1));
+
+    return {
+      importance,
+      radius,
+      relationshipCount,
+      recencyLevel,
+      gravityWeight: importanceWeight * relationshipWeight * recencyWeight
+    };
+  }
+
+  function countRealRelationships(memory, allMemories) {
+    const relatedIds = new Set();
+    if (memory.supersedesId) relatedIds.add(String(memory.supersedesId));
+    if (memory.supersededById) relatedIds.add(String(memory.supersededById));
+
+    for (const other of allMemories) {
+      if (!other || other.id === memory.id) continue;
+      if (other.supersedesId === memory.id || other.supersededById === memory.id) {
+        relatedIds.add(String(other.id));
+      }
+    }
+
+    // Every rendered memory has one real Space -> Memory relationship.
+    return 1 + relatedIds.size;
+  }
+
+  function recencyScore(value) {
+    const timestamp = Date.parse(value || '');
+    if (!Number.isFinite(timestamp)) return 0.25;
+
+    const ageDays = Math.max(0, (Date.now() - timestamp) / 86400000);
+    if (ageDays <= 7) return 1;
+    if (ageDays <= 30) return 0.76;
+    if (ageDays <= 90) return 0.48;
+    if (ageDays <= 365) return 0.24;
+    return 0.08;
   }
 
   function startSimulation() {
@@ -172,8 +239,8 @@
       const dx = node.x - centreX;
       const dy = node.y - centreY;
       const distance = Math.max(1, Math.hypot(dx, dy));
-      const radialOffset = distance - graph.orbitRadius;
-      const radialForce = -radialOffset * 0.0019;
+      const radialOffset = distance - (node.targetOrbit || graph.orbitRadius);
+      const radialForce = -radialOffset * 0.0019 * Math.max(0.8, node.gravityWeight || 1);
       fx += (dx / distance) * radialForce;
       fy += (dy / distance) * radialForce;
 
@@ -186,10 +253,10 @@
         const repulsion = Math.min(0.9, 900 / pairDistanceSq);
         const pushX = (pairX / pairDistance) * repulsion;
         const pushY = (pairY / pairDistance) * repulsion;
-        fx += pushX;
-        fy += pushY;
-        other.vx -= pushX;
-        other.vy -= pushY;
+        fx += pushX / Math.max(0.85, node.gravityWeight || 1);
+        fy += pushY / Math.max(0.85, node.gravityWeight || 1);
+        other.vx -= pushX / Math.max(0.85, other.gravityWeight || 1);
+        other.vy -= pushY / Math.max(0.85, other.gravityWeight || 1);
       }
 
       node.vx = (node.vx + fx) * 0.90;
@@ -236,24 +303,33 @@
 
   function drawNode(node) {
     const isSpace = node.kind === 'space';
+    const recency = isSpace ? 1 : Number(node.recencyLevel || 0);
+    const fillAlpha = isSpace ? 0.24 : 0.10 + recency * 0.16;
+    const strokeAlpha = isSpace ? 0.95 : 0.56 + recency * 0.30;
+    const glowAlpha = isSpace ? 0.55 : 0.18 + recency * 0.30;
+    const glowBlur = isSpace ? 24 : 7 + recency * 13;
 
     context.save();
     context.beginPath();
     context.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-    context.fillStyle = isSpace ? 'rgba(120, 184, 255, 0.24)' : 'rgba(199, 255, 86, 0.18)';
+    context.fillStyle = isSpace ? 'rgba(120, 184, 255, 0.24)' : `rgba(199, 255, 86, ${fillAlpha.toFixed(3)})`;
     context.fill();
 
     context.lineWidth = node.locked ? 3 : isSpace ? 2.5 : 1.5;
-    context.strokeStyle = isSpace ? 'rgba(120, 184, 255, 0.95)' : 'rgba(199, 255, 86, 0.80)';
+    context.strokeStyle = isSpace
+      ? 'rgba(120, 184, 255, 0.95)'
+      : `rgba(199, 255, 86, ${strokeAlpha.toFixed(3)})`;
     context.stroke();
 
-    context.shadowBlur = isSpace ? 24 : 12;
-    context.shadowColor = isSpace ? 'rgba(120, 184, 255, 0.55)' : 'rgba(199, 255, 86, 0.35)';
+    context.shadowBlur = glowBlur;
+    context.shadowColor = isSpace
+      ? 'rgba(120, 184, 255, 0.55)'
+      : `rgba(199, 255, 86, ${glowAlpha.toFixed(3)})`;
     context.stroke();
     context.restore();
 
     context.save();
-    context.fillStyle = 'rgba(242, 244, 247, 0.94)';
+    context.fillStyle = isSpace ? 'rgba(242, 244, 247, 0.94)' : `rgba(242, 244, 247, ${(0.70 + recency * 0.24).toFixed(3)})`;
     context.font = isSpace ? '700 14px Inter, system-ui, sans-serif' : '600 11px Inter, system-ui, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'top';
