@@ -84,7 +84,7 @@ TICK SYSTEM
 [x] 03 - Active Space + real confirmed memories render as nodes
 [x] 04 - Active Space gravity centre working
 [x] 05 - Node importance / relationship / recency weighting working
-[ ] 06 - Real Space->Memory + revision edges working
+[x] 06 - Real Space->Memory + revision edges working
 [ ] 07 - Pan / zoom / drag working
 [ ] 08 - Node click opens existing inspector
 [ ] 09 - Search can focus matching graph node
@@ -131,5 +131,14 @@ STEP 05 VERIFIED
 - archived/superseded revisions may contribute to a current memory's real relationship count but are still not rendered as current nodes.
 - graph remains read-only against memory-space-v1.
 
+STEP 06 VERIFIED
+- edge runtime commit: 4762a6ace256d972dad8d4790322bb48e4604bb4
+- exact runtime passed node --check before commit.
+- every confirmed memory now has a real visual edge to the active Space.
+- revision edges are created only when an existing revision reference points to another currently visible node.
+- revision pairs are deduplicated; no fake semantic/similarity links were added.
+- edges are drawn behind nodes and remain visual-only state.
+- no Memory Bridge, OAuth, MCP, provider, proposal, lifecycle or memory-engine files were changed.
+
 CURRENT NEXT PATCH
-Step 06 only: draw real Space -> confirmed Memory edges and real revision edges where both endpoints are visible/current. Do not add guessed similarity links or touch bridge/provider logic.
+Step 07 only: add safe Canvas pan / wheel zoom / node drag interaction. Interaction must change graph view/runtime state only and must not write Memory Space records.
