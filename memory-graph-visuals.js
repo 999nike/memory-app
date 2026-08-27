@@ -17,7 +17,20 @@
   const originalStroke = proto.stroke;
 
   function isMemoryGraph(context) {
-    return Boolean(context?.canvas?.classList?.contains('memory-graph-canvas'));
+    const canvas = context?.canvas;
+    if (!canvas) return false;
+    if (typeof canvas.__memoryGraphCanvas === 'boolean') return canvas.__memoryGraphCanvas;
+
+    const value = canvas.classList?.contains('memory-graph-canvas') === true;
+    try {
+      Object.defineProperty(canvas, '__memoryGraphCanvas', {
+        value,
+        configurable: false,
+        enumerable: false,
+        writable: false
+      });
+    } catch {}
+    return value;
   }
 
   function graphColour(style) {
@@ -58,38 +71,37 @@
     const colour = graphColour(this.fillStyle);
     if (!colour) return originalFill.apply(this, args);
 
+    // Keep pointer interaction cheap. The normal graph redraw restores shading immediately.
+    if (this.canvas?.dataset?.interacting === 'true') {
+      return originalFill.apply(this, args);
+    }
+
     const circle = this.__memoryGraphCircle;
     const sourceAlpha = styleAlpha(this.fillStyle, colour === 'blue' ? 0.24 : 0.18);
-    const strength = Math.max(0.46, Math.min(0.86, 0.36 + sourceAlpha * 1.8));
-    const highlightX = circle.x - circle.radius * 0.34;
-    const highlightY = circle.y - circle.radius * 0.40;
+    const strength = Math.max(0.44, Math.min(0.82, 0.35 + sourceAlpha * 1.65));
     const gradient = this.createRadialGradient(
-      highlightX,
-      highlightY,
-      Math.max(1, circle.radius * 0.10),
+      circle.x - circle.radius * 0.30,
+      circle.y - circle.radius * 0.34,
+      Math.max(1, circle.radius * 0.12),
       circle.x,
       circle.y,
-      circle.radius * 1.05
+      circle.radius
     );
 
     if (colour === 'blue') {
-      gradient.addColorStop(0, `rgba(226, 245, 255, ${Math.min(0.94, strength + 0.16)})`);
-      gradient.addColorStop(0.24, `rgba(120, 184, 255, ${strength})`);
-      gradient.addColorStop(0.68, `rgba(33, 91, 154, ${Math.max(0.34, strength * 0.70)})`);
-      gradient.addColorStop(1, 'rgba(7, 18, 34, 0.42)');
+      gradient.addColorStop(0, `rgba(226, 245, 255, ${Math.min(0.92, strength + 0.14)})`);
+      gradient.addColorStop(0.27, `rgba(120, 184, 255, ${strength})`);
+      gradient.addColorStop(0.72, `rgba(33, 91, 154, ${Math.max(0.32, strength * 0.66)})`);
+      gradient.addColorStop(1, 'rgba(7, 18, 34, 0.40)');
     } else {
-      gradient.addColorStop(0, `rgba(242, 255, 211, ${Math.min(0.92, strength + 0.12)})`);
-      gradient.addColorStop(0.24, `rgba(199, 255, 86, ${strength})`);
-      gradient.addColorStop(0.68, `rgba(83, 124, 31, ${Math.max(0.30, strength * 0.66)})`);
-      gradient.addColorStop(1, 'rgba(10, 20, 10, 0.40)');
+      gradient.addColorStop(0, `rgba(242, 255, 211, ${Math.min(0.90, strength + 0.10)})`);
+      gradient.addColorStop(0.27, `rgba(199, 255, 86, ${strength})`);
+      gradient.addColorStop(0.72, `rgba(83, 124, 31, ${Math.max(0.28, strength * 0.62)})`);
+      gradient.addColorStop(1, 'rgba(10, 20, 10, 0.38)');
     }
 
     this.save();
     this.fillStyle = gradient;
-    this.shadowBlur = colour === 'blue' ? 30 : 22;
-    this.shadowColor = colour === 'blue'
-      ? 'rgba(120, 184, 255, 0.78)'
-      : 'rgba(199, 255, 86, 0.66)';
     originalFill.apply(this, args);
     this.restore();
     return undefined;
@@ -102,20 +114,17 @@
     if (!colour) return originalStroke.apply(this, args);
 
     const sourceWidth = Math.max(0.5, Number(this.lineWidth) || 1);
-    const isFineLine = sourceWidth <= 1.6;
 
+    // Nodes already receive a native glow pass in memory-graph.js. Doubling those
+    // strokes here was the expensive part of the first graphics pass.
+    if (sourceWidth > 1.6) return originalStroke.apply(this, args);
+
+    // Cheap luminous link: one wider translucent pass, no shadow blur/composite work.
     this.save();
-    this.globalCompositeOperation = 'lighter';
-    this.lineWidth = isFineLine
-      ? Math.max(2.4, sourceWidth * 2.9)
-      : sourceWidth * 1.45;
+    this.lineWidth = Math.max(2.0, sourceWidth * 2.35);
     this.strokeStyle = colour === 'blue'
-      ? 'rgba(120, 184, 255, 0.30)'
-      : 'rgba(199, 255, 86, 0.34)';
-    this.shadowBlur = isFineLine ? 14 : 22;
-    this.shadowColor = colour === 'blue'
-      ? 'rgba(120, 184, 255, 0.82)'
-      : 'rgba(199, 255, 86, 0.78)';
+      ? 'rgba(120, 184, 255, 0.24)'
+      : 'rgba(199, 255, 86, 0.28)';
     originalStroke.apply(this, args);
     this.restore();
 
