@@ -40,8 +40,8 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 
 ## Tick system
 
-[ ] 01 - Cluster / group memories
-[~] 02 - Focused memory card polish patched; waiting for live visual test
+[~] 01 - Cluster / group memories patched; waiting for live graph test
+[x] 02 - Focused memory card polish accepted; moved on
 [x] 03 - Nebula / dust-cloud layer live-tested and approved
 [x] 04 - Pseudo-3D rotation mode live-tested and approved
 [ ] 05 - True 3D graph mode later
@@ -78,7 +78,7 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 - No CSS filters or per-frame blur are used; cloud textures are generated once and reused as cached canvases.
 - Nebula state is presentation-only and does not write to memory or graph layout storage.
 
-## Step 02 current patch
+## Step 02 confirmed checkpoint
 
 - Safety checkpoint branch before Step 02: `backup/pre-focus-card-2026-08-27`
 - Isolated focused-card stylesheet: `76cc4fa9f44455c7e7a6ca2f3a1846c16cdf49c3`
@@ -89,3 +89,21 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 - The corresponding Shared Memory card gets a stronger lifted selected state.
 - Mobile receives the same visual language but no graph/layout changes.
 - No memory data, Memory Bridge, provider, permission, or lifecycle code is touched.
+- User moved on to the next roadmap item after this pass.
+
+## Step 01 current patch
+
+- Safety checkpoint branch before Step 01: `backup/pre-memory-grouping-2026-08-27`
+- Optional grouping runtime: `58b363110382b8766a7246608bd3478bbc424196`
+- Loader update: `670bcf745eea46b12b7b0742d7eec3309839aa32`
+- Group state is stored separately in `memory-graph-groups-v1`; durable memories in `memory-space-v1` are never rewritten.
+- Default mode is Off, so the approved normal graph remains the baseline.
+- User controls: Off / Type / Project plus Compact all.
+- Type mode uses the real memory type metadata already stored on each memory.
+- Project mode uses real job/project metadata where present and places memories without a project into General.
+- Group chips show the real confirmed-memory count for each group and can compact/expand one group at a time.
+- Compact groups pull their nodes into a tight visual cluster and reduce repeated labels to a single group/count label; search matches remain readable.
+- Grouping is applied through the existing projection layer, so graph edges, hit testing, search focus, lightning and optional Ctrl-drag pseudo-3D follow the grouped positions without changing the underlying memory records.
+- While grouping is active, normal node repositioning is treated as inspect/pan rather than rewriting individual graph positions.
+- The pre-group normal graph layout is snapshotted into the separate grouping state when grouping is enabled and restored when grouping is switched Off.
+- Grouping controls work on desktop and mobile but the mode starts Off on every untouched Space.
