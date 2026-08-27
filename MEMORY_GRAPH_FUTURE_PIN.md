@@ -40,7 +40,7 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 
 ## Tick system
 
-[~] 01 - Cluster / group memories patched; waiting for live graph test
+[~] 01 - Cluster / group memories works live; performance optimization waiting for retest
 [x] 02 - Focused memory card polish accepted; moved on
 [x] 03 - Nebula / dust-cloud layer live-tested and approved
 [x] 04 - Pseudo-3D rotation mode live-tested and approved
@@ -107,3 +107,17 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 - While grouping is active, normal node repositioning is treated as inspect/pan rather than rewriting individual graph positions.
 - The pre-group normal graph layout is snapshotted into the separate grouping state when grouping is enabled and restored when grouping is switched Off.
 - Grouping controls work on desktop and mobile but the mode starts Off on every untouched Space.
+- User live-tested grouping and confirmed it works, but reported the grouped view was a little laggy.
+
+## Step 01 performance pass
+
+- Safety checkpoint before optimization: `backup/pre-grouping-performance-2026-08-27`
+- Isolated performance cache: `1f1bfb9dac3b1043543c4948174720fd9c3b4bd4`
+- Loader update: `81286dbeb25c397b279dda5f9698b351af84f0c4`
+- Workspace memory lookup is cached instead of reparsing `memory-space-v1` for every node projection.
+- Group mode and compact state are cached instead of reparsing `memory-graph-groups-v1` for every node projection.
+- Group membership and projected node positions are built once per graph/mode/state revision and reused by edges, sorting, hit testing and drawing.
+- Ctrl-drag rotation keeps a lightweight in-memory yaw/pitch snapshot, so grouped nodes can rotate without rebuilding group geometry on every projection call.
+- Cache invalidation is tied to memory/space UI mutations, grouping controls, storage events and rotation state changes.
+- This pass does not change grouping visuals, controls, memory truth, durable graph layout, Bridge, provider, permission, or lifecycle behavior.
+- Waiting for live smoothness retest before marking Step 01 complete.
