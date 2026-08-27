@@ -85,7 +85,7 @@ TICK SYSTEM
 [x] 04 - Active Space gravity centre working
 [x] 05 - Node importance / relationship / recency weighting working
 [x] 06 - Real Space->Memory + revision edges working
-[ ] 07 - Pan / zoom / drag working
+[x] 07 - Pan / zoom / drag working
 [ ] 08 - Node click opens existing inspector
 [ ] 09 - Search can focus matching graph node
 [ ] 10 - Graph layout state persists separately and safely
@@ -140,5 +140,17 @@ STEP 06 VERIFIED
 - edges are drawn behind nodes and remain visual-only state.
 - no Memory Bridge, OAuth, MCP, provider, proposal, lifecycle or memory-engine files were changed.
 
+STEP 07 VERIFIED
+- interaction runtime commit: 34c259fac0a43412e6a62af114ac631941f519ce
+- interaction cursor CSS commit: 4781ae2bfd001428cd92f36760660ebd15be7706
+- asset cache-bump commit: 820f2b1b527f982dabc866ad383ffd5b3edfdf98
+- exact Step 07 runtime passed node --check before commit.
+- dragging blank Canvas pans the graph view.
+- mouse wheel zooms around the pointer with bounded scale.
+- confirmed memory nodes can be dragged directly and then return to the gravity simulation on release.
+- the central Space node remains fixed in graph/world coordinates; pan/zoom only changes the camera view.
+- pan, zoom and drag state remain in runtime memory only; Step 07 writes nothing to memory-space-v1 or any other durable Memory Space record.
+- no Memory Bridge, OAuth, MCP, provider, proposal, lifecycle or memory-engine files were changed.
+
 CURRENT NEXT PATCH
-Step 07 only: add safe Canvas pan / wheel zoom / node drag interaction. Interaction must change graph view/runtime state only and must not write Memory Space records.
+Step 08 only: distinguish click from drag and make a clean memory-node click open the existing real Memory Space inspector/card controls. Do not create a second graph-specific memory editor or bypass existing lifecycle rules.
