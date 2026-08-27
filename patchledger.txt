@@ -83,7 +83,7 @@ TICK SYSTEM
 [x] 02 - Isolated memory-graph.js + memory-graph.css added
 [x] 03 - Active Space + real confirmed memories render as nodes
 [x] 04 - Active Space gravity centre working
-[ ] 05 - Node importance / relationship / recency weighting working
+[x] 05 - Node importance / relationship / recency weighting working
 [ ] 06 - Real Space->Memory + revision edges working
 [ ] 07 - Pan / zoom / drag working
 [ ] 08 - Node click opens existing inspector
@@ -121,5 +121,15 @@ STEP 04 VERIFIED
 - simulation state remains in memory only and never writes node motion into Memory Space records.
 - no Memory Bridge, OAuth, MCP, provider, proposal, lifecycle or memory-engine files were changed.
 
+STEP 05 VERIFIED
+- weighting runtime commit: 95fa3fd993161402618dcb476221b5523025e8f5
+- exact runtime passed node --check before commit.
+- critical/high/normal/low memories now receive different real node radii and gravity weights.
+- recency uses existing createdAt/updatedAt timestamps to affect pull and glow/brightness.
+- relationship weighting counts only real Space membership plus real revision references already present in Memory Space data.
+- no inferred semantic links were invented and no relationship edges are drawn yet.
+- archived/superseded revisions may contribute to a current memory's real relationship count but are still not rendered as current nodes.
+- graph remains read-only against memory-space-v1.
+
 CURRENT NEXT PATCH
-Step 05 only: derive node radius / attraction / brightness from existing memory importance, real relationship count where available, and recency. Do not invent semantic relationships; Step 06 owns actual edge drawing.
+Step 06 only: draw real Space -> confirmed Memory edges and real revision edges where both endpoints are visible/current. Do not add guessed similarity links or touch bridge/provider logic.
