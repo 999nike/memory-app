@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 3;
+  const VERSION = 4;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
 
@@ -13,6 +13,7 @@
   let inspector = null;
   let inspectorTitle = null;
   let inspectorList = null;
+  let inspectorDelete = null;
   let activeInspectorGroupId = null;
   let pointerCandidate = null;
   const titleHits = new Map();
@@ -143,6 +144,17 @@
     return found ? writeGroups(groups) : false;
   }
 
+  function deleteGroup(groupId) {
+    const id = String(groupId || '');
+    if (!id) return false;
+    const groups = groupsForSpace();
+    if (!groups.some((group) => String(group.id) === id)) return false;
+    if (!writeGroups(groups.filter((group) => String(group.id) !== id))) return false;
+    titleHits.delete(id);
+    if (String(activeInspectorGroupId || '') === id) closeGroup();
+    return true;
+  }
+
   function replaceGroups(groups, spaceId = activeSpaceId()) {
     return writeGroups(groups, spaceId);
   }
@@ -246,18 +258,21 @@
       .memory-graph-group-add{position:absolute;top:12px;right:12px;z-index:6;width:34px;height:34px;display:grid;place-items:center;border:1px solid rgb(199 255 86/.42);border-radius:50%;background:radial-gradient(circle at 35% 30%,rgb(199 255 86/.22),rgb(10 17 27/.94) 62%);color:#c7ff56;font:800 20px/1 Inter,system-ui,sans-serif;box-shadow:0 0 18px rgb(199 255 86/.12),inset 0 0 10px rgb(120 184 255/.08);cursor:pointer}
       .memory-graph-group-add:hover{border-color:rgb(199 255 86/.72)}
       .memory-graph-canvas[data-hover-group-title="true"]{cursor:pointer!important}
-      .memory-graph-group-inspector{position:absolute;top:56px;right:12px;z-index:7;width:min(300px,calc(100% - 24px));max-height:min(360px,calc(100% - 72px));overflow:hidden;border:1px solid rgb(120 184 255/.28);border-radius:14px;background:rgb(8 14 23/.96);box-shadow:0 18px 48px rgb(0 0 0/.42);backdrop-filter:blur(12px)}
+      .memory-graph-group-inspector{position:absolute;top:56px;right:12px;z-index:7;width:min(300px,calc(100% - 24px));max-height:min(390px,calc(100% - 72px));overflow:hidden;border:1px solid rgb(120 184 255/.28);border-radius:14px;background:rgb(8 14 23/.96);box-shadow:0 18px 48px rgb(0 0 0/.42);backdrop-filter:blur(12px)}
       .memory-graph-group-inspector[hidden]{display:none}
       .memory-graph-group-inspector-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-bottom:1px solid rgb(120 184 255/.14)}
       .memory-graph-group-inspector-title{min-width:0;margin:0;color:#f2f4f7;font:800 13px/1.2 Inter,system-ui,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .memory-graph-group-inspector-close{width:28px;height:28px;border:0;border-radius:50%;background:rgb(255 255 255/.05);color:rgb(242 244 247/.72);font:700 17px/1 Inter,system-ui,sans-serif;cursor:pointer}
-      .memory-graph-group-inspector-list{margin:0;padding:8px;list-style:none;max-height:294px;overflow:auto}
+      .memory-graph-group-inspector-list{margin:0;padding:8px;list-style:none;max-height:270px;overflow:auto}
       .memory-graph-group-member{display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:center;gap:8px;min-height:40px;padding:4px 4px 4px 10px;border-radius:10px}
       .memory-graph-group-member:hover{background:rgb(120 184 255/.055)}
       .memory-graph-group-member-name{min-width:0;color:rgb(242 244 247/.88);font:600 12px/1.3 Inter,system-ui,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .memory-graph-group-member-remove{width:30px;height:30px;display:grid;place-items:center;border:1px solid rgb(255 255 255/.08);border-radius:9px;background:rgb(255 255 255/.035);color:rgb(242 244 247/.7);cursor:pointer}
       .memory-graph-group-member-remove:hover{border-color:rgb(199 255 86/.34);color:#c7ff56;background:rgb(199 255 86/.06)}
       .memory-graph-group-empty{padding:16px 12px;color:rgb(145 154 170/.9);font:600 12px/1.4 Inter,system-ui,sans-serif;text-align:center}
+      .memory-graph-group-inspector-actions{padding:8px;border-top:1px solid rgb(120 184 255/.14)}
+      .memory-graph-group-delete{width:100%;min-height:34px;border:1px solid rgb(255 104 104/.22);border-radius:9px;background:rgb(255 104 104/.055);color:rgb(255 180 180/.9);font:700 11px/1 Inter,system-ui,sans-serif;cursor:pointer}
+      .memory-graph-group-delete:hover{border-color:rgb(255 104 104/.45);background:rgb(255 104 104/.09);color:#ffd0d0}
       @media(max-width:800px){.memory-graph-group-add{top:9px;right:9px;width:32px;height:32px}.memory-graph-group-inspector{top:50px;right:9px;width:min(290px,calc(100% - 18px))}}
     `;
     document.head.appendChild(style);
@@ -301,10 +316,31 @@
     close.setAttribute('aria-label', 'Close group contents');
     close.textContent = '×';
     close.addEventListener('click', closeGroup);
+
     inspectorList = document.createElement('ul');
     inspectorList.className = 'memory-graph-group-inspector-list';
+
+    const actions = document.createElement('div');
+    actions.className = 'memory-graph-group-inspector-actions';
+    inspectorDelete = document.createElement('button');
+    inspectorDelete.type = 'button';
+    inspectorDelete.className = 'memory-graph-group-delete';
+    inspectorDelete.textContent = 'Delete group';
+    inspectorDelete.addEventListener('click', () => {
+      const group = groupsForSpace().find((item) => String(item.id) === String(activeInspectorGroupId || ''));
+      if (!group) return;
+      const count = Array.isArray(group.members) ? group.members.length : 0;
+      const detail = count
+        ? `Its ${count} ${count === 1 ? 'memory' : 'memories'} will return to the main graph.`
+        : 'The empty group bubble will be removed.';
+      if (!window.confirm(`Delete ${String(group.title || 'this group')}?\n\n${detail}\n\nNo memories will be deleted.`)) return;
+      if (!deleteGroup(group.id)) return;
+      requestAnimationFrame(() => globalThis.MemoryGraph?.refresh?.());
+    });
+
     head.append(inspectorTitle, close);
-    inspector.append(head, inspectorList);
+    actions.appendChild(inspectorDelete);
+    inspector.append(head, inspectorList, actions);
     surface.appendChild(inspector);
     return true;
   }
@@ -381,6 +417,7 @@
     createGroup,
     detachMemory,
     addMemoryToGroup,
+    deleteGroup,
     replaceGroups,
     openGroup,
     closeGroup,
