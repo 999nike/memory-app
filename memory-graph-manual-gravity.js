@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 2;
+  const VERSION = 3;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
   const PHYSICS_INTERVAL_MS = 14;
@@ -99,6 +99,9 @@
       const hasSaved = Number.isFinite(savedX) && Number.isFinite(savedY);
       const angle = Number.isFinite(Number(group.angle)) ? Number(group.angle) : 0;
       const orbit = naturalOrbit(group, graph);
+      const savedOrbit = hasSaved
+        ? Math.max(82, Math.hypot(savedX * width, savedY * height))
+        : orbit;
       body = {
         id,
         x: hasSaved ? Number(graph.centreX) + savedX * width : Number(graph.centreX) + Math.cos(angle) * orbit,
@@ -109,7 +112,8 @@
         radius: 35,
         memberCount: 0,
         gravityWeight: 1,
-        targetOrbit: orbit
+        targetOrbit: savedOrbit,
+        manualOrbit: hasSaved
       };
       bodies.set(id, body);
       groupProjectionDirty = true;
@@ -121,7 +125,7 @@
     body.radius = nextRadius;
     body.memberCount = nextCount;
     body.gravityWeight = 1.08 + Math.min(1.30, body.memberCount * 0.095);
-    body.targetOrbit = naturalOrbit(group, graph);
+    if (!body.manualOrbit) body.targetOrbit = naturalOrbit(group, graph);
     return body;
   }
 
@@ -508,7 +512,6 @@
       return;
     }
     if (!rotationActive() && typeof api.resetRotation === 'function') {
-      // resetRotation already performs a cheap draw without rebuilding graph data.
       api.resetRotation();
       return;
     }
@@ -614,7 +617,14 @@
       if (drag?.pointerId === event.pointerId) {
         const group = groupsForSpace().find((item) => String(item.id) === drag.groupId);
         const body = group ? bodyFromGroup(group, lastGraph) : null;
-        if (body) body.dragging = false;
+        if (body) {
+          body.dragging = false;
+          body.manualOrbit = true;
+          body.targetOrbit = Math.max(82, Math.hypot(
+            body.x - Number(lastGraph?.centreX || 0),
+            body.y - Number(lastGraph?.centreY || 0)
+          ));
+        }
         drag = null;
         canvas.removeAttribute('data-dragging-group');
         canvas.removeAttribute('data-hover-group');
@@ -765,6 +775,8 @@
     if (timestamp - lastOverlayPaint < frameMs) return;
     lastOverlayPaint = timestamp;
     if (!ensureOverlay() || !lastGraph || !lastMatrix || document.hidden) return;
+
+    if (drag && !rotationActive()) scheduleGraphRedraw(false);
 
     const rect = overlayCanvas.getBoundingClientRect();
     if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;
