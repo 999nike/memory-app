@@ -42,13 +42,14 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 
 [ ] 01 - Cluster / group memories
 [ ] 02 - Focused memory card polish
-[ ] 03 - Nebula / dust-cloud layer
-[~] 04 - Pseudo-3D rotation mode patched; waiting for live desktop test
+[~] 03 - Nebula / dust-cloud layer patched; waiting for live desktop test
+[x] 04 - Pseudo-3D rotation mode live-tested and approved
 [ ] 05 - True 3D graph mode later
 
-## Step 04 current patch
+## Step 04 confirmed checkpoint
 
-- Safety checkpoint branch: `backup/pre-pseudo3d-rotation-2026-08-27`
+- User live-tested Ctrl-drag pseudo-3D and confirmed the effect is good.
+- Safety checkpoint branch before Step 04: `backup/pre-pseudo3d-rotation-2026-08-27`
 - Isolated rotation module: `96436434a98b59f557f16f83ec5aac0b6b8d7a88`
 - Graph runtime integration: `ddc29586193d7cd2a63cfd5fd5470505028ca65e`
 - Loader/cache update: `f0ed34f7df332066bf26f96eea067f79f0c0726e`
@@ -58,3 +59,18 @@ The visual brain bubble, node positions, rotation, clouds, grouping and focus ef
 - While pseudo-3D is active, memory nodes remain clickable; normal node repositioning is intentionally disabled until Escape resets 3D mode so visual projection cannot accidentally corrupt node layout.
 - Rotation is transient presentation state and is not written into `memory-space-v1` or the durable graph layout store.
 - Mobile activation is disabled by the rotation module; the current mobile graph treatment remains separate.
+
+## Step 03 current patch
+
+- Safety checkpoint branch before Step 03: `backup/pre-nebula-2026-08-27`
+- Isolated nebula runtime: `581709c61d55a88bb24d7a506073dd51032508e9`
+- Loader update: `2fbb37ca3a8d51a4d10a2ba433990335f5651369`
+- Desktop-only first pass so the approved mobile graph remains untouched.
+- Five cached gas-cloud sprites sit behind the lightning and memory nodes.
+- Blue and lime-green cloud families follow the existing Memory Space visual language.
+- Clouds drift subtly at rest.
+- During Ctrl-drag rotation they move with yaw/pitch, expand and fade to simulate dissipation.
+- When rotation stops they settle and regain density at their new projected positions, creating a reforming-nebula effect.
+- A lightweight dust field moves with the same rotation state.
+- No CSS filters or per-frame blur are used; cloud textures are generated once and reused as cached canvases.
+- Nebula state is presentation-only and does not write to memory or graph layout storage.
