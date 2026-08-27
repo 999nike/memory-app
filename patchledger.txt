@@ -86,7 +86,7 @@ TICK SYSTEM
 [x] 05 - Node importance / relationship / recency weighting working
 [x] 06 - Real Space->Memory + revision edges working
 [x] 07 - Pan / zoom / drag working
-[ ] 08 - Node click opens existing inspector
+[x] 08 - Node click opens existing inspector
 [ ] 09 - Search can focus matching graph node
 [ ] 10 - Graph layout state persists separately and safely
 
@@ -149,5 +149,21 @@ STEP 07 VERIFIED
 - central Space remains fixed in graph coordinates.
 - no graph interaction writes to memory-space-v1.
 
+STEP 08 VERIFIED
+- click-to-inspector runtime commit: 06e41e1bf80cfbe3a88fff44fa23514aa78d1e98
+- cache-bump commit: b1a1e1fdd32b039cfffe8aebdb704dde3cdc4942
+- user moved on to the next ledger step after local test on 27 Aug 2026.
+- a click is distinguished from a drag by a small movement threshold.
+- clicking a graph memory routes through the existing Memory Space card/inspector path; no duplicate inspector logic was added.
+- dragging still resumes gravity and does not intentionally open the inspector.
+
+STEP 09 PATCHED - LIVE TEST PENDING
+- search focus runtime commit: f5ef153d6eab109e9a6c8673a5658d851dcd2105
+- the existing Search this space input is observed by memory-graph.js without changing app.js.
+- title matches are ranked exact -> starts-with -> contains; existing searchable memory fields are fallback matches.
+- the first matching confirmed memory is centred in the graph and receives a blue focus ring.
+- clearing search removes the focus ring without resetting the user's pan/zoom view.
+- search focus changes graph runtime/view state only and does not write memory-space-v1.
+
 CURRENT NEXT PATCH
-Step 08 only: distinguish click from drag and route a memory-node click into the existing real Memory Space inspector without duplicating inspector logic or changing memory records.
+Live-test Step 09. Search for a known memory title/word and confirm the matching node centres with a blue focus ring while the existing Shared Memory search still behaves normally. After confirmation, tick Step 09 and move to Step 10 persistence.
