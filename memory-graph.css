@@ -107,8 +107,38 @@
   color: var(--info);
 }
 
-@media (max-width: 760px) {
+/* Mobile-only graph treatment. Desktop remains governed by the rules above. */
+@media (max-width: 800px) {
+  .memory-graph-section {
+    margin-top: 18px;
+  }
+
+  .memory-graph-section .phase2-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .memory-graph-section .phase2-memory-pane {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .memory-graph-section .phase2-chat-pane {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
   .memory-graph-section #memoryGraphSurface {
-    min-height: 420px;
+    min-height: 500px;
+    height: clamp(500px, 58svh, 620px);
+    max-height: 620px;
+  }
+}
+
+@media (max-width: 430px) {
+  .memory-graph-section #memoryGraphSurface {
+    min-height: 520px;
+    height: clamp(520px, 60svh, 600px);
   }
 }
