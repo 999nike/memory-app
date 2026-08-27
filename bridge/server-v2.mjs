@@ -38,7 +38,8 @@ const MCP_TOOL_SCOPES = Object.freeze({
   read_memory: 'memory.read',
   get_current_decisions: 'memory.read',
   inspect_provenance: 'memory.read',
-  propose_memory: 'memory.propose'
+  propose_memory: 'memory.propose',
+  propose_memory_bundle: 'memory.propose'
 });
 
 if (!OWNER_TOKEN) {
