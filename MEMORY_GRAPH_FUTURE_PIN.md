@@ -37,3 +37,24 @@ The existing graph remains the safe base. Future visual modes must remain option
 ## Hard safety rule
 
 The visual brain bubble, node positions, rotation, clouds, grouping and focus effects are presentation state only. They must never mutate `memory-space-v1` memory truth.
+
+## Tick system
+
+[ ] 01 - Cluster / group memories
+[ ] 02 - Focused memory card polish
+[ ] 03 - Nebula / dust-cloud layer
+[~] 04 - Pseudo-3D rotation mode patched; waiting for live desktop test
+[ ] 05 - True 3D graph mode later
+
+## Step 04 current patch
+
+- Safety checkpoint branch: `backup/pre-pseudo3d-rotation-2026-08-27`
+- Isolated rotation module: `96436434a98b59f557f16f83ec5aac0b6b8d7a88`
+- Graph runtime integration: `ddc29586193d7cd2a63cfd5fd5470505028ca65e`
+- Loader/cache update: `f0ed34f7df332066bf26f96eea067f79f0c0726e`
+- Desktop-only activation: Ctrl + left-drag.
+- Horizontal drag rotates the bubble around its vertical axis; vertical drag adds pitch.
+- Escape resets the view back to the exact normal 2D graph.
+- While pseudo-3D is active, memory nodes remain clickable; normal node repositioning is intentionally disabled until Escape resets 3D mode so visual projection cannot accidentally corrupt node layout.
+- Rotation is transient presentation state and is not written into `memory-space-v1` or the durable graph layout store.
+- Mobile activation is disabled by the rotation module; the current mobile graph treatment remains separate.
