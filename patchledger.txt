@@ -5,6 +5,7 @@ Active job: Front-line Memory Graph / gravity visual
 BACKUP BEFORE THIS JOB
 - main snapshot at start: b9f681b7114252108cc6823684065daef6ef5763
 - backup branch: backup/pre-memory-graph-2026-08-27
+- backup branch advanced to include this job ledger before graph code: 7cdc4a35ddf3cfbfdaf42191828a4c7145feed17
 
 GOAL
 Add a living force-directed / gravity graph to Memory Space as a new first-class visual surface.
@@ -78,7 +79,7 @@ WORKING RULE
 Small patches only. Build one ledger step at a time, test the meaningful boundary, then tick it below. Do not let this feature break or absorb the existing Memory Bridge / AI access stack.
 
 TICK SYSTEM
-[ ] 01 - Memory Graph view added to Memory Space
+[x] 01 - Memory Graph view added to Memory Space
 [ ] 02 - Isolated memory-graph.js + memory-graph.css added
 [ ] 03 - Active Space + real confirmed memories render as nodes
 [ ] 04 - Active Space gravity centre working
@@ -89,5 +90,11 @@ TICK SYSTEM
 [ ] 09 - Search can focus matching graph node
 [ ] 10 - Graph layout state persists separately and safely
 
+STEP 01 VERIFIED
+- commit: 89f0f9607db354410020d76244ab59ffac507da3
+- Memory Graph surface added before Shared memory in the existing main UI.
+- Existing memory, bridge, OAuth, MCP, provider and proposal scripts were not changed.
+- Surface currently uses existing UI classes only; no graph runtime is wired yet.
+
 CURRENT NEXT PATCH
-Step 01 only: add the Memory Graph view/surface with the smallest safe UI change. Do not touch bridge/provider logic.
+Step 02 only: add isolated memory-graph.js + memory-graph.css and load them from index.html. Keep them inert/safe until real node rendering begins in Step 03. Do not touch bridge/provider logic.
