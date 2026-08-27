@@ -142,15 +142,12 @@ STEP 06 VERIFIED
 
 STEP 07 VERIFIED
 - interaction runtime commit: 34c259fac0a43412e6a62af114ac631941f519ce
-- interaction cursor CSS commit: 4781ae2bfd001428cd92f36760660ebd15be7706
-- asset cache-bump commit: 820f2b1b527f982dabc866ad383ffd5b3edfdf98
-- exact Step 07 runtime passed node --check before commit.
-- dragging blank Canvas pans the graph view.
-- mouse wheel zooms around the pointer with bounded scale.
-- confirmed memory nodes can be dragged directly and then return to the gravity simulation on release.
-- the central Space node remains fixed in graph/world coordinates; pan/zoom only changes the camera view.
-- pan, zoom and drag state remain in runtime memory only; Step 07 writes nothing to memory-space-v1 or any other durable Memory Space record.
-- no Memory Bridge, OAuth, MCP, provider, proposal, lifecycle or memory-engine files were changed.
+- cache-bump commit: 4781ae2bfd001428cd92f36760660ebd15be7706
+- user live-tested pan, zoom and node drag on the local Memory Space on 27 Aug 2026.
+- dragging a memory node moves graph runtime state only; on release gravity resumes and the node slowly settles back toward its weighted orbit.
+- empty-canvas drag pans the view and wheel zoom works around the pointer.
+- central Space remains fixed in graph coordinates.
+- no graph interaction writes to memory-space-v1.
 
 CURRENT NEXT PATCH
-Step 08 only: distinguish click from drag and make a clean memory-node click open the existing real Memory Space inspector/card controls. Do not create a second graph-specific memory editor or bypass existing lifecycle rules.
+Step 08 only: distinguish click from drag and route a memory-node click into the existing real Memory Space inspector without duplicating inspector logic or changing memory records.
