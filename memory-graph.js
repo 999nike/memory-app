@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 3;
+  const VERSION = 4;
   const WORKSPACE_KEY = 'memory-space-v1';
   const MAX_SIMULATION_FRAMES = 900;
   const SETTLED_SPEED = 0.035;
@@ -30,6 +30,8 @@
   let simulationFrames = 0;
   let pointerState = null;
   let interactionsBound = false;
+  let searchBound = false;
+  let focusedNodeId = null;
   const view = {
     x: 0,
     y: 0,
@@ -100,6 +102,7 @@
     const count = document.getElementById('memoryGraphCount');
     if (!data) {
       graph = null;
+      focusedNodeId = null;
       if (count) count.textContent = '0';
       drawMessage(width, height, 'Memory Space is unavailable');
       return;
@@ -111,6 +114,14 @@
     graph = buildGraph(data, width, height);
     if (count) count.textContent = String(graph.nodes.length);
     simulationFrames = 0;
+
+    const searchInput = document.getElementById('searchInput');
+    const activeQuery = searchInput?.value?.trim() || '';
+    if (activeQuery) {
+      focusSearchTerm(activeQuery, false);
+    } else {
+      focusedNodeId = null;
+    }
     drawGraph();
 
     if (graph.memoryNodes.length) startSimulation();
@@ -384,6 +395,7 @@
     const strokeAlpha = isSpace ? 0.95 : 0.56 + recency * 0.30;
     const glowAlpha = isSpace ? 0.55 : 0.18 + recency * 0.30;
     const glowBlur = isSpace ? 24 : 7 + recency * 13;
+    const focused = node.id === focusedNodeId;
 
     context.save();
     context.beginPath();
@@ -403,6 +415,18 @@
       : `rgba(199, 255, 86, ${glowAlpha.toFixed(3)})`;
     context.stroke();
     context.restore();
+
+    if (focused) {
+      context.save();
+      context.beginPath();
+      context.arc(node.x, node.y, node.radius + 8, 0, Math.PI * 2);
+      context.lineWidth = 2.5;
+      context.strokeStyle = 'rgba(120, 184, 255, 0.98)';
+      context.shadowBlur = 18;
+      context.shadowColor = 'rgba(120, 184, 255, 0.72)';
+      context.stroke();
+      context.restore();
+    }
 
     context.save();
     context.fillStyle = isSpace ? 'rgba(242, 244, 247, 0.94)' : `rgba(242, 244, 247, ${(0.70 + recency * 0.24).toFixed(3)})`;
@@ -438,6 +462,17 @@
     canvas.addEventListener('pointerup', handlePointerUp);
     canvas.addEventListener('pointercancel', handlePointerUp);
     canvas.addEventListener('wheel', handleWheel, { passive: false });
+  }
+
+  function bindSearch() {
+    if (searchBound) return;
+    const searchInput = document.getElementById('searchInput');
+    if (!searchInput) return;
+
+    searchBound = true;
+    searchInput.addEventListener('input', () => {
+      focusSearchTerm(searchInput.value);
+    });
   }
 
   function handlePointerDown(event) {
@@ -586,10 +621,67 @@
     return null;
   }
 
+  function focusMemory(memoryId, redraw = true) {
+    if (!graph || !memoryId) return false;
+    const node = graph.memoryNodes.find((item) => String(item.id) === String(memoryId));
+    if (!node) return false;
+
+    focusedNodeId = node.id;
+    view.scale = clamp(Math.max(view.scale, 1.15), MIN_SCALE, MAX_SCALE);
+    view.x = graph.width / 2 - node.x * view.scale;
+    view.y = graph.height / 2 - node.y * view.scale;
+    if (redraw) drawGraph();
+    return true;
+  }
+
+  function focusSearchTerm(value, redraw = true) {
+    const query = String(value || '').trim().toLowerCase();
+    if (!query) {
+      focusedNodeId = null;
+      if (redraw) drawGraph();
+      return false;
+    }
+
+    const data = activeGraphData();
+    if (!data || !graph) return false;
+
+    const match = data.memories
+      .map((memory) => ({ memory, rank: searchRank(memory, query) }))
+      .filter((item) => Number.isFinite(item.rank))
+      .sort((a, b) => a.rank - b.rank)[0]?.memory;
+
+    if (!match) {
+      focusedNodeId = null;
+      if (redraw) drawGraph();
+      return false;
+    }
+
+    return focusMemory(match.id, redraw);
+  }
+
+  function searchRank(memory, query) {
+    const title = String(memory.title || '').toLowerCase();
+    if (title === query) return 0;
+    if (title.startsWith(query)) return 1;
+    if (title.includes(query)) return 2;
+
+    const searchable = [
+      memory.content,
+      memory.source,
+      memory.type,
+      memory.importance,
+      memory.project,
+      memory.priority
+    ].some((value) => String(value || '').toLowerCase().includes(query));
+
+    return searchable ? 3 : Number.POSITIVE_INFINITY;
+  }
+
   function resetView() {
     view.x = 0;
     view.y = 0;
     view.scale = 1;
+    focusedNodeId = null;
   }
 
   function clamp(value, min, max) {
@@ -619,6 +711,8 @@
     surface.dataset.memoryGraphReady = 'true';
     section.dataset.memoryGraphVersion = String(VERSION);
 
+    bindSearch();
+
     resizeObserver?.disconnect();
     resizeObserver = new ResizeObserver(resizeCanvas);
     resizeObserver.observe(surface);
@@ -632,7 +726,9 @@
   globalThis.MemoryGraph = Object.freeze({
     version: VERSION,
     mount,
-    refresh
+    refresh,
+    focusMemory,
+    focusSearchTerm
   });
 
   if (document.readyState === 'loading') {
