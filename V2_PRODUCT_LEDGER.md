@@ -1,10 +1,151 @@
 # Memory Space V2 Product Ledger
 
-**Updated:** 10 Aug 2026
+**Updated:** 28 Aug 2026
 
 This is the working V2 architecture / handoff ledger for the Memory Space product family.
 
-The V1 Memory App is now the proven trusted foundation. V2 grows **around it through separate applications**. It is not permission to reopen, move, split apart or rebuild the existing Memory App.
+The V1 Memory App is the proven trusted foundation. The trusted memory / permission / bridge authority remains protected, but the Memory App is now also the **front-face spatial controller** for the wider Worker App stack.
+
+---
+
+## AUTHORITATIVE V2 UPDATE — MEMORY APP IS THE FRONT FACE
+
+**This section supersedes any older V2 text below that conflicts with it.** Older sections are retained as history, not as authority where they disagree with this update.
+
+The product direction is now:
+
+```text
+                         MEMORY SPACE
+                    unified spatial front face
+                              |
+             +----------------+----------------+
+             |                |                |
+        MEMORY CORE       OFFICE / JOBS      CODE SPACE
+             |                |                |
+       trusted memory      work control       build control
+       + organisation      + approvals        + live status
+```
+
+### What stays protected
+
+Memory App remains the trusted authority for:
+
+- durable confirmed memory
+- Spaces
+- memory lifecycle / provenance
+- AI Access
+- external AI proposal -> human approval boundary
+- customer / Space isolation
+- existing Memory Bridge / OAuth / provider machinery
+
+The spatial front face is an **additive presentation/controller layer**. It does not move, replace or weaken the trusted foundation.
+
+### Three top-level spatial hubs
+
+The front face will grow around three major cluster nodes running in one visual field and one compatible graph/physics language:
+
+1. **Memory Core**
+   - existing Memory Graph / gravity system
+   - real memories and manual user-created groups
+   - AI-assisted grouping only through the existing human approval boundary
+
+2. **Office / Jobs**
+   - first external-control cluster to build
+   - visual remote for the already-working Office app
+   - nodes may represent Waiting Approval, Accepted, In Progress, Completed and individual jobs
+   - clicks should call the same real Office actions that already exist rather than recreating Office logic inside Memory Space
+
+3. **Code Space**
+   - lighter control/status cluster
+   - keep only the few real control actions Code Space actually needs
+   - other nodes can show live state such as accepted/final jobs, active Codex/agents, current work, build/test state and short job descriptions
+   - clicking through to the full Code Space app remains available where deeper interaction is needed
+
+### Controller rule
+
+Memory Space should become the user's **visual remote-control surface** over the existing apps, not a rewrite of them.
+
+```text
+Memory Space visual node
+        -> explicit existing app interface/action
+        -> Office / Code Space performs the real operation
+        -> status/result can flow back into the visual cluster
+```
+
+Office and Code Space keep their own working internals. Memory Space presents selected controls and live status as spatial nodes.
+
+### Shared visual / physics rule
+
+The three major hubs should feel like one system:
+
+- compatible gravity / spatial physics
+- pinch / pan / rotate / drag interaction as the graph evolves
+- large hub nodes with smaller satellite/status nodes
+- live visual activity without converting presentation state into trusted memory
+- Memory cluster can remain the richest cluster; Office and Code Space do not need equal visual complexity
+
+### Connection visual rule — SET IN STONE
+
+The permanent network style is **neural / synaptic filament**, not cartoon lightning and not a single rigid connector stroke.
+
+Target visual grammar:
+
+- smooth organic curved paths
+- layered blue/cyan glow
+- multiple very thin companion strands forming a fibre bundle
+- rounded joins/caps
+- subtle breathing/drift rather than saw-tooth jitter
+- tiny micro-branches on longer links
+- bright signal pulses travelling along the fibre
+- stronger electrical flare only for meaningful activity/events
+
+Normal state should resemble a living neural network. Full lightning is an event accent, not the permanent base line.
+
+### Active visual patch — Neural Filaments v1
+
+**Implemented on `main` 28 Aug 2026. User visual acceptance / tuning is still pending.**
+
+Safety checkpoint:
+
+```text
+backup/pre-neural-filaments-2026-08-28
+5a4a216a86eccc3ceeded57c34eaf18115de7dd1
+```
+
+Patch files:
+
+```text
+memory-graph-neural-links.js   new shared neural-connection renderer API
+index.html                     one loader line
+```
+
+Implementation properties:
+
+- intercepts the old main Memory Graph connector strokes before the old jagged-lightning overlay receives them
+- intercepts the separate manual-gravity group lightning passes as well
+- suppresses the old spark canvas visually
+- draws both connection types through the same `MemoryGraphNeuralLinks` renderer
+- uses smooth quadratic fibre paths, layered glow/body/core passes, companion filaments, micro-branches and travelling pulses
+- uses additive Canvas compositing for light while keeping a fine white-blue core
+- reduces strand complexity / frame rate during interaction and on mobile
+- does not change `memory-space-v1`
+- does not change `memory-graph-folders-v1`
+- does not change graph/gravity physics
+- does not change Memory Bridge, MCP, provider or OAuth code
+
+Verification before live visual acceptance:
+
+- new renderer passed `node --check`
+- checkpoint -> `main` isolation diff contained only `memory-graph-neural-links.js` + one `index.html` loader line before this ledger update
+- Vercel deployment for the loader commit reported success
+
+Do not call the AAA visual target finished until the user has inspected it live and approved/tuned the result.
+
+---
+
+## HISTORICAL V2 MATERIAL BELOW
+
+The older plan below is kept as project history. Where it says the graph must be a separate product, Memory App cannot gain a front-face graph/controller, or there is no Code Space direction, **the authoritative 28 Aug 2026 update above supersedes it**.
 
 ---
 
