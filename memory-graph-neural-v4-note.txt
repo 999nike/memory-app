@@ -1,0 +1,1 @@
+Temporary visual tuning checkpoint marker. Safe to delete after v4 renderer commit.
