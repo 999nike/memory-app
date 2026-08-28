@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 5;
+  const VERSION = 6;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
   const PHYSICS_INTERVAL_MS = 14;
@@ -791,6 +791,7 @@
     if (!ensureOverlay() || !lastGraph || !lastMatrix || document.hidden) return;
 
     if (drag && !rotationActive()) scheduleGraphRedraw(false);
+    if (rotationActive()) syncProjectedGroups(lastGraph);
 
     const rect = overlayCanvas.getBoundingClientRect();
     if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;
