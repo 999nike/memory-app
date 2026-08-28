@@ -1,10 +1,11 @@
 (() => {
   'use strict';
 
-  const VERSION = 4;
+  const VERSION = 5;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
   const PHYSICS_INTERVAL_MS = 14;
+  const SETTLED_SPEED = 0.035;
   const PERSIST_DELAY_MS = 420;
   const OVERLAY_FRAME_MS = 40;
   const DRAG_OVERLAY_FRAME_MS = 28;
@@ -18,6 +19,7 @@
   let pendingLabelMemoryId = null;
   let lastPhysicsAt = 0;
   let physicsFrameLocked = false;
+  let physicsAwake = false;
   let groupProjectionDirty = true;
   let persistTimer = 0;
   let redrawFrame = 0;
@@ -50,15 +52,25 @@
     return groupsApi()?.groupForMemory?.(memoryId) || null;
   }
 
+  function wakePhysics() {
+    physicsAwake = true;
+  }
+
   function detachMemory(memoryId) {
     const changed = groupsApi()?.detachMemory?.(memoryId) === true;
-    if (changed) markGroupStructureChanged();
+    if (changed) {
+      wakePhysics();
+      markGroupStructureChanged();
+    }
     return changed;
   }
 
   function addMemoryToGroup(memoryId, groupId) {
     const changed = groupsApi()?.addMemoryToGroup?.(memoryId, groupId) === true;
-    if (changed) markGroupStructureChanged();
+    if (changed) {
+      wakePhysics();
+      markGroupStructureChanged();
+    }
     return changed;
   }
 
@@ -80,12 +92,12 @@
     return 35 + Math.min(21, Math.sqrt(count) * 7.2);
   }
 
-  function naturalOrbit(group, graph) {
-    const count = Array.isArray(group?.members) ? group.members.length : 0;
+  // Match the normal memory graph target orbit. Folder size/member count is a
+  // presentation concern; it must not create a second set of gravity rules.
+  function normalOrbit(graph, gravityWeight = 1) {
     const minSide = Math.max(1, Math.min(Number(graph?.width || 1), Number(graph?.height || 1)));
-    const baseOrbit = Math.max(110, minSide * 0.34);
-    const connectionPull = Math.min(baseOrbit * 0.42, count * 7.5);
-    return Math.max(82, baseOrbit - connectionPull);
+    const baseOrbit = Math.max(88, minSide * 0.27);
+    return Math.max(62, baseOrbit / Math.max(0.001, Number(gravityWeight || 1)));
   }
 
   function bodyFromGroup(group, graph) {
@@ -99,10 +111,7 @@
       const savedY = Number(group.physicsOffsetY);
       const hasSaved = Number.isFinite(savedX) && Number.isFinite(savedY);
       const angle = Number.isFinite(Number(group.angle)) ? Number(group.angle) : 0;
-      const orbit = naturalOrbit(group, graph);
-      const savedOrbit = hasSaved
-        ? Math.max(82, Math.hypot(savedX * width, savedY * height))
-        : orbit;
+      const orbit = normalOrbit(graph, 1);
       body = {
         id,
         x: hasSaved ? Number(graph.centreX) + savedX * width : Number(graph.centreX) + Math.cos(angle) * orbit,
@@ -113,8 +122,7 @@
         radius: 35,
         memberCount: 0,
         gravityWeight: 1,
-        targetOrbit: savedOrbit,
-        manualOrbit: hasSaved
+        targetOrbit: orbit
       };
       bodies.set(id, body);
       groupProjectionDirty = true;
@@ -125,8 +133,8 @@
     if (body.radius !== nextRadius || body.memberCount !== nextCount) groupProjectionDirty = true;
     body.radius = nextRadius;
     body.memberCount = nextCount;
-    body.gravityWeight = 1.08 + Math.min(1.30, body.memberCount * 0.095);
-    if (!body.manualOrbit) body.targetOrbit = naturalOrbit(group, graph);
+    body.gravityWeight = 1;
+    body.targetOrbit = normalOrbit(graph, body.gravityWeight);
     return body;
   }
 
@@ -183,6 +191,7 @@
   }
 
   function stepPhysics(graph) {
+    if (!physicsAwake) return;
     const now = performance.now();
     if (physicsFrameLocked || now - lastPhysicsAt < PHYSICS_INTERVAL_MS) return;
     lastPhysicsAt = now;
@@ -193,6 +202,8 @@
     const grouped = groupedMemoryIds();
     const memories = (graph.memoryNodes || []).filter((node) => !grouped.has(String(node.id)));
     let moved = false;
+    let totalSpeed = 0;
+    let simulatedCount = 0;
 
     for (let i = 0; i < entries.length; i += 1) {
       const { body } = entries[i];
@@ -203,23 +214,22 @@
       const dx = body.x - Number(graph.centreX || 0);
       const dy = body.y - Number(graph.centreY || 0);
       const distance = Math.max(1, Math.hypot(dx, dy));
-      const radialOffset = distance - body.targetOrbit;
+      const radialOffset = distance - (body.targetOrbit || normalOrbit(graph, body.gravityWeight));
       const radialForce = -radialOffset * 0.0019 * Math.max(0.8, body.gravityWeight || 1);
       fx += (dx / distance) * radialForce;
       fy += (dy / distance) * radialForce;
 
+      // Same pairwise repulsion used by normal memory nodes.
       for (const node of memories) {
         const pairX = body.x - Number(node.x || 0);
         const pairY = body.y - Number(node.y || 0);
         const pairDistanceSq = Math.max(100, pairX * pairX + pairY * pairY);
         const pairDistance = Math.sqrt(pairDistanceSq);
-        const minGap = Number(body.radius || 35) + Number(node.radius || 15) + 24;
-        let repulsion = Math.min(1.25, 1200 / pairDistanceSq);
-        if (pairDistance < minGap) repulsion += (minGap - pairDistance) * 0.018;
+        const repulsion = Math.min(0.9, 900 / pairDistanceSq);
         const pushX = (pairX / pairDistance) * repulsion;
         const pushY = (pairY / pairDistance) * repulsion;
-        fx += pushX / Math.max(0.90, body.gravityWeight || 1);
-        fy += pushY / Math.max(0.90, body.gravityWeight || 1);
+        fx += pushX / Math.max(0.85, body.gravityWeight || 1);
+        fy += pushY / Math.max(0.85, body.gravityWeight || 1);
         if (!node.dragging) {
           node.vx = Number(node.vx || 0) - pushX / Math.max(0.85, Number(node.gravityWeight || 1));
           node.vy = Number(node.vy || 0) - pushY / Math.max(0.85, Number(node.gravityWeight || 1));
@@ -232,16 +242,14 @@
         const pairY = body.y - other.y;
         const pairDistanceSq = Math.max(100, pairX * pairX + pairY * pairY);
         const pairDistance = Math.sqrt(pairDistanceSq);
-        const minGap = Number(body.radius || 35) + Number(other.radius || 35) + 30;
-        let repulsion = Math.min(1.45, 1450 / pairDistanceSq);
-        if (pairDistance < minGap) repulsion += (minGap - pairDistance) * 0.020;
+        const repulsion = Math.min(0.9, 900 / pairDistanceSq);
         const pushX = (pairX / pairDistance) * repulsion;
         const pushY = (pairY / pairDistance) * repulsion;
-        fx += pushX / Math.max(0.90, body.gravityWeight || 1);
-        fy += pushY / Math.max(0.90, body.gravityWeight || 1);
+        fx += pushX / Math.max(0.85, body.gravityWeight || 1);
+        fy += pushY / Math.max(0.85, body.gravityWeight || 1);
         if (!other.dragging) {
-          other.vx -= pushX / Math.max(0.90, other.gravityWeight || 1);
-          other.vy -= pushY / Math.max(0.90, other.gravityWeight || 1);
+          other.vx -= pushX / Math.max(0.85, other.gravityWeight || 1);
+          other.vy -= pushY / Math.max(0.85, other.gravityWeight || 1);
         }
       }
 
@@ -252,12 +260,16 @@
       body.x += body.vx;
       body.y += body.vy;
       containBody(body, graph);
+      totalSpeed += Math.hypot(body.vx, body.vy);
+      simulatedCount += 1;
       if (Math.abs(body.x - beforeX) > 0.001 || Math.abs(body.y - beforeY) > 0.001) moved = true;
     }
 
     if (moved) {
       groupProjectionDirty = true;
       schedulePersist();
+      const averageSpeed = simulatedCount ? totalSpeed / simulatedCount : 0;
+      if (averageSpeed > SETTLED_SPEED) scheduleGraphRedraw(false);
     }
   }
 
@@ -357,9 +369,23 @@
     pendingLabelMemoryId = String(node.id);
     const group = groupForMemory(node.id);
     if (!group) {
+      if (node.__manualGravityGrouped === true) {
+        node.__manualGravityGrouped = false;
+        if (!memoryDrag || String(memoryDrag.memoryId) !== String(node.id)) node.dragging = false;
+      }
       const projected = baseRotation.project?.(node, graph) || node;
       projectedMemories.set(String(node.id), projected);
       return projected;
+    }
+
+    // A grouped memory is represented by its visible satellite position. Keep its
+    // hidden base node out of the normal solver so it cannot repel from a ghost
+    // location while the folder body represents that cluster.
+    node.__manualGravityGrouped = true;
+    if (!memoryDrag || String(memoryDrag.memoryId) !== String(node.id)) {
+      node.dragging = true;
+      node.vx = 0;
+      node.vy = 0;
     }
 
     const body = bodyFromGroup(group, graph);
@@ -510,18 +536,22 @@
     event.stopImmediatePropagation?.();
   }
 
+  function flushNeuralLayers() {
+    globalThis.MemoryGraphNeuralScaffold?.redraw?.();
+    globalThis.MemoryGraphNeuralFlow?.redraw?.();
+  }
+
   function redrawGraph() {
     const api = globalThis.MemoryGraph;
     if (!api) return;
     if (typeof api.redraw === 'function') {
       api.redraw();
-      return;
-    }
-    if (!rotationActive() && typeof api.resetRotation === 'function') {
+    } else if (!rotationActive() && typeof api.resetRotation === 'function') {
       api.resetRotation();
-      return;
+    } else {
+      api.refresh?.();
     }
-    api.refresh?.();
+    flushNeuralLayers();
   }
 
   function scheduleGraphRedraw(immediate = false) {
@@ -549,6 +579,7 @@
     surface.__manualGravityPhysicsPointerHooks = true;
 
     surface.addEventListener('pointerdown', (event) => {
+      wakePhysics();
       if (event.target !== canvas || event.button !== 0 || rotationActive()) return;
       const point = eventPoint(event);
       const group = groupAtScreen(point);
@@ -583,6 +614,8 @@
         };
       }
     }, true);
+
+    surface.addEventListener('wheel', wakePhysics, { capture: true, passive: true });
 
     surface.addEventListener('pointermove', (event) => {
       if (event.target !== canvas) return;
@@ -625,11 +658,9 @@
         const body = group ? bodyFromGroup(group, lastGraph) : null;
         if (body) {
           body.dragging = false;
-          body.manualOrbit = true;
-          body.targetOrbit = Math.max(82, Math.hypot(
-            body.x - Number(lastGraph?.centreX || 0),
-            body.y - Number(lastGraph?.centreY || 0)
-          ));
+          body.vx = 0;
+          body.vy = 0;
+          body.targetOrbit = normalOrbit(lastGraph, body.gravityWeight);
         }
         drag = null;
         canvas.removeAttribute('data-dragging-group');
@@ -661,12 +692,18 @@
       if (drag?.pointerId === event.pointerId) {
         const group = groupsForSpace().find((item) => String(item.id) === drag.groupId);
         const body = group ? bodyFromGroup(group, lastGraph) : null;
-        if (body) body.dragging = false;
+        if (body) {
+          body.dragging = false;
+          body.vx = 0;
+          body.vy = 0;
+          body.targetOrbit = normalOrbit(lastGraph, body.gravityWeight);
+        }
         drag = null;
         canvas.removeAttribute('data-dragging-group');
         canvas.removeAttribute('data-hover-group');
         canvas.removeAttribute('data-interacting');
         groupProjectionDirty = true;
+        scheduleGraphRedraw(false);
       }
       if (memoryDrag?.pointerId === event.pointerId) memoryDrag = null;
     }, true);
@@ -877,7 +914,9 @@
   globalThis.MemoryGraphManualGravity = Object.freeze({
     version: VERSION,
     bodyCount: () => bodies.size,
+    isGroupedMemory: (memoryId) => Boolean(groupForMemory(memoryId)),
     persist: persistBodies,
-    redraw: () => scheduleGraphRedraw(true)
+    redraw: () => scheduleGraphRedraw(true),
+    wake: wakePhysics
   });
 })();
