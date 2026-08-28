@@ -163,6 +163,86 @@ PATCH 08 - V1 PERFORMANCE + FOLDER UX + BANK
 - V1_MEMORY_GRAPH_SNAPSHOT.md records the frozen architecture, recovery points and hard boundaries
 - Vercel production for the snapshot commit is READY
 
+PATCH 09 - STARTUP STABILITY + MOBILE 3D GESTURES
+- startup settle commit: 07fcb3aa9cfa0888b928c50ca6fd3670949d6da6
+- touch rotation commit: 2b3783f362c3361d8596adb7b5e5f562771a33cd
+- mobile pinch/rotation commit: df9e8d5dcb84c3495281ac09e98970f966f04d53
+- known-good gesture branch: backup/mobile-gestures-approved-2026-08-28
+- saved layouts now reopen in a settled state rather than visibly wandering before the user touches the graph
+- mobile gained two-finger pseudo-3D rotation without replacing the Canvas renderer or introducing WebGL
+- pinch zoom and two-finger rotation work together on touch devices
+- a quick two-finger tap resets the pseudo-3D rotation back to the ordinary graph interaction state
+- desktop Ctrl+drag rotation remains separate from the touch interaction path
+- graph pan, zoom, search, inspector routing, memory drag and folder behavior remain intact
+
+PATCH 10 - CONNECTOR SYNC + MEMORY DIVE
+- connector sync commit: 18ee7659239493bb2d2fdc9fc90d8c66fd30ee11
+- synced known-good branch: backup/mobile-gestures-synced-approved-2026-08-28
+- Memory Dive implementation commit: 184ae0773f267b8f83659b19580cdeb9cdbf040e
+- Memory Dive loader commit: f6c71450ff93956470dbd65b7fdd83696b67985c
+- graph node geometry and neural connector layers are now forced to redraw together during mobile pinch/rotation so branches no longer strand behind moving nodes
+- user live-tested the synced gesture state and confirmed it works correctly
+- Memory Dive adds an isolated mobile fullscreen immersion layer entered by a deliberate outward two-finger pinch and exited by inward pinch, Escape or the visible exit control
+- Dive does not alter durable memory, folder membership, graph physics or provider/bridge behavior
+- the exact pre-Dive fallback remains pinned at backup/mobile-gestures-synced-approved-2026-08-28
+- Memory Dive exists on main but is not separately marked as user-approved in this ledger
+
+PATCH 11 - TOUCH DOUBLE-TAP MEMORY OPEN
+- touch guard commit: f0393b9aec6e048fb6ee8f1e2ad32948cac6d7dc
+- loader commit: 3a739ac791c368c42d03b571b6131f9cf96520a2
+- touch memory inspection now requires two quick taps on the same memory rather than one tap
+- desktop mouse inspection remains single-click
+- drag behavior remains available on touch when the graph is not in active pseudo-3D rotation
+- pointercancel generated while a second finger begins pinch/rotation is blocked from accidentally opening a memory
+- user live-tested the change on the phone and confirmed the interaction feels correct
+
+PATCH 12 - UNDO + LAYOUT LOCK
+- controls implementation commit: 5b67c8df3ed6add0cde48a1e5f8af28af4c72554
+- controls loader commit: d807f17a19d57144affc1f16b072f0c5ebb4ec33
+- pre-patch fallback branch: backup/pre-undo-layout-lock-2026-08-28
+- graph controls are grouped in the top-right with the existing green create-folder button
+- one-step Undo covers the graph-organisation mistakes that matter most: memory moved into a group, returned to main graph, moved group-to-group, or creation of a still-empty group
+- Undo is graph-only; it does not undo durable memory edits or deletes
+- Layout Lock is persisted separately as memory-graph-layout-lock-v1 and freezes accidental graph reorganisation without changing durable memory.locked state
+- while Layout Lock is active, users can still pan, pinch, spin and inspect; drag/drop and structural group edit controls are blocked
+- user live-tested the controls on the phone and confirmed they work correctly
+
+PATCH 13 - FULL MOBILE DRAG RANGE
+- memory-node bounds commit: 1334d58ecc7a18c1e652844147ae8e6a24555d6c
+- folder/group bounds commit: 76ebe4065776d6db38ddc8b1c121a78073100dc1
+- pre-patch fallback branch: backup/pre-full-mobile-drag-2026-08-28
+- root cause was the old containment box clamping graph objects to the original unzoomed graph rectangle even when the user zoomed out to 0.45x
+- containment now includes the full world extent needed by the minimum zoom scale, allowing memories and folder bubbles to occupy the full visible mobile graph area instead of stopping around the centre
+- the same widened containment language is applied to ordinary memory nodes and manual group bodies
+- pinch, spin, double-tap, Undo, Layout Lock, storage and provider/bridge behavior are unchanged
+- current main after this interaction patch: 76ebe4065776d6db38ddc8b1c121a78073100dc1
+
+CURRENT PRODUCT POSITION - 28 AUG 2026
+- Memory Space is now a working personal long-term AI context product, not just a static prototype screen
+- core product thesis remains: the user-owned workspace persists while AI providers/models are replaceable workers
+- the long-term value is the accumulated user/work/project history, not the choice of vector database or retrieval vendor underneath it
+- current graph provides a tactile human control surface over that memory: visible memories, folders/groups, drag/drop organisation, neural relationships, search, inspector, mobile pinch/rotation, Undo and Layout Lock
+- current durable workspace is browser-local; Vercel serves the app code but does not provide cross-device workspace sync
+- current main workspace code stores memory-space-v1 in browser localStorage; do not describe this as an encrypted vault
+- export/import exists, but automatic backup/restore/migration is still future hardening work
+- external AI connection remains a central product asset: one Memory Space can be exposed to multiple replaceable AI workers instead of rebuilding context separately for each model
+- provider status already proven elsewhere in the project ledger remains: Grok full loop verified, Mistral full loop verified, Claude full loop verified, Cursor OAuth/DCR + tools + real Memory Space read verified, ChatGPT OAuth/DCR connected but live MCP tool execution not exposed/verified on the tested Plus account
+- customer-scoped bridge isolation has automated regression coverage and has been exercised with a fresh unrelated customer flow; self-service signup, billing, remote recovery/revoke and customer support lifecycle are not built
+- Memory Bridge currently depends on the owner-hosted HP + Cloudflare tunnel runtime; if that runtime is unavailable, external AI access is unavailable even though browser-local Memory Space data remains on the device
+- repository is public; architecture visibility is acceptable only if credentials/auth remain the real security wall
+- current .gitignore is intentionally minimal and needs a later hardening pass before wider distribution
+- security/product-hardening backlog currently identified: repository secret hygiene, stronger .gitignore coverage, production security headers/CSP/frame protection, proper backup/restore/migrations, bridge availability, cross-device/account sync decision, self-service customer lifecycle and licensing decision
+- layout lock is UX protection only and is separate from memory.locked; neither should be represented as cryptographic security
+- historical AI conversation imports should not be bulk-dumped directly into confirmed memory; future ingest should extract, deduplicate, cluster and require review before confirming durable memories
+- current priority is not public sales; keep the working product safe, preserve recovery points, continue improving the core experience and let product hardening follow deliberately
+
+RECOVERY POINTS THAT MATTER NOW
+- backup/neural-graph-v1-approved-2026-08-28 - approved V1 graph foundation
+- backup/mobile-gestures-approved-2026-08-28 - approved mobile pinch/rotation state
+- backup/mobile-gestures-synced-approved-2026-08-28 - exact pre-Dive known-good mobile gesture + connector state
+- backup/pre-undo-layout-lock-2026-08-28 - state before Undo/Layout Lock controls
+- backup/pre-full-mobile-drag-2026-08-28 - state before widened mobile drag containment
+
 TICK BOX
 Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
 [x] 01 - Clean baseline restored; rejected morning experiment preserved on backup branch
@@ -173,3 +253,9 @@ Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
 [x] 06 - Shared branching scaffold accepted and live-confirmed
 [x] 07 - Interaction/mobile performance pass and folder UX polish banked
 [x] 08 - V1 Memory Graph snapshot banked on dedicated recovery branch
+[x] 09 - Startup stability + mobile pinch/rotation working
+[x] 10 - Neural connectors remain synced during mobile gestures
+[~] 11 - Memory Dive implemented; keep separate from approved base until explicitly accepted
+[x] 12 - Touch double-tap memory open guard live-confirmed
+[x] 13 - Undo + Layout Lock live-confirmed on phone
+[~] 14 - Full mobile drag containment widened; patch is on main and ready for continued live use
