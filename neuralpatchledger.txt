@@ -147,7 +147,21 @@ PATCH 07 - THICK TRUNKS + ROUTED JOINT FLOW
 - no graph physics, gravity, memory state, group membership, storage, bridge, OAuth, MCP or proposal logic changed
 - both helper sources passed node --check before upload
 - compare against 206f844 confirms only index.html plus the two new neural helper files changed in this pass
-- waiting live visual check for width and pulse scale
+- user live testing confirmed the branching graph, thick routes, large pulse flow, folder drag-in and return-to-main behavior are all working together
+
+PATCH 08 - V1 PERFORMANCE + FOLDER UX + BANK
+- working state before polish banked at backup/neural-graph-working-2026-08-28
+- pre-polish checkpoint banked at backup/pre-v1-graph-polish-2026-08-28
+- folder UX commit: cd383406fc204a28d138c6991b845f83038892f0
+- performance / neural polish commit: 4604a6207227823c4fe92e930dd7ea581b8fe876
+- V1 snapshot commit: 5847a57cf8cf19312f0759d30d7e1359f860ac35
+- approved-bank branch: backup/neural-graph-v1-approved-2026-08-28
+- new group inspector UX adds Rename group, changes remove-from-folder affordance to a return-to-main arrow, and gives empty folders a clear drag-memory instruction
+- deleting a folder remains safe and returns its memories to the main graph instead of deleting durable memory
+- mobile / interaction performance hook drops the broadest interaction glow and selected decorative companion/fork/root strokes on narrow canvases while preserving the accepted scaffold geometry
+- desktop branch/dendrite line weight receives only a restrained final increase; no route/clustering redesign
+- V1_MEMORY_GRAPH_SNAPSHOT.md records the frozen architecture, recovery points and hard boundaries
+- Vercel production for the snapshot commit is READY
 
 TICK BOX
 Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
@@ -156,6 +170,6 @@ Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
 [x] 03 - Space -> memory visual replacement working
 [x] 04 - Manual group / satellite visual replacement working
 [x] 05 - Energy pulses + centre junction glow live-confirmed, including during gravity motion
-[~] 06 - Shared branching scaffold accepted; thickness + routed pulse tuning now patched and waiting live check
-[ ] 07 - Formal interaction/mobile performance pass
-[ ] 08 - User live visual approval
+[x] 06 - Shared branching scaffold accepted and live-confirmed
+[x] 07 - Interaction/mobile performance pass and folder UX polish banked
+[x] 08 - V1 Memory Graph snapshot banked on dedicated recovery branch
