@@ -115,15 +115,31 @@ PATCH 05 - NEURON PLEXUS + SOMA GROWTH
 - the extra soma / plexus detail is disabled while interacting and heavily reduced on mobile to avoid disturbing gravity motion
 - no graph physics, memory data, manual group state, drag/drop, search or inspector behaviour changed
 - source passed node --check before upload
-- waiting for next live visual comparison against the approved neural reference
+- user live comparison still showed the core problem: semantic links were individually routed from Memory App, so the result remained a radial starburst even with better organic decoration
+
+PATCH 06 - SHARED BRANCHING SCAFFOLD
+- scaffold renderer commit: cdb72fdf402017f21f7ff5b7157d64457898b5de
+- loader switch commit: 9b7d8afb58cef4e1f7f086fedfaa2db17331f621
+- this is the first routing-level visual correction rather than another decoration pass
+- the four experimental visual overlays are no longer loaded; their files remain in history/repo for rollback
+- one integrated Canvas scaffold now captures the same semantic edge endpoints and clusters targets by angle around Memory App
+- nearby targets share one primary trunk before splitting at glowing branch junctions
+- larger clusters can create a second shared stem before the final memory branch, giving a tree / plexus structure instead of one spoke per memory
+- trunks, stems and final branches each use multi-pass blue/cyan tissue, companion fibres, dendrites and pulses
+- manual group overlays are captured by the same scaffold and grouped by shared source position
+- direct grouped-memory Space spokes remain suppressible by the existing manual-gravity wrapper because it still loads outside the scaffold wrapper
+- interaction mode reduces detail; mobile uses lower dendrite density
+- no graph physics, stored layout, memory data, group membership, bridge, OAuth, MCP or proposal behavior changed
+- source passed node --check before upload
+- live visual confirmation required before accepting this routing model
 
 TICK BOX
 Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
 [x] 01 - Clean baseline restored; rejected morning experiment preserved on backup branch
-[x] 02 - Isolated Canvas neural-tissue renderer loaded
-[x] 03 - Space -> memory neural bundles working; live screenshot confirmed
-[x] 04 - Manual group / satellite neural bundles working; live screenshot confirmed
+[x] 02 - Neural Canvas replacement path established
+[x] 03 - Space -> memory visual replacement working
+[x] 04 - Manual group / satellite visual replacement working
 [x] 05 - Energy pulses + centre junction glow live-confirmed, including during gravity motion
-[~] 06 - Organic neuron feel still being tuned; plexus + soma growth now patched
+[~] 06 - Shared branching scaffold patched; waiting live visual comparison against target
 [ ] 07 - Formal interaction/mobile performance pass
 [ ] 08 - User live visual approval
