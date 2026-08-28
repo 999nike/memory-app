@@ -1,0 +1,64 @@
+MEMORY GRAPH NEURAL VISUAL PATCH LEDGER
+Started: 28 Aug 2026
+Visual target: user-approved Memory Graph screenshot with existing green nodes joined by thick living blue/cyan brain tissue.
+
+CLEAN BASELINE
+- rollback target: 5a4a216a86eccc3ceeded57c34eaf18115de7dd1
+- commit message: Add MCP memory bundle proposal regression test
+- failed/experimental morning renderer preserved on: backup/failed-neural-experiments-2026-08-28
+
+NON-NEGOTIABLE TARGET
+Keep the Memory Graph that already works:
+- existing green memory bubbles
+- large green manual group bubbles
+- central blue Memory App node
+- gravity / repulsion / settling
+- pan / zoom / drag
+- manual group drag/drop
+- search focus
+- inspector routing
+- separate graph layout storage
+
+Replace only the visual idea of a thin connection.
+A logical graph edge should render as a living neural bundle:
+- thick soft blue/cyan trunk
+- bright electrical core
+- several companion fibres
+- branching dendrites / micro offshoots
+- overlapping fibres are allowed and desirable
+- moving energy pulses travel through the tissue
+- stronger central junction glow
+- grouped Space -> group and group -> satellite links use the same visual language
+
+HARD BOUNDARIES
+- no Memory Bridge redesign
+- no OAuth / MCP changes
+- no provider changes
+- no proposal / approval changes
+- no durable memory schema changes
+- no write from graph visuals into memory-space-v1
+- no WebGL requirement for this pass
+- no PNG connection system as the foundation
+
+IMPLEMENTATION PLAN
+01. Restore main to the clean pre-neural baseline and preserve the rejected experiment on a backup branch.
+02. Add one isolated Canvas neural-tissue renderer loaded after the proven graph/group visual hooks.
+03. Replace ordinary Space -> memory electric spokes with thick deterministic multi-strand neural bundles while leaving nodes/physics untouched.
+04. Render the same neural language for manual Space -> group and group -> satellite links.
+05. Add continuous low-cost pulses and junction glow without forcing the graph physics simulation to run forever.
+06. Tune branch density / width / brightness against the approved screenshot.
+07. Performance pass: reduce detail while dragging/zooming and keep mobile usable.
+08. Live visual check: green nodes remain intact; no graph interaction or memory behavior regresses.
+
+WORKING RULE
+Small visual patches. Do not repair the rejected renderer. Build from the clean baseline and judge each pass against the approved screenshot.
+
+TICK BOX
+[x] 01 - Clean baseline restored; rejected morning experiment preserved on backup branch
+[ ] 02 - Isolated Canvas neural-tissue renderer loaded
+[ ] 03 - Space -> memory neural bundles working
+[ ] 04 - Manual group / satellite neural bundles working
+[ ] 05 - Energy pulses + centre junction glow working
+[ ] 06 - Visual density / thickness tuned toward screenshot
+[ ] 07 - Interaction/mobile performance pass
+[ ] 08 - User live visual approval
