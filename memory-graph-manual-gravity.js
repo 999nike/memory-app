@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 7;
+  const VERSION = 4;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
   const PHYSICS_INTERVAL_MS = 14;
@@ -196,11 +196,7 @@
 
     for (let i = 0; i < entries.length; i += 1) {
       const { body } = entries[i];
-      const bodyPinned = body.dragging || body.manualOrbit;
-      if (bodyPinned) {
-        body.vx = 0;
-        body.vy = 0;
-      }
+      if (body.dragging) continue;
 
       let fx = 0;
       let fy = 0;
@@ -243,13 +239,12 @@
         const pushY = (pairY / pairDistance) * repulsion;
         fx += pushX / Math.max(0.90, body.gravityWeight || 1);
         fy += pushY / Math.max(0.90, body.gravityWeight || 1);
-        if (!other.dragging && !other.manualOrbit) {
+        if (!other.dragging) {
           other.vx -= pushX / Math.max(0.90, other.gravityWeight || 1);
           other.vy -= pushY / Math.max(0.90, other.gravityWeight || 1);
         }
       }
 
-      if (bodyPinned) continue;
       const beforeX = body.x;
       const beforeY = body.y;
       body.vx = (Number(body.vx || 0) + fx) * 0.90;
@@ -275,10 +270,6 @@
     const groups = groupsForSpace().map((group) => {
       const body = bodies.get(String(group.id));
       if (!body) return group;
-      body.vx = 0;
-      body.vy = 0;
-      body.manualOrbit = true;
-      body.targetOrbit = Math.max(82, Math.hypot(body.x - centreX, body.y - centreY));
       return {
         ...group,
         angle: Math.atan2(body.y - centreY, body.x - centreX),
@@ -611,7 +602,6 @@
           groupProjectionDirty = true;
           schedulePersist();
           scheduleGraphRedraw(false);
-          globalThis.MemoryGraph?.wake?.();
         }
         stopGroupEvent(event);
         return;
@@ -648,7 +638,6 @@
         persistBodies();
         groupProjectionDirty = true;
         scheduleGraphRedraw(true);
-        globalThis.MemoryGraph?.wake?.();
         try { canvas.releasePointerCapture?.(event.pointerId); } catch {}
         stopGroupEvent(event);
         return;
@@ -794,7 +783,6 @@
     if (!ensureOverlay() || !lastGraph || !lastMatrix || document.hidden) return;
 
     if (drag && !rotationActive()) scheduleGraphRedraw(false);
-    if (rotationActive()) syncProjectedGroups(lastGraph);
 
     const rect = overlayCanvas.getBoundingClientRect();
     if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;

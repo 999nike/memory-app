@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 8;
+  const VERSION = 7;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -294,13 +294,6 @@
   function startSimulation() {
     if (animationFrame) return;
     animationFrame = requestAnimationFrame(tick);
-  }
-
-  function wakeSimulation() {
-    if (!graph?.memoryNodes.length) return false;
-    simulationFrames = 0;
-    startSimulation();
-    return true;
   }
 
   function stopSimulation() {
@@ -953,7 +946,6 @@
     version: VERSION,
     mount,
     refresh,
-    wake: wakeSimulation,
     focusMemory,
     focusSearchTerm,
     resetRotation() {
