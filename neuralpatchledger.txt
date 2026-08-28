@@ -104,7 +104,18 @@ PATCH 04 - ORGANIC SYNAPSE WEB PASS
 - keeps all semantic relationships, green nodes, grouping, drag, zoom, gravity and storage untouched
 - density reduces automatically while interacting and on narrow/mobile canvases
 - source passed node --check before upload
-- waiting for user live screenshot before final tuning
+- user live screenshots confirmed pulses are clearly visible travelling into the centre node and back out, including while gravity is moving
+
+PATCH 05 - NEURON PLEXUS + SOMA GROWTH
+- synapse v2 commit: 625aa4f0d7cf938810cf3b705ddff28a8da8069c
+- upgrades the existing synapse layer rather than stacking another renderer
+- long semantic routes now grow small secondary neuron-cell bodies with radial dendritic arms and forked tips
+- long routes receive extra curved vein fibres so the visual path stops reading as only parallel rails
+- centre routes now form a light plexus ring between near-root points, adding organic cross-web structure around Memory App
+- the extra soma / plexus detail is disabled while interacting and heavily reduced on mobile to avoid disturbing gravity motion
+- no graph physics, memory data, manual group state, drag/drop, search or inspector behaviour changed
+- source passed node --check before upload
+- waiting for next live visual comparison against the approved neural reference
 
 TICK BOX
 Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
@@ -112,7 +123,7 @@ Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
 [x] 02 - Isolated Canvas neural-tissue renderer loaded
 [x] 03 - Space -> memory neural bundles working; live screenshot confirmed
 [x] 04 - Manual group / satellite neural bundles working; live screenshot confirmed
-[~] 05 - Energy pulses + centre junction glow working visually; motion still needs final live confirmation
-[~] 06 - Dense weave + shared mass + organic synapse web patched; waiting next screenshot comparison
-[ ] 07 - Interaction/mobile performance pass
+[x] 05 - Energy pulses + centre junction glow live-confirmed, including during gravity motion
+[~] 06 - Organic neuron feel still being tuned; plexus + soma growth now patched
+[ ] 07 - Formal interaction/mobile performance pass
 [ ] 08 - User live visual approval
