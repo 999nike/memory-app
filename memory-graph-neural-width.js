@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 4;
+  const VERSION = 5;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
@@ -268,9 +268,19 @@
     document.head.appendChild(script);
   }
 
+  function loadMemoryDive() {
+    if (document.getElementById('memoryGraphDiveLoader') || globalThis.MemoryGraphDive) return;
+    const script = document.createElement('script');
+    script.id = 'memoryGraphDiveLoader';
+    script.src = './memory-graph-dive.js?v=1';
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+
   function mount() {
     nativeRequestAnimationFrame(watchGroupAddControl);
     loadGroupUx();
+    loadMemoryDive();
     watchStartupGeometry();
   }
 
