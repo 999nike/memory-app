@@ -131,7 +131,23 @@ PATCH 06 - SHARED BRANCHING SCAFFOLD
 - interaction mode reduces detail; mobile uses lower dendrite density
 - no graph physics, stored layout, memory data, group membership, bridge, OAuth, MCP or proposal behavior changed
 - source passed node --check before upload
-- live visual confirmation required before accepting this routing model
+- user live screenshot confirmed this was the first pass that actually looked like the wanted direction; routing model accepted, but line weight and pulse routing still needed tuning
+
+PATCH 07 - THICK TRUNKS + ROUTED JOINT FLOW
+- width helper commit: b1689f466f16f36b2df4a2ccdf594eeae1b347b6
+- routed-flow helper commit: c301b016d680db7c2d2f3545890287fe73e1d8f1
+- loader commit: 31e1fbca3969bddcdad813fc1c63a1bff00fed7f
+- scope-cleanup commit: 434b488f61b25c904fb3b20a894231ae7d13dc28
+- keeps the accepted shared branching scaffold geometry unchanged
+- bright cyan body stroke is boosted about 2.75x, white core about 1.9x, and supporting body / companion / dendrite strokes receive smaller gains so the perceived route width moves toward the requested ~3x visual weight without exploding the outer haze
+- smooth routed pulse layer reconstructs the same scaffold clustering and branch geometry, then treats trunk -> optional shared stem -> final branch as one continuous route
+- large pulses use cosine ping-pong motion so they travel out and back smoothly rather than teleporting between independently animated segments
+- route-boundary detection blooms the exact branch joint as a pulse crosses it, visually hiding the segment hand-off and making current flow through the junction
+- pulses include a short trailing glow and are deliberately larger than the old point pulse
+- no graph physics, gravity, memory state, group membership, storage, bridge, OAuth, MCP or proposal logic changed
+- both helper sources passed node --check before upload
+- compare against 206f844 confirms only index.html plus the two new neural helper files changed in this pass
+- waiting live visual check for width and pulse scale
 
 TICK BOX
 Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
@@ -140,6 +156,6 @@ Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
 [x] 03 - Space -> memory visual replacement working
 [x] 04 - Manual group / satellite visual replacement working
 [x] 05 - Energy pulses + centre junction glow live-confirmed, including during gravity motion
-[~] 06 - Shared branching scaffold patched; waiting live visual comparison against target
+[~] 06 - Shared branching scaffold accepted; thickness + routed pulse tuning now patched and waiting live check
 [ ] 07 - Formal interaction/mobile performance pass
 [ ] 08 - User live visual approval
