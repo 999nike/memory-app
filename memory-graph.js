@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 6;
+  const VERSION = 7;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -369,10 +369,13 @@
 
   function containNode(node) {
     const margin = node.radius + 34;
-    const minX = margin;
-    const maxX = Math.max(margin, graph.width - margin);
-    const minY = margin;
-    const maxY = Math.max(margin, graph.height - margin);
+    const zoomExtent = Math.max(1, 1 / MIN_SCALE);
+    const extraX = Math.max(0, graph.width * (zoomExtent - 1) / 2);
+    const extraY = Math.max(0, graph.height * (zoomExtent - 1) / 2);
+    const minX = margin - extraX;
+    const maxX = graph.width - margin + extraX;
+    const minY = margin - extraY;
+    const maxY = graph.height - margin + extraY;
 
     if (node.x < minX) {
       node.x = minX;
