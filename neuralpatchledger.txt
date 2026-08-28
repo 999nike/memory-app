@@ -91,7 +91,20 @@ PATCH 03 - SHARED TISSUE MASS + HUB SPLITTING
 - manual Space -> group and group -> satellite paths receive ambient mass treatment without changing group positions or membership
 - interaction mode keeps only a reduced mass pass; mobile uses fewer root strands/tendrils
 - source passed node --check before upload
-- waiting for user live screenshot before further brightness/density tuning
+- user live screenshot confirmed a large improvement but still read too much like high-end electric cable bundles rather than organic neuron tissue
+
+PATCH 04 - ORGANIC SYNAPSE WEB PASS
+- synapse renderer commit: 233fb497d778b7f8ca9f5ca4d426db9d108a2dca
+- loader commit: 419fa3162c9914b9d107086a89b9a759c070e8e5
+- adds a fourth visual-only Canvas overlay focused on living neural character rather than more cable thickness
+- introduces secondary synapse glow points along trunks and at web junctions
+- adds soft centre fog and local tissue haze around major routes to reduce hard empty gaps
+- adds short cross-links between nearby centre routes so the graph reads as a connected web rather than isolated spokes
+- adds tiny forked micro-web offshoots around trunks to make branches feel grown rather than stamped
+- keeps all semantic relationships, green nodes, grouping, drag, zoom, gravity and storage untouched
+- density reduces automatically while interacting and on narrow/mobile canvases
+- source passed node --check before upload
+- waiting for user live screenshot before final tuning
 
 TICK BOX
 Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
@@ -99,7 +112,7 @@ Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
 [x] 02 - Isolated Canvas neural-tissue renderer loaded
 [x] 03 - Space -> memory neural bundles working; live screenshot confirmed
 [x] 04 - Manual group / satellite neural bundles working; live screenshot confirmed
-[~] 05 - Energy pulses + centre junction glow patched; motion still needs live confirmation
-[~] 06 - Dense weave + shared tissue mass/hub splitting patched; waiting live screenshot comparison
+[~] 05 - Energy pulses + centre junction glow working visually; motion still needs final live confirmation
+[~] 06 - Dense weave + shared mass + organic synapse web patched; waiting next screenshot comparison
 [ ] 07 - Interaction/mobile performance pass
 [ ] 08 - User live visual approval
