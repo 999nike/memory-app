@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralScaffoldInstalled', { value: true });
@@ -542,10 +542,11 @@
     if (isManualOverlay(this) && isSemanticBlueLine(this)) {
       const style = String(this.strokeStyle || '');
       if (style.includes('55, 139, 255')) {
-        capture(this, true);
-        return undefined;
+        return previousStroke.apply(this, args);
       }
-      if (style.includes('120, 184, 255') || style.includes('241, 251, 255')) return undefined;
+      if (style.includes('120, 184, 255') || style.includes('241, 251, 255')) {
+        return previousStroke.apply(this, args);
+      }
     }
 
     return previousStroke.apply(this, args);
