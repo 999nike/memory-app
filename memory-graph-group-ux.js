@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   let observer = null;
   let raf = 0;
 
@@ -91,9 +91,19 @@
     });
   }
 
+  function loadGraphControls() {
+    if (document.getElementById('memoryGraphControlsLoader') || globalThis.MemoryGraphControls) return;
+    const script = document.createElement('script');
+    script.id = 'memoryGraphControlsLoader';
+    script.src = './memory-graph-controls.js?v=1';
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+
   function mount() {
     installStyles();
     scheduleDecorate();
+    loadGraphControls();
     const surface = document.getElementById('memoryGraphSurface');
     if (!surface || observer) return;
     observer = new MutationObserver(scheduleDecorate);
