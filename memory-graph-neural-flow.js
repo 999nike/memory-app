@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 2;
+  const VERSION = 1;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralFlowInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralFlowInstalled', { value: true });
@@ -279,78 +279,15 @@
     ctx.fill();
   }
 
-  function easeInOut(value) {
-    const t = clamp(value, 0, 1);
-    return t * t * (3 - 2 * t);
-  }
-
-  function cycleState(timestamp, compact = false) {
-    const duration = 5600;
-    const raw = (timestamp % duration) / duration;
-
-    if (compact) {
-      if (raw < 0.26) return { active: false, progress: 0, direction: 1, raw };
-      if (raw < 0.52) {
-        return { active: true, progress: easeInOut((raw - 0.26) / 0.26), direction: 1, raw };
-      }
-      if (raw < 0.60) return { active: true, progress: 1, direction: 1, raw };
-      if (raw < 0.82) {
-        return { active: true, progress: 1 - easeInOut((raw - 0.60) / 0.22), direction: -1, raw };
-      }
-      return { active: false, progress: 0, direction: -1, raw };
-    }
-
-    if (raw < 0.10) return { active: false, progress: 0, direction: 1, raw };
-    if (raw < 0.48) {
-      return { active: true, progress: easeInOut((raw - 0.10) / 0.38), direction: 1, raw };
-    }
-    if (raw < 0.58) return { active: true, progress: 1, direction: 1, raw };
-    if (raw < 0.92) {
-      return { active: true, progress: 1 - easeInOut((raw - 0.58) / 0.34), direction: -1, raw };
-    }
-    return { active: false, progress: 0, direction: -1, raw };
-  }
-
-  function drawCentreHeartbeat(centre, timestamp) {
-    const raw = cycleState(timestamp, false).raw;
-    let charge = 0;
-    if (raw >= 0.92) charge = (raw - 0.92) / 0.08;
-    else if (raw < 0.10) charge = 1 - raw * 2.8;
-
-    const burst = clamp(1 - Math.abs(raw - 0.10) / 0.035, 0, 1);
-    if (charge <= 0 && burst <= 0) return;
-
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-
-    if (charge > 0) {
-      glow(centre, 18 + charge * 20, 0.16 + charge * 0.34, true);
-      glow(centre, 8 + charge * 9, 0.36 + charge * 0.46, true);
-    }
-
-    if (burst > 0) {
-      glow(centre, 26 + burst * 30, 0.28 + burst * 0.46, true);
-      ctx.beginPath();
-      ctx.arc(centre.x, centre.y, 14 + burst * 26, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(198,246,255,${(0.16 + burst * 0.52).toFixed(3)})`;
-      ctx.lineWidth = 1.2 + burst * 1.8;
-      ctx.stroke();
-    }
-
-    ctx.restore();
-  }
-
   function drawRoutePulse(curves, seed, timestamp, phase, compact) {
     if (!curves.length) return;
-    const state = cycleState(timestamp, compact);
-    if (!state.active) return;
-
     const metrics = routeMetrics(curves);
-    const routeProgress = state.progress;
+    const duration = (compact ? 3000 : 3400) + seed * 1500;
+    const raw = ((timestamp + phase * duration + seed * 1100) % duration) / duration;
+    const routeProgress = 0.5 - 0.5 * Math.cos(raw * Math.PI * 2);
     const point = routePoint(curves, metrics, routeProgress);
-    const direction = state.direction;
-    const radiusBase = compact ? 8.5 : 11.5;
-    const radius = radiusBase * (0.94 + hash(seed, phase, 9) * 0.12);
+    const direction = raw < 0.5 ? 1 : -1;
+    const radius = compact ? 8.5 : 11.5;
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -378,8 +315,6 @@
     const centre = centrePoint(segments);
     if (!centre) return;
     const clusters = makeClusters(segments, centre, compact);
-
-    if (!compact) drawCentreHeartbeat(centre, timestamp);
 
     for (let clusterIndex = 0; clusterIndex < clusters.length; clusterIndex += 1) {
       const geometry = buildClusterGeometry(clusters[clusterIndex], centre, clusterIndex, compact);

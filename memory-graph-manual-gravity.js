@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 5;
+  const VERSION = 4;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
   const PHYSICS_INTERVAL_MS = 14;
@@ -661,24 +661,12 @@
       if (drag?.pointerId === event.pointerId) {
         const group = groupsForSpace().find((item) => String(item.id) === drag.groupId);
         const body = group ? bodyFromGroup(group, lastGraph) : null;
-        if (body) {
-          body.dragging = false;
-          body.manualOrbit = true;
-          body.targetOrbit = Math.max(82, Math.hypot(
-            body.x - Number(lastGraph?.centreX || 0),
-            body.y - Number(lastGraph?.centreY || 0)
-          ));
-        }
+        if (body) body.dragging = false;
         drag = null;
         canvas.removeAttribute('data-dragging-group');
         canvas.removeAttribute('data-hover-group');
         canvas.removeAttribute('data-interacting');
-        persistBodies();
         groupProjectionDirty = true;
-        scheduleGraphRedraw(true);
-        try { canvas.releasePointerCapture?.(event.pointerId); } catch {}
-        stopGroupEvent(event);
-        return;
       }
       if (memoryDrag?.pointerId === event.pointerId) memoryDrag = null;
     }, true);
