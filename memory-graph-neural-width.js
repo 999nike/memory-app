@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 5;
+  const VERSION = 6;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
@@ -75,6 +75,13 @@
 
   function unlockStartupPhysics() {
     startupPhysicsGuard = false;
+    startupRebaseDone = true;
+    if (startupStableTimer) {
+      window.clearTimeout(startupStableTimer);
+      startupStableTimer = 0;
+    }
+    startupResizeObserver?.disconnect();
+    startupResizeObserver = null;
   }
 
   function dispatchGroupGeometryReset() {
@@ -98,7 +105,7 @@
   }
 
   function finishStartupGeometry() {
-    if (startupRebaseDone) return;
+    if (!startupPhysicsGuard || startupRebaseDone) return;
     startupRebaseDone = true;
     startupResizeObserver?.disconnect();
     startupResizeObserver = null;
