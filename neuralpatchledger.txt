@@ -42,7 +42,7 @@ HARD BOUNDARIES
 
 IMPLEMENTATION PLAN
 01. Restore main to the clean pre-neural baseline and preserve the rejected experiment on a backup branch.
-02. Add one isolated Canvas neural-tissue renderer loaded after the proven graph/group visual hooks.
+02. Add one isolated Canvas neural-tissue renderer after the proven node visual hooks and before manual-gravity/main graph drawing.
 03. Replace ordinary Space -> memory electric spokes with thick deterministic multi-strand neural bundles while leaving nodes/physics untouched.
 04. Render the same neural language for manual Space -> group and group -> satellite links.
 05. Add continuous low-cost pulses and junction glow without forcing the graph physics simulation to run forever.
@@ -53,12 +53,27 @@ IMPLEMENTATION PLAN
 WORKING RULE
 Small visual patches. Do not repair the rejected renderer. Build from the clean baseline and judge each pass against the approved screenshot.
 
+PATCH 01 - CLEAN RESTART + FIRST NEURAL TISSUE PASS
+- rejected morning main preserved at backup/failed-neural-experiments-2026-08-28
+- main restored to 5a4a216a86eccc3ceeded57c34eaf18115de7dd1 before new visual work
+- ledger commit: 6d22325ff8c79574eeac1aa070627aff79961bbf
+- isolated renderer commit: b0061d8fb323005e58ffdd48eeaa721b1ca0c7d0
+- loader commit: f60328f79f7f0d54c2e9449584312a3a56929aa3
+- renderer is Canvas 2D only and does not alter memory-space-v1, graph physics, group membership, bridge, OAuth, MCP or proposal logic
+- normal Space -> memory links are captured as screen-space endpoints and redrawn as curved multi-pass trunks with companion fibres and deterministic dendrites
+- manual group links use the same renderer; existing manual-gravity wrapper remains outside the new base-edge wrapper so grouped satellite direct Space spokes stay suppressed
+- pulse animation runs independently from force simulation so settled graph physics does not need to run forever
+- while the user is interacting, detail is deliberately reduced to protect frame rate
+- source passed node --check before upload
+- visual result still requires user live check before Steps 03-05 are marked complete
+
 TICK BOX
+Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
 [x] 01 - Clean baseline restored; rejected morning experiment preserved on backup branch
-[ ] 02 - Isolated Canvas neural-tissue renderer loaded
-[ ] 03 - Space -> memory neural bundles working
-[ ] 04 - Manual group / satellite neural bundles working
-[ ] 05 - Energy pulses + centre junction glow working
+[x] 02 - Isolated Canvas neural-tissue renderer loaded
+[~] 03 - Space -> memory neural bundles patched; waiting live visual check
+[~] 04 - Manual group / satellite neural bundles patched; waiting live visual check
+[~] 05 - Energy pulses + centre junction glow patched; waiting live visual check
 [ ] 06 - Visual density / thickness tuned toward screenshot
 [ ] 07 - Interaction/mobile performance pass
 [ ] 08 - User live visual approval
