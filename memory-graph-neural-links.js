@@ -14,20 +14,37 @@
   const previousBeginPath = proto.beginPath;
   const previousMoveTo = proto.moveTo;
   const previousLineTo = proto.lineTo;
+  const previousArc = proto.arc;
+  const previousFill = proto.fill;
   const previousStroke = proto.stroke;
   const previousClearRect = proto.clearRect;
 
-  const VERSION = 4;
-  const POINT_EPSILON = 5;
-  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const VERSION = 5;
+  const POINT_EPSILON = 6;
+  const MAX_TOP_BRANCHES = 6;
+  const MAX_GROUP_BRANCHES = 6;
+  const AMBIENT_POINT_COUNT = 34;
 
   let surface = null;
   let graphCanvas = null;
-  let svg = null;
-  let renderTimer = 0;
+  let canvas = null;
+  let gl = null;
+  let program = null;
+  let positionBuffer = null;
+  let colourBuffer = null;
+  let positionLocation = -1;
+  let colourLocation = -1;
+  let resolutionLocation = null;
+  let renderFrame = 0;
   let lastSignature = '';
+  let lastWidth = 0;
+  let lastHeight = 0;
+  let supported = false;
+
   let coreSegments = [];
   let manualSegments = [];
+  let coreCircles = [];
+  let manualCircles = [];
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -60,14 +77,14 @@
   }
 
   function isCoreConnector(context) {
-    if (!isCoreGraph(context) || !context.__neuralSvgPathStart || !context.__neuralSvgPathEnd) return false;
+    if (!isCoreGraph(context) || !context.__brainPathStart || !context.__brainPathEnd || context.__brainLastArc) return false;
     const style = String(context.strokeStyle || '');
     const width = Math.max(0, Number(context.lineWidth) || 0);
     return width <= 1.6 && style.includes('120, 184, 255');
   }
 
   function manualTracePass(context) {
-    if (!isManualGravity(context) || !context.__neuralSvgPathStart || !context.__neuralSvgPathEnd) return '';
+    if (!isManualGravity(context) || !context.__brainPathStart || !context.__brainPathEnd || context.__brainLastArc) return '';
     const style = String(context.strokeStyle || '');
     const alpha = styleAlpha(style);
     if (style.includes('55, 139, 255') && alpha <= 0.14) return 'capture';
@@ -76,21 +93,41 @@
     return '';
   }
 
-  function screenPoint(context, point) {
-    const canvas = context?.canvas;
-    if (!canvas || !point) return null;
-    const rect = canvas.getBoundingClientRect();
-    const dpr = Math.max(1, canvas.width / Math.max(1, rect.width));
+  function normalisedTransform(context) {
+    const target = context?.canvas;
+    if (!target) return null;
+    const rect = target.getBoundingClientRect();
+    const dpr = Math.max(1, target.width / Math.max(1, rect.width));
     const matrix = context.getTransform();
+    return { matrix, dpr };
+  }
+
+  function screenPoint(context, point) {
+    const transform = normalisedTransform(context);
+    if (!transform || !point) return null;
+    const { matrix, dpr } = transform;
     return {
       x: (matrix.a * point.x + matrix.c * point.y + matrix.e) / dpr,
       y: (matrix.b * point.x + matrix.d * point.y + matrix.f) / dpr
     };
   }
 
+  function screenRadius(context, radius) {
+    const transform = normalisedTransform(context);
+    if (!transform) return Math.max(1, Number(radius) || 1);
+    const { matrix, dpr } = transform;
+    const scaleX = Math.hypot(matrix.a, matrix.b) / dpr;
+    const scaleY = Math.hypot(matrix.c, matrix.d) / dpr;
+    return Math.max(1, Number(radius || 1) * ((scaleX + scaleY) * 0.5));
+  }
+
+  function near(a, b, epsilon = POINT_EPSILON) {
+    return Boolean(a && b && Math.hypot(a.x - b.x, a.y - b.y) <= epsilon);
+  }
+
   function captureSegment(context, target, reverse = false, widthScale = 1) {
-    const start = screenPoint(context, context.__neuralSvgPathStart);
-    const end = screenPoint(context, context.__neuralSvgPathEnd);
+    const start = screenPoint(context, context.__brainPathStart);
+    const end = screenPoint(context, context.__brainPathEnd);
     if (!start || !end) return;
     const from = reverse ? end : start;
     const to = reverse ? start : end;
@@ -104,25 +141,38 @@
     scheduleRender();
   }
 
-  function near(a, b, epsilon = POINT_EPSILON) {
-    return Boolean(a && b && Math.hypot(a.x - b.x, a.y - b.y) <= epsilon);
+  function captureCircle(context, target) {
+    const arc = context.__brainLastArc;
+    if (!arc) return;
+    const point = screenPoint(context, arc);
+    if (!point) return;
+    const radius = screenRadius(context, arc.radius);
+    if (!Number.isFinite(radius) || radius < 2) return;
+    target.push({
+      x: point.x,
+      y: point.y,
+      radius,
+      seed: Math.abs(Math.sin(point.x * 0.019 + point.y * 0.027 + radius * 0.071))
+    });
+    scheduleRender();
   }
 
   function installStyles() {
-    if (document.getElementById('memoryGraphNeuralSvgStyles')) return;
+    if (document.getElementById('memoryGraphWebGLBrainStyles')) return;
     const style = document.createElement('style');
-    style.id = 'memoryGraphNeuralSvgStyles';
+    style.id = 'memoryGraphWebGLBrainStyles';
     style.textContent = `
       .memory-graph-spark-canvas,
       .memory-graph-neural-canvas,
-      .memory-graph-dendrite-canvas { display:none !important; }
-      .memory-graph-neural-svg {
+      .memory-graph-dendrite-canvas,
+      .memory-graph-neural-svg { display:none !important; }
+      .memory-graph-webgl-brain-canvas {
         position:absolute;
         inset:0;
         z-index:1;
         width:100%;
         height:100%;
-        overflow:visible;
+        display:block;
         pointer-events:none;
       }
       .memory-graph-manual-gravity-canvas { z-index:2 !important; }
@@ -131,164 +181,108 @@
     document.head.appendChild(style);
   }
 
-  function ensureSvg() {
+  function compileShader(type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      const info = gl.getShaderInfoLog(shader) || 'Shader compile failed';
+      gl.deleteShader(shader);
+      throw new Error(info);
+    }
+    return shader;
+  }
+
+  function createProgram() {
+    const vertex = compileShader(gl.VERTEX_SHADER, `#version 300 es
+      in vec2 a_position;
+      in vec4 a_colour;
+      uniform vec2 u_resolution;
+      out vec4 v_colour;
+      void main() {
+        vec2 zeroToOne = a_position / u_resolution;
+        vec2 clip = zeroToOne * 2.0 - 1.0;
+        gl_Position = vec4(clip * vec2(1.0, -1.0), 0.0, 1.0);
+        v_colour = a_colour;
+      }
+    `);
+    const fragment = compileShader(gl.FRAGMENT_SHADER, `#version 300 es
+      precision mediump float;
+      in vec4 v_colour;
+      out vec4 outColour;
+      void main() {
+        outColour = v_colour;
+      }
+    `);
+    const nextProgram = gl.createProgram();
+    gl.attachShader(nextProgram, vertex);
+    gl.attachShader(nextProgram, fragment);
+    gl.linkProgram(nextProgram);
+    gl.deleteShader(vertex);
+    gl.deleteShader(fragment);
+    if (!gl.getProgramParameter(nextProgram, gl.LINK_STATUS)) {
+      const info = gl.getProgramInfoLog(nextProgram) || 'Program link failed';
+      gl.deleteProgram(nextProgram);
+      throw new Error(info);
+    }
+    return nextProgram;
+  }
+
+  function ensureLayer() {
     surface = surface || document.getElementById('memoryGraphSurface');
     graphCanvas = graphCanvas || document.querySelector('.memory-graph-canvas');
     if (!surface) return false;
 
-    if (!svg || !svg.isConnected) {
-      svg = document.createElementNS(SVG_NS, 'svg');
-      svg.classList.add('memory-graph-neural-svg');
-      svg.setAttribute('aria-hidden', 'true');
-      svg.setAttribute('preserveAspectRatio', 'none');
+    if (!canvas || !canvas.isConnected) {
+      canvas = document.createElement('canvas');
+      canvas.className = 'memory-graph-webgl-brain-canvas';
+      canvas.setAttribute('aria-hidden', 'true');
       const manualOverlay = surface.querySelector('.memory-graph-manual-gravity-canvas');
-      if (manualOverlay) surface.insertBefore(svg, manualOverlay);
-      else surface.appendChild(svg);
+      if (manualOverlay) surface.insertBefore(canvas, manualOverlay);
+      else if (graphCanvas) surface.insertBefore(canvas, graphCanvas);
+      else surface.appendChild(canvas);
+      gl = canvas.getContext('webgl2', {
+        alpha: true,
+        antialias: true,
+        premultipliedAlpha: false,
+        powerPreference: 'high-performance'
+      });
+      supported = Boolean(gl);
+      if (!gl) return false;
+      try {
+        program = createProgram();
+      } catch (error) {
+        console.warn('[MemoryGraphWebGL] renderer unavailable', error);
+        supported = false;
+        return false;
+      }
+      positionBuffer = gl.createBuffer();
+      colourBuffer = gl.createBuffer();
+      positionLocation = gl.getAttribLocation(program, 'a_position');
+      colourLocation = gl.getAttribLocation(program, 'a_colour');
+      resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.disable(gl.DEPTH_TEST);
     }
 
     const rect = surface.getBoundingClientRect();
     const width = Math.max(1, Math.round(rect.width));
     const height = Math.max(1, Math.round(rect.height));
-    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const pixelWidth = Math.max(1, Math.round(width * dpr));
+    const pixelHeight = Math.max(1, Math.round(height * dpr));
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      lastSignature = '';
+    }
+    gl.viewport(0, 0, pixelWidth, pixelHeight);
+    lastWidth = width;
+    lastHeight = height;
     return true;
-  }
-
-  function curveSpec(from, to, seed, bendScale = 1, offset = 0) {
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    const px = -dy / length;
-    const py = dx / length;
-    const bend = (hashUnit(seed, 2, 7) * 2 - 1) * clamp(length * 0.14, 7, 52) * bendScale + offset;
-    const skew = (hashUnit(seed, 8, 3) * 2 - 1) * clamp(length * 0.035, 2, 13);
-    const c1 = {
-      x: from.x + dx * 0.30 + px * (bend + skew),
-      y: from.y + dy * 0.30 + py * (bend + skew)
-    };
-    const c2 = {
-      x: from.x + dx * 0.70 - px * (bend * 0.64 - skew * 0.32),
-      y: from.y + dy * 0.70 - py * (bend * 0.64 - skew * 0.32)
-    };
-    return {
-      from,
-      to,
-      c1,
-      c2,
-      length,
-      d: `M ${from.x.toFixed(2)} ${from.y.toFixed(2)} C `
-        + `${c1.x.toFixed(2)} ${c1.y.toFixed(2)}, `
-        + `${c2.x.toFixed(2)} ${c2.y.toFixed(2)}, `
-        + `${to.x.toFixed(2)} ${to.y.toFixed(2)}`
-    };
-  }
-
-  function cubicPoint(spec, t) {
-    const mt = 1 - t;
-    return {
-      x: mt * mt * mt * spec.from.x + 3 * mt * mt * t * spec.c1.x + 3 * mt * t * t * spec.c2.x + t * t * t * spec.to.x,
-      y: mt * mt * mt * spec.from.y + 3 * mt * mt * t * spec.c1.y + 3 * mt * t * t * spec.c2.y + t * t * t * spec.to.y
-    };
-  }
-
-  function cubicTangent(spec, t) {
-    const mt = 1 - t;
-    const dx = 3 * mt * mt * (spec.c1.x - spec.from.x)
-      + 6 * mt * t * (spec.c2.x - spec.c1.x)
-      + 3 * t * t * (spec.to.x - spec.c2.x);
-    const dy = 3 * mt * mt * (spec.c1.y - spec.from.y)
-      + 6 * mt * t * (spec.c2.y - spec.c1.y)
-      + 3 * t * t * (spec.to.y - spec.c2.y);
-    const length = Math.max(0.001, Math.hypot(dx, dy));
-    return { tx: dx / length, ty: dy / length, px: -dy / length, py: dx / length };
-  }
-
-  function branchMarkup(spec, seed, count, width, intensity) {
-    let out = '';
-    for (let index = 0; index < count; index += 1) {
-      const t = 0.18 + ((index + 0.5) / count) * 0.64;
-      const origin = cubicPoint(spec, t);
-      const tangent = cubicTangent(spec, t);
-      const direction = (index + Math.floor(seed * 17)) % 2 === 0 ? 1 : -1;
-      const reach = clamp(spec.length * (0.055 + hashUnit(seed, index, 11) * 0.04), 10, 30);
-      const lateral = reach * (0.72 + hashUnit(seed, index, 13) * 0.32) * direction;
-      const forward = reach * (0.24 + hashUnit(seed, index, 17) * 0.42);
-      const end = {
-        x: origin.x + tangent.px * lateral + tangent.tx * forward,
-        y: origin.y + tangent.py * lateral + tangent.ty * forward
-      };
-      const c1 = {
-        x: origin.x + tangent.tx * reach * 0.16 + tangent.px * lateral * 0.34,
-        y: origin.y + tangent.ty * reach * 0.16 + tangent.py * lateral * 0.34
-      };
-      const c2 = {
-        x: end.x - tangent.tx * reach * 0.22 + tangent.px * lateral * 0.08,
-        y: end.y - tangent.ty * reach * 0.22 + tangent.py * lateral * 0.08
-      };
-      const d = `M ${origin.x.toFixed(2)} ${origin.y.toFixed(2)} C ${c1.x.toFixed(2)} ${c1.y.toFixed(2)}, ${c2.x.toFixed(2)} ${c2.y.toFixed(2)}, ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
-      out += pathMarkup(d, Math.max(0.34, 0.62 * width), (0.24 * intensity).toFixed(3), '91,190,235');
-      out += pathMarkup(d, Math.max(0.20, 0.26 * width), (0.20 * intensity).toFixed(3), '213,245,255', '7 24');
-      if (hashUnit(seed, index, 21) > 0.46) out += hotspotMarkup(end, 0.24 + intensity * 0.12, 1.55);
-
-      if (spec.length > 145 && index === 0 && hashUnit(seed, 25, 9) > 0.42) {
-        const forkDirection = -direction;
-        const forkReach = reach * 0.50;
-        const forkEnd = {
-          x: end.x + tangent.px * forkReach * forkDirection + tangent.tx * forkReach * 0.28,
-          y: end.y + tangent.py * forkReach * forkDirection + tangent.ty * forkReach * 0.28
-        };
-        const forkD = `M ${end.x.toFixed(2)} ${end.y.toFixed(2)} Q ${(end.x + tangent.px * forkReach * forkDirection * 0.52).toFixed(2)} ${(end.y + tangent.py * forkReach * forkDirection * 0.52).toFixed(2)} ${forkEnd.x.toFixed(2)} ${forkEnd.y.toFixed(2)}`;
-        out += pathMarkup(forkD, Math.max(0.24, 0.38 * width), (0.14 * intensity).toFixed(3), '78,170,226');
-      }
-    }
-    return out;
-  }
-
-  function pathMarkup(d, width, opacity, colour = '111,205,244', dash = '') {
-    return `<path d="${d}" fill="none" stroke="rgba(${colour},${opacity})" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
-  }
-
-  function hotspotMarkup(point, strength = 0.4, radius = 3.2) {
-    const outer = radius * 2.35;
-    return `<g>
-      <circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="${outer.toFixed(2)}" fill="rgba(58,164,235,${(strength * 0.12).toFixed(3)})"/>
-      <circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="${radius.toFixed(2)}" fill="rgba(132,224,255,${(strength * 0.42).toFixed(3)})"/>
-      <circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="${Math.max(0.7, radius * 0.28).toFixed(2)}" fill="rgba(244,252,255,${(strength * 0.72).toFixed(3)})"/>
-    </g>`;
-  }
-
-  function pulseMarkup(d, seed, strong = false) {
-    const duration = 7.5 + hashUnit(seed, 3, 7) * 5.5;
-    const begin = -(hashUnit(seed, 11, 9) * duration);
-    const radius = strong ? 2.2 : 1.55;
-    const opacity = strong ? 0.72 : 0.48;
-    return `<circle r="${radius}" fill="rgba(239,251,255,${opacity})">
-      <animateMotion dur="${duration.toFixed(2)}s" begin="${begin.toFixed(2)}s" repeatCount="indefinite" path="${d}"/>
-    </circle>`;
-  }
-
-  function connectionMarkup(from, to, seed, options = {}) {
-    const width = clamp(Number(options.widthScale) || 1, 0.32, 1.8);
-    const intensity = clamp(Number(options.intensity) || 1, 0.2, 1.2);
-    const spec = curveSpec(from, to, seed, Number(options.bendScale) || 1);
-    if (spec.length < 8) return '';
-
-    let out = '';
-    if (options.glow !== false) {
-      out += pathMarkup(spec.d, Math.max(3.1, 6.4 * width), (0.032 * intensity).toFixed(3), '34,120,218');
-    }
-    out += pathMarkup(spec.d, Math.max(0.9, 2.05 * width), (0.30 * intensity).toFixed(3), '78,177,232');
-    out += pathMarkup(spec.d, Math.max(0.28, 0.52 * width), (0.28 * intensity).toFixed(3), '206,241,255', '18 52');
-
-    if (options.support !== false && spec.length > 95) {
-      const support = curveSpec(from, to, seed + 0.317, 0.78, (hashUnit(seed, 4, 6) * 2 - 1) * 6.5);
-      out += pathMarkup(support.d, Math.max(0.24, 0.38 * width), (0.10 * intensity).toFixed(3), '91,188,231');
-    }
-
-    const sproutCount = clamp(Number(options.sprouts) || 0, 0, 4);
-    if (sproutCount > 0 && spec.length > 68) out += branchMarkup(spec, seed + 0.731, sproutCount, width, intensity);
-
-    if (options.pulse) out += pulseMarkup(spec.d, seed, Boolean(options.strongPulse));
-    return out;
   }
 
   function deriveClusters() {
@@ -316,186 +310,501 @@
     return childPoints.some((point) => near(segment.from, point, 8) || near(segment.to, point, 8));
   }
 
-  function branchArms(cluster) {
-    const children = cluster.children.slice();
-    if (!children.length) return [];
-    const centre = cluster.centre;
-    children.sort((a, b) => Math.atan2(a.to.y - centre.y, a.to.x - centre.x) - Math.atan2(b.to.y - centre.y, b.to.x - centre.x));
-    const armCount = children.length === 1 ? 1 : clamp(Math.ceil(children.length / 4), 2, 5);
-    const arms = Array.from({ length: armCount }, () => []);
-    for (let index = 0; index < children.length; index += 1) {
-      const armIndex = Math.min(armCount - 1, Math.floor(index * armCount / children.length));
-      arms[armIndex].push(children[index]);
+  function bodyCircles() {
+    const deduped = [];
+    for (const circle of coreCircles) {
+      const existing = deduped.find((item) => near(item, circle, 2.5) && Math.abs(item.radius - circle.radius) < 1.5);
+      if (!existing) deduped.push(circle);
     }
-    return arms.filter((items) => items.length);
+    return deduped;
   }
 
-  function junctionFor(centre, children, seed) {
+  function groupBodyCircle(cluster) {
+    const candidates = manualCircles
+      .filter((circle) => near(circle, cluster.centre, 4))
+      .sort((a, b) => a.radius - b.radius);
+    if (!candidates.length) {
+      const count = Math.max(1, cluster.children.length);
+      return { ...cluster.centre, radius: 34 + Math.min(20, Math.sqrt(count) * 6.6), seed: cluster.seed };
+    }
+    if (candidates.length === 1) return candidates[0];
+    return candidates[0].radius > candidates[candidates.length - 1].radius * 0.82
+      ? candidates[0]
+      : candidates[candidates.length - 2] || candidates[0];
+  }
+
+  function hubPoint(visibleCore, clusters, circles) {
+    if (visibleCore.length) return visibleCore[0].to;
+    if (clusters.length) return clusters[0].trunk.from;
+    return circles.slice().sort((a, b) => b.radius - a.radius)[0] || { x: lastWidth * 0.5, y: lastHeight * 0.5 };
+  }
+
+  function bezierPoints(from, to, seed, bendScale = 1, count = 13) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const px = -dy / length;
+    const py = dx / length;
+    const bend = (hashUnit(seed, 2, 7) * 2 - 1) * clamp(length * 0.16, 8, 58) * bendScale;
+    const skew = (hashUnit(seed, 8, 3) * 2 - 1) * clamp(length * 0.05, 2, 16);
+    const c1 = {
+      x: from.x + dx * 0.29 + px * (bend + skew),
+      y: from.y + dy * 0.29 + py * (bend + skew)
+    };
+    const c2 = {
+      x: from.x + dx * 0.71 - px * (bend * 0.68 - skew * 0.30),
+      y: from.y + dy * 0.71 - py * (bend * 0.68 - skew * 0.30)
+    };
+    const points = [];
+    for (let index = 0; index <= count; index += 1) {
+      const t = index / count;
+      const mt = 1 - t;
+      const baseX = mt * mt * mt * from.x + 3 * mt * mt * t * c1.x + 3 * mt * t * t * c2.x + t * t * t * to.x;
+      const baseY = mt * mt * mt * from.y + 3 * mt * mt * t * c1.y + 3 * mt * t * t * c2.y + t * t * t * to.y;
+      const organic = (Math.sin(t * Math.PI * (1.6 + hashUnit(seed, 4, 5) * 1.5) + seed * 21.7)
+        + Math.sin(t * Math.PI * (4.1 + hashUnit(seed, 9, 2) * 2.2) + seed * 9.4) * 0.32)
+        * Math.sin(Math.PI * t) * clamp(length * 0.006, 0.4, 2.8);
+      points.push({ x: baseX + px * organic, y: baseY + py * organic });
+    }
+    return points;
+  }
+
+  function colour(r, g, b, a) {
+    return [r / 255, g / 255, b / 255, clamp(a, 0, 1)];
+  }
+
+  function pushVertex(positions, colours, point, rgba) {
+    positions.push(point.x, point.y);
+    colours.push(rgba[0], rgba[1], rgba[2], rgba[3]);
+  }
+
+  function appendTube(positions, colours, points, startWidth, endWidth, rgba, seed = 0) {
+    if (!points || points.length < 2) return;
+    const left = [];
+    const right = [];
+    const count = points.length - 1;
+    for (let index = 0; index < points.length; index += 1) {
+      const before = points[Math.max(0, index - 1)];
+      const after = points[Math.min(points.length - 1, index + 1)];
+      const dx = after.x - before.x;
+      const dy = after.y - before.y;
+      const length = Math.max(0.001, Math.hypot(dx, dy));
+      const px = -dy / length;
+      const py = dx / length;
+      const t = index / Math.max(1, count);
+      const taper = startWidth + (endWidth - startWidth) * t;
+      const wobble = 0.88 + hashUnit(seed, index, 17) * 0.24;
+      const half = Math.max(0.18, taper * wobble * 0.5);
+      left.push({ x: points[index].x + px * half, y: points[index].y + py * half });
+      right.push({ x: points[index].x - px * half, y: points[index].y - py * half });
+    }
+    for (let index = 0; index < count; index += 1) {
+      pushVertex(positions, colours, left[index], rgba);
+      pushVertex(positions, colours, right[index], rgba);
+      pushVertex(positions, colours, left[index + 1], rgba);
+      pushVertex(positions, colours, right[index], rgba);
+      pushVertex(positions, colours, right[index + 1], rgba);
+      pushVertex(positions, colours, left[index + 1], rgba);
+    }
+  }
+
+  function appendGlowDisc(positions, colours, point, radius, inner, outer, segments = 24, irregularSeed = 0) {
+    const centre = { x: point.x, y: point.y };
+    for (let index = 0; index < segments; index += 1) {
+      const a0 = (index / segments) * Math.PI * 2;
+      const a1 = ((index + 1) / segments) * Math.PI * 2;
+      const r0 = radius * (0.93 + hashUnit(irregularSeed, index, 3) * 0.14);
+      const r1 = radius * (0.93 + hashUnit(irregularSeed, index + 1, 3) * 0.14);
+      pushVertex(positions, colours, centre, inner);
+      pushVertex(positions, colours, { x: point.x + Math.cos(a0) * r0, y: point.y + Math.sin(a0) * r0 }, outer);
+      pushVertex(positions, colours, { x: point.x + Math.cos(a1) * r1, y: point.y + Math.sin(a1) * r1 }, outer);
+    }
+  }
+
+  function appendSoma(positions, colours, point, radius, seed, role = 'memory') {
+    const hub = role === 'hub';
+    const group = role === 'group';
+    const glowRadius = radius * (hub ? 1.65 : group ? 1.48 : 1.55);
+    appendGlowDisc(
+      positions,
+      colours,
+      point,
+      glowRadius,
+      hub ? colour(68, 162, 255, 0.18) : colour(142, 223, 92, 0.12),
+      colour(20, 65, 106, 0),
+      28,
+      seed
+    );
+
+    const bodyRadius = radius * (hub ? 1.02 : group ? 0.98 : 0.78);
+    appendGlowDisc(
+      positions,
+      colours,
+      point,
+      bodyRadius,
+      hub ? colour(48, 116, 198, 0.92) : colour(42, 112, 88, 0.82),
+      hub ? colour(28, 74, 138, 0.56) : colour(50, 105, 60, 0.42),
+      30,
+      seed + 0.31
+    );
+
+    appendGlowDisc(
+      positions,
+      colours,
+      { x: point.x - radius * 0.13, y: point.y - radius * 0.12 },
+      radius * (hub ? 0.54 : group ? 0.48 : 0.34),
+      hub ? colour(224, 250, 255, 0.86) : colour(200, 255, 126, 0.68),
+      hub ? colour(78, 182, 255, 0.10) : colour(93, 201, 157, 0.08),
+      24,
+      seed + 0.77
+    );
+
+    if (hub || group) {
+      appendGlowDisc(
+        positions,
+        colours,
+        point,
+        radius * 0.18,
+        group ? colour(255, 211, 102, 0.66) : colour(239, 253, 255, 0.82),
+        colour(92, 192, 255, 0),
+        20,
+        seed + 1.17
+      );
+    }
+  }
+
+  function addSynapse(positions, colours, point, seed, warmChance = 0.15, scale = 1) {
+    const warm = hashUnit(seed, 14, 7) < warmChance;
+    const radius = (warm ? 4.8 : 3.6) * scale;
+    appendGlowDisc(
+      positions,
+      colours,
+      point,
+      radius * 2.2,
+      warm ? colour(255, 176, 76, 0.15) : colour(83, 192, 255, 0.12),
+      colour(20, 60, 100, 0),
+      18,
+      seed
+    );
+    appendGlowDisc(
+      positions,
+      colours,
+      point,
+      radius,
+      warm ? colour(255, 235, 180, 0.88) : colour(220, 251, 255, 0.74),
+      warm ? colour(255, 162, 52, 0.05) : colour(79, 177, 243, 0.05),
+      16,
+      seed + 0.2
+    );
+  }
+
+  function addDendrite(positions, colours, from, to, seed, widths, options = {}) {
+    const points = bezierPoints(from, to, seed, Number(options.bendScale) || 1, options.count || 13);
+    const body = options.body || colour(76, 179, 232, 0.58);
+    appendTube(positions, colours, points, widths[0] * 2.8, widths[1] * 2.8, colour(38, 119, 221, 0.055), seed + 0.13);
+    appendTube(positions, colours, points, widths[0], widths[1], body, seed + 0.29);
+
+    const start = Math.max(1, Math.floor(points.length * 0.20));
+    const end = Math.min(points.length - 1, Math.ceil(points.length * 0.48));
+    const corePoints = points.slice(start, end + 1);
+    if (corePoints.length > 1) {
+      appendTube(positions, colours, corePoints, widths[0] * 0.19, widths[1] * 0.15, colour(223, 248, 255, 0.54), seed + 0.47);
+    }
+    if (points.length > 8 && hashUnit(seed, 5, 11) > 0.48) {
+      const secondStart = Math.floor(points.length * 0.70);
+      const secondEnd = Math.min(points.length - 1, secondStart + Math.max(2, Math.floor(points.length * 0.14)));
+      const second = points.slice(secondStart, secondEnd + 1);
+      if (second.length > 1) appendTube(positions, colours, second, widths[0] * 0.12, widths[1] * 0.10, colour(230, 249, 255, 0.34), seed + 0.66);
+    }
+
+    if (options.synapse) addSynapse(positions, colours, to, seed + 0.81, Number(options.warmChance) || 0.12, Number(options.synapseScale) || 1);
+    return points;
+  }
+
+  function averageTarget(origin, targets) {
     let vx = 0;
     let vy = 0;
     let distance = 0;
-    for (const child of children) {
-      const dx = child.to.x - centre.x;
-      const dy = child.to.y - centre.y;
-      const length = Math.max(1, Math.hypot(dx, dy));
-      vx += dx / length;
-      vy += dy / length;
-      distance += length;
+    for (const target of targets) {
+      const dx = target.x - origin.x;
+      const dy = target.y - origin.y;
+      const len = Math.max(1, Math.hypot(dx, dy));
+      vx += dx / len;
+      vy += dy / len;
+      distance += len;
     }
-    const norm = Math.max(1e-6, Math.hypot(vx, vy));
-    const ux = vx / norm;
-    const uy = vy / norm;
-    const px = -uy;
-    const py = ux;
-    const reach = clamp((distance / Math.max(1, children.length)) * 0.44, 17, 46);
-    const skew = (hashUnit(seed, 4, 8) * 2 - 1) * clamp(reach * 0.24, 2, 8);
-    return { x: centre.x + ux * reach + px * skew, y: centre.y + uy * reach + py * skew };
+    const norm = Math.max(0.001, Math.hypot(vx, vy));
+    return { ux: vx / norm, uy: vy / norm, distance: distance / Math.max(1, targets.length) };
   }
 
-  function meshMarkup(cluster) {
-    if (cluster.children.length < 3) return '';
-    const links = [];
-    for (let i = 0; i < cluster.children.length; i += 1) {
-      for (let j = i + 1; j < cluster.children.length; j += 1) {
-        const a = cluster.children[i].to;
-        const b = cluster.children[j].to;
-        const distance = Math.hypot(a.x - b.x, a.y - b.y);
-        if (distance <= 118) links.push({ a, b, distance, seed: segmentSeed(a, b, i * 19 + j * 31) });
-      }
+  function angleGroups(origin, targets, maxBranches) {
+    if (!targets.length) return [];
+    const sorted = targets.slice().sort((a, b) => Math.atan2(a.y - origin.y, a.x - origin.x) - Math.atan2(b.y - origin.y, b.x - origin.x));
+    const count = sorted.length === 1 ? 1 : clamp(Math.round(Math.sqrt(sorted.length) + 0.8), 2, maxBranches);
+    const groups = Array.from({ length: count }, () => []);
+    for (let index = 0; index < sorted.length; index += 1) {
+      groups[Math.min(count - 1, Math.floor(index * count / sorted.length))].push(sorted[index]);
     }
-    links.sort((a, b) => a.distance - b.distance);
-    let out = '';
-    for (const link of links.slice(0, Math.min(7, Math.ceil(cluster.children.length / 3)))) {
-      const spec = curveSpec(link.a, link.b, link.seed, 0.34);
-      out += pathMarkup(spec.d, 0.38, 0.095, '71,151,205');
-    }
-    return out;
+    return groups.filter((items) => items.length);
   }
 
-  function clusterMarkup(cluster, mobile) {
-    let out = connectionMarkup(cluster.trunk.from, cluster.trunk.to, cluster.seed, {
-      widthScale: mobile ? 0.96 : 1.12,
-      intensity: 0.9,
-      pulse: true,
-      strongPulse: true,
-      support: !mobile,
-      bendScale: 1.18,
-      sprouts: mobile ? 1 : 3
-    });
-    out += hotspotMarkup(cluster.centre, 0.58, mobile ? 3.8 : 4.5);
+  function addBranchTree(positions, colours, origin, targets, seed, options = {}) {
+    if (!targets.length) return;
+    const groups = angleGroups(origin, targets, Number(options.maxBranches) || 5);
+    const rootWidth = Number(options.rootWidth) || 8;
+    const terminalWidth = Number(options.terminalWidth) || 1.2;
+    const body = options.body || colour(72, 173, 230, 0.58);
 
-    const arms = branchArms(cluster);
-    for (let armIndex = 0; armIndex < arms.length; armIndex += 1) {
-      const children = arms[armIndex];
-      const seed = cluster.seed + 0.43 + armIndex * 0.291;
-      const junction = junctionFor(cluster.centre, children, seed);
-      out += connectionMarkup(cluster.centre, junction, seed, {
-        widthScale: 0.66,
-        intensity: 0.62,
-        pulse: false,
-        support: false,
-        bendScale: 0.94,
-        sprouts: children.length > 1 ? 1 : 0
+    groups.forEach((items, branchIndex) => {
+      const average = averageTarget(origin, items);
+      const perpendicular = { x: -average.uy, y: average.ux };
+      const reach = clamp(average.distance * (items.length > 2 ? 0.36 : 0.44), 34, options.groupTree ? 88 : 132);
+      const skew = (hashUnit(seed, branchIndex, 9) * 2 - 1) * clamp(reach * 0.18, 4, 18);
+      const junction = {
+        x: origin.x + average.ux * reach + perpendicular.x * skew,
+        y: origin.y + average.uy * reach + perpendicular.y * skew
+      };
+      const branchSeed = seed + 0.31 + branchIndex * 0.271;
+      const rootEndWidth = rootWidth * (items.length > 2 ? 0.54 : 0.42);
+      addDendrite(positions, colours, origin, junction, branchSeed, [rootWidth, rootEndWidth], {
+        bendScale: 1.08,
+        body,
+        synapse: true,
+        warmChance: 0.08,
+        synapseScale: 0.75
       });
-      out += hotspotMarkup(junction, 0.36, 2.9);
 
-      for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
-        const child = children[childIndex];
-        out += connectionMarkup(junction, child.to, seed + 0.17 + childIndex * 0.149, {
-          widthScale: 0.40 + (childIndex % 3) * 0.045,
-          intensity: 0.50,
-          pulse: false,
-          support: false,
-          glow: false,
-          bendScale: 0.78,
-          sprouts: 0
+      if (items.length <= 2) {
+        items.forEach((target, index) => {
+          addDendrite(positions, colours, junction, target, branchSeed + 0.17 + index * 0.149, [rootEndWidth, terminalWidth], {
+            bendScale: 0.74,
+            body,
+            synapse: true,
+            warmChance: 0.20,
+            synapseScale: 0.82
+          });
         });
-        if (childIndex % 2 === 0) out += hotspotMarkup(child.to, 0.25, 2.1);
+        return;
+      }
+
+      const splitCount = Math.min(2, Math.ceil(items.length / 3));
+      const splitGroups = Array.from({ length: splitCount }, () => []);
+      items.forEach((target, index) => splitGroups[Math.min(splitCount - 1, Math.floor(index * splitCount / items.length))].push(target));
+      splitGroups.forEach((splitItems, splitIndex) => {
+        const splitAverage = averageTarget(junction, splitItems);
+        const splitPerp = { x: -splitAverage.uy, y: splitAverage.ux };
+        const splitReach = clamp(splitAverage.distance * 0.48, 24, options.groupTree ? 64 : 86);
+        const splitSkew = (hashUnit(branchSeed, splitIndex, 13) * 2 - 1) * clamp(splitReach * 0.16, 3, 12);
+        const split = {
+          x: junction.x + splitAverage.ux * splitReach + splitPerp.x * splitSkew,
+          y: junction.y + splitAverage.uy * splitReach + splitPerp.y * splitSkew
+        };
+        const splitSeed = branchSeed + 0.63 + splitIndex * 0.233;
+        const splitEndWidth = Math.max(2.0, rootEndWidth * 0.58);
+        addDendrite(positions, colours, junction, split, splitSeed, [rootEndWidth, splitEndWidth], {
+          bendScale: 0.86,
+          body,
+          synapse: true,
+          warmChance: 0.10,
+          synapseScale: 0.70
+        });
+        splitItems.forEach((target, terminalIndex) => {
+          addDendrite(positions, colours, split, target, splitSeed + 0.21 + terminalIndex * 0.137, [splitEndWidth, terminalWidth], {
+            bendScale: 0.66,
+            body,
+            synapse: true,
+            warmChance: 0.22,
+            synapseScale: 0.80
+          });
+        });
+      });
+    });
+  }
+
+  function ambientNetwork(positions, colours, width, height) {
+    const points = Array.from({ length: AMBIENT_POINT_COUNT }, (_, index) => ({
+      x: width * (0.035 + hashUnit(index + 1, 2, 4) * 0.93),
+      y: height * (0.055 + hashUnit(index + 1, 7, 11) * 0.89),
+      seed: index * 0.193 + 0.41
+    }));
+
+    const links = [];
+    for (let i = 0; i < points.length; i += 1) {
+      const neighbours = [];
+      for (let j = 0; j < points.length; j += 1) {
+        if (i === j) continue;
+        const distance = Math.hypot(points[i].x - points[j].x, points[i].y - points[j].y);
+        if (distance > 55 && distance < Math.min(310, width * 0.28)) neighbours.push({ point: points[j], distance, index: j });
+      }
+      neighbours.sort((a, b) => a.distance - b.distance);
+      for (const neighbour of neighbours.slice(0, 2)) {
+        const a = Math.min(i, neighbour.index);
+        const b = Math.max(i, neighbour.index);
+        const key = `${a}:${b}`;
+        if (links.some((link) => link.key === key)) continue;
+        links.push({ key, from: points[i], to: neighbour.point, seed: points[i].seed + neighbour.index * 0.071 });
       }
     }
 
-    out += meshMarkup(cluster);
-    return out;
+    for (const link of links) {
+      const lineWidth = 0.75 + hashUnit(link.seed, 3, 8) * 1.15;
+      addDendrite(positions, colours, link.from, link.to, link.seed, [lineWidth, Math.max(0.25, lineWidth * 0.42)], {
+        bendScale: 1.15,
+        body: colour(69, 139, 199, 0.085),
+        synapse: hashUnit(link.seed, 9, 4) > 0.88,
+        warmChance: 0.12,
+        synapseScale: 0.48
+      });
+    }
+
+    for (let index = 0; index < points.length; index += 3) {
+      const point = points[index];
+      appendSoma(positions, colours, point, 5.2 + hashUnit(point.seed, 5, 7) * 4.2, point.seed, 'memory');
+    }
   }
 
-  function segmentSignature(segment) {
+  function sceneSignature() {
     const q = (value) => Math.round(Number(value || 0) * 2) / 2;
-    return `${q(segment.from.x)},${q(segment.from.y)},${q(segment.to.x)},${q(segment.to.y)}`;
+    const segment = (item) => `${q(item.from.x)},${q(item.from.y)},${q(item.to.x)},${q(item.to.y)}`;
+    const circle = (item) => `${q(item.x)},${q(item.y)},${q(item.radius)}`;
+    return `${lastWidth}x${lastHeight}|${coreSegments.map(segment).join('|')}::${manualSegments.map(segment).join('|')}::${coreCircles.map(circle).join('|')}::${manualCircles.map(circle).join('|')}`;
   }
 
-  function renderSignature() {
-    return `${coreSegments.map(segmentSignature).join('|')}::${manualSegments.map(segmentSignature).join('|')}`;
-  }
-
-  function renderSvg() {
-    if (!ensureSvg() || !svg) return;
-    const signature = renderSignature();
+  function renderScene() {
+    renderFrame = 0;
+    if (!ensureLayer() || !supported || !gl || !program) return;
+    const signature = sceneSignature();
     if (signature === lastSignature) return;
     lastSignature = signature;
 
     const clusters = deriveClusters();
     const childPoints = groupedChildPoints(clusters);
     const visibleCore = coreSegments.filter((segment) => !isGroupedCoreSegment(segment, childPoints));
-    const mobile = window.matchMedia?.('(max-width: 800px)')?.matches === true;
+    const circles = bodyCircles();
+    const hub = hubPoint(visibleCore, clusters, circles);
+    const hubCircle = circles.slice().sort((a, b) => b.radius - a.radius)[0] || { ...hub, radius: 40, seed: 0.91 };
 
-    let markup = '';
-    let pulseCount = 0;
-    for (let index = 0; index < visibleCore.length; index += 1) {
-      const segment = visibleCore[index];
-      const allowPulse = pulseCount < 4 && index % 3 === 0;
-      if (allowPulse) pulseCount += 1;
-      markup += connectionMarkup(segment.from, segment.to, segment.seed, {
-        widthScale: 0.86,
-        intensity: 0.68,
-        pulse: allowPulse,
-        support: !mobile,
-        bendScale: 1.16,
-        sprouts: mobile ? 1 : (segment.seed > 0.45 ? 2 : 1)
+    const positions = [];
+    const colours = [];
+    ambientNetwork(positions, colours, lastWidth, lastHeight);
+
+    const topTargets = [];
+    visibleCore.forEach((segment, index) => {
+      if (Math.hypot(segment.from.x - hub.x, segment.from.y - hub.y) < 18) return;
+      topTargets.push({ x: segment.from.x, y: segment.from.y, seed: segment.seed + index * 0.17, kind: 'memory' });
+    });
+    clusters.forEach((cluster, index) => {
+      topTargets.push({ x: cluster.centre.x, y: cluster.centre.y, seed: cluster.seed + index * 0.23, kind: 'group' });
+    });
+
+    addBranchTree(positions, colours, hub, topTargets, 0.731, {
+      maxBranches: MAX_TOP_BRANCHES,
+      rootWidth: clamp(hubCircle.radius * 0.21, 7.2, 11.5),
+      terminalWidth: 1.15,
+      body: colour(74, 174, 232, 0.62)
+    });
+
+    appendSoma(positions, colours, hub, clamp(hubCircle.radius, 30, 52), hubCircle.seed + 0.8, 'hub');
+
+    const groupedEndpointSet = new Set();
+    for (const cluster of clusters) {
+      const groupCircle = groupBodyCircle(cluster);
+      appendSoma(positions, colours, cluster.centre, clamp(groupCircle.radius, 30, 66), cluster.seed, 'group');
+      const targets = cluster.children.map((child, index) => {
+        groupedEndpointSet.add(`${Math.round(child.to.x)}:${Math.round(child.to.y)}`);
+        return { x: child.to.x, y: child.to.y, seed: child.seed + index * 0.11, kind: 'child' };
+      });
+      addBranchTree(positions, colours, cluster.centre, targets, cluster.seed + 0.49, {
+        maxBranches: MAX_GROUP_BRANCHES,
+        rootWidth: clamp(groupCircle.radius * 0.17, 5.6, 9.4),
+        terminalWidth: 0.82,
+        body: colour(79, 184, 226, 0.57),
+        groupTree: true
       });
     }
 
-    for (const cluster of clusters) markup += clusterMarkup(cluster, mobile);
-    svg.innerHTML = markup;
+    for (const circle of circles) {
+      if (near(circle, hub, Math.max(10, circle.radius * 0.35))) continue;
+      const groupMatch = clusters.some((cluster) => near(circle, cluster.centre, Math.max(10, circle.radius * 0.35)));
+      if (groupMatch) continue;
+      const groupedKey = `${Math.round(circle.x)}:${Math.round(circle.y)}`;
+      const grouped = groupedEndpointSet.has(groupedKey) || childPoints.some((point) => near(circle, point, 7));
+      appendSoma(positions, colours, circle, clamp(circle.radius, grouped ? 5 : 8, grouped ? 10 : 20), circle.seed, 'memory');
+    }
+
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(program);
+    gl.uniform2f(resolutionLocation, lastWidth, lastHeight);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, colourBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colours), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(colourLocation);
+    gl.vertexAttribPointer(colourLocation, 4, gl.FLOAT, false, 0, 0);
+
+    gl.drawArrays(gl.TRIANGLES, 0, positions.length / 2);
   }
 
   function scheduleRender() {
-    if (renderTimer) return;
-    const interacting = graphCanvas?.dataset.interacting === 'true';
-    renderTimer = window.setTimeout(() => {
-      renderTimer = 0;
-      requestAnimationFrame(renderSvg);
-    }, interacting ? 28 : 72);
+    if (renderFrame) return;
+    renderFrame = requestAnimationFrame(renderScene);
   }
 
-  proto.beginPath = function memoryGraphNeuralSvgBeginPath(...args) {
-    this.__neuralSvgPathStart = null;
-    this.__neuralSvgPathEnd = null;
+  proto.beginPath = function memoryGraphBrainBeginPath(...args) {
+    this.__brainPathStart = null;
+    this.__brainPathEnd = null;
+    this.__brainLastArc = null;
     return previousBeginPath.apply(this, args);
   };
 
-  proto.moveTo = function memoryGraphNeuralSvgMoveTo(x, y, ...rest) {
-    this.__neuralSvgPathStart = { x: Number(x), y: Number(y) };
-    this.__neuralSvgPathEnd = null;
+  proto.moveTo = function memoryGraphBrainMoveTo(x, y, ...rest) {
+    this.__brainPathStart = { x: Number(x), y: Number(y) };
+    this.__brainPathEnd = null;
+    this.__brainLastArc = null;
     return previousMoveTo.call(this, x, y, ...rest);
   };
 
-  proto.lineTo = function memoryGraphNeuralSvgLineTo(x, y, ...rest) {
-    if (this.__neuralSvgPathStart) this.__neuralSvgPathEnd = { x: Number(x), y: Number(y) };
+  proto.lineTo = function memoryGraphBrainLineTo(x, y, ...rest) {
+    if (this.__brainPathStart) this.__brainPathEnd = { x: Number(x), y: Number(y) };
     return previousLineTo.call(this, x, y, ...rest);
   };
 
-  proto.clearRect = function memoryGraphNeuralSvgClearRect(...args) {
+  proto.arc = function memoryGraphBrainArc(x, y, radius, ...rest) {
+    this.__brainLastArc = { x: Number(x), y: Number(y), radius: Number(radius) };
+    return previousArc.call(this, x, y, radius, ...rest);
+  };
+
+  proto.fill = function memoryGraphBrainFill(...args) {
+    if (this.__brainLastArc && isCoreGraph(this)) {
+      captureCircle(this, coreCircles);
+      return undefined;
+    }
+    if (this.__brainLastArc && isManualGravity(this)) {
+      captureCircle(this, manualCircles);
+      return undefined;
+    }
+    return previousFill.apply(this, args);
+  };
+
+  proto.clearRect = function memoryGraphBrainClearRect(...args) {
     if (isCoreGraph(this)) {
       coreSegments = [];
+      coreCircles = [];
       scheduleRender();
     } else if (isManualGravity(this)) {
       manualSegments = [];
+      manualCircles = [];
       scheduleRender();
     }
     return previousClearRect.apply(this, args);
   };
 
-  proto.stroke = function memoryGraphNeuralSvgStroke(...args) {
+  proto.stroke = function memoryGraphBrainStroke(...args) {
     if (isCoreConnector(this)) {
       captureSegment(this, coreSegments, true, 1);
       return undefined;
@@ -510,6 +819,7 @@
       return undefined;
     }
 
+    if (this.__brainLastArc && (isCoreGraph(this) || isManualGravity(this))) return undefined;
     return previousStroke.apply(this, args);
   };
 
@@ -517,23 +827,30 @@
     installStyles();
     surface = document.getElementById('memoryGraphSurface');
     graphCanvas = document.querySelector('.memory-graph-canvas');
-    ensureSvg();
+    surface?.querySelectorAll('.memory-graph-neural-svg, .memory-graph-neural-canvas, .memory-graph-dendrite-canvas').forEach((item) => item.remove());
+    if (!ensureLayer()) return false;
     scheduleRender();
+    return true;
   }
 
-  globalThis.MemoryGraphNeuralLinks = Object.freeze({
+  globalThis.MemoryGraphWebGL = Object.freeze({
     version: VERSION,
+    active: () => supported && Boolean(gl),
+    redraw: scheduleRender,
     snapshot() {
       const clusters = deriveClusters();
       return {
         version: VERSION,
+        renderer: 'native-webgl2-dendrite-mesh',
         coreConnections: coreSegments.length,
         groupedClusters: clusters.length,
         groupedChildren: groupedChildPoints(clusters).length,
-        renderer: 'svg-organic-dendrite-v4'
+        coreBodies: coreCircles.length,
+        supported
       };
     }
   });
+  globalThis.MemoryGraphNeuralLinks = globalThis.MemoryGraphWebGL;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => requestAnimationFrame(mount), { once: true });
