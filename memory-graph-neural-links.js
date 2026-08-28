@@ -17,7 +17,7 @@
   const previousStroke = proto.stroke;
   const previousClearRect = proto.clearRect;
 
-  const VERSION = 3;
+  const VERSION = 4;
   const POINT_EPSILON = 5;
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -159,15 +159,88 @@
     const length = Math.max(1, Math.hypot(dx, dy));
     const px = -dy / length;
     const py = dx / length;
-    const bend = (hashUnit(seed, 2, 7) * 2 - 1) * clamp(length * 0.115, 5, 44) * bendScale + offset;
-    const skew = (hashUnit(seed, 8, 3) * 2 - 1) * clamp(length * 0.028, 1.5, 10);
+    const bend = (hashUnit(seed, 2, 7) * 2 - 1) * clamp(length * 0.14, 7, 52) * bendScale + offset;
+    const skew = (hashUnit(seed, 8, 3) * 2 - 1) * clamp(length * 0.035, 2, 13);
+    const c1 = {
+      x: from.x + dx * 0.30 + px * (bend + skew),
+      y: from.y + dy * 0.30 + py * (bend + skew)
+    };
+    const c2 = {
+      x: from.x + dx * 0.70 - px * (bend * 0.64 - skew * 0.32),
+      y: from.y + dy * 0.70 - py * (bend * 0.64 - skew * 0.32)
+    };
     return {
+      from,
+      to,
+      c1,
+      c2,
       length,
       d: `M ${from.x.toFixed(2)} ${from.y.toFixed(2)} C `
-        + `${(from.x + dx * 0.32 + px * (bend + skew)).toFixed(2)} ${(from.y + dy * 0.32 + py * (bend + skew)).toFixed(2)}, `
-        + `${(from.x + dx * 0.68 - px * (bend * 0.58 - skew * 0.35)).toFixed(2)} ${(from.y + dy * 0.68 - py * (bend * 0.58 - skew * 0.35)).toFixed(2)}, `
+        + `${c1.x.toFixed(2)} ${c1.y.toFixed(2)}, `
+        + `${c2.x.toFixed(2)} ${c2.y.toFixed(2)}, `
         + `${to.x.toFixed(2)} ${to.y.toFixed(2)}`
     };
+  }
+
+  function cubicPoint(spec, t) {
+    const mt = 1 - t;
+    return {
+      x: mt * mt * mt * spec.from.x + 3 * mt * mt * t * spec.c1.x + 3 * mt * t * t * spec.c2.x + t * t * t * spec.to.x,
+      y: mt * mt * mt * spec.from.y + 3 * mt * mt * t * spec.c1.y + 3 * mt * t * t * spec.c2.y + t * t * t * spec.to.y
+    };
+  }
+
+  function cubicTangent(spec, t) {
+    const mt = 1 - t;
+    const dx = 3 * mt * mt * (spec.c1.x - spec.from.x)
+      + 6 * mt * t * (spec.c2.x - spec.c1.x)
+      + 3 * t * t * (spec.to.x - spec.c2.x);
+    const dy = 3 * mt * mt * (spec.c1.y - spec.from.y)
+      + 6 * mt * t * (spec.c2.y - spec.c1.y)
+      + 3 * t * t * (spec.to.y - spec.c2.y);
+    const length = Math.max(0.001, Math.hypot(dx, dy));
+    return { tx: dx / length, ty: dy / length, px: -dy / length, py: dx / length };
+  }
+
+  function branchMarkup(spec, seed, count, width, intensity) {
+    let out = '';
+    for (let index = 0; index < count; index += 1) {
+      const t = 0.18 + ((index + 0.5) / count) * 0.64;
+      const origin = cubicPoint(spec, t);
+      const tangent = cubicTangent(spec, t);
+      const direction = (index + Math.floor(seed * 17)) % 2 === 0 ? 1 : -1;
+      const reach = clamp(spec.length * (0.055 + hashUnit(seed, index, 11) * 0.04), 10, 30);
+      const lateral = reach * (0.72 + hashUnit(seed, index, 13) * 0.32) * direction;
+      const forward = reach * (0.24 + hashUnit(seed, index, 17) * 0.42);
+      const end = {
+        x: origin.x + tangent.px * lateral + tangent.tx * forward,
+        y: origin.y + tangent.py * lateral + tangent.ty * forward
+      };
+      const c1 = {
+        x: origin.x + tangent.tx * reach * 0.16 + tangent.px * lateral * 0.34,
+        y: origin.y + tangent.ty * reach * 0.16 + tangent.py * lateral * 0.34
+      };
+      const c2 = {
+        x: end.x - tangent.tx * reach * 0.22 + tangent.px * lateral * 0.08,
+        y: end.y - tangent.ty * reach * 0.22 + tangent.py * lateral * 0.08
+      };
+      const d = `M ${origin.x.toFixed(2)} ${origin.y.toFixed(2)} C ${c1.x.toFixed(2)} ${c1.y.toFixed(2)}, ${c2.x.toFixed(2)} ${c2.y.toFixed(2)}, ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+      out += pathMarkup(d, Math.max(0.34, 0.62 * width), (0.24 * intensity).toFixed(3), '91,190,235');
+      out += pathMarkup(d, Math.max(0.20, 0.26 * width), (0.20 * intensity).toFixed(3), '213,245,255', '7 24');
+      if (hashUnit(seed, index, 21) > 0.46) out += hotspotMarkup(end, 0.24 + intensity * 0.12, 1.55);
+
+      if (spec.length > 145 && index === 0 && hashUnit(seed, 25, 9) > 0.42) {
+        const forkDirection = -direction;
+        const forkReach = reach * 0.50;
+        const forkEnd = {
+          x: end.x + tangent.px * forkReach * forkDirection + tangent.tx * forkReach * 0.28,
+          y: end.y + tangent.py * forkReach * forkDirection + tangent.ty * forkReach * 0.28
+        };
+        const forkD = `M ${end.x.toFixed(2)} ${end.y.toFixed(2)} Q ${(end.x + tangent.px * forkReach * forkDirection * 0.52).toFixed(2)} ${(end.y + tangent.py * forkReach * forkDirection * 0.52).toFixed(2)} ${forkEnd.x.toFixed(2)} ${forkEnd.y.toFixed(2)}`;
+        out += pathMarkup(forkD, Math.max(0.24, 0.38 * width), (0.14 * intensity).toFixed(3), '78,170,226');
+      }
+    }
+    return out;
   }
 
   function pathMarkup(d, width, opacity, colour = '111,205,244', dash = '') {
@@ -207,9 +280,12 @@
     out += pathMarkup(spec.d, Math.max(0.28, 0.52 * width), (0.28 * intensity).toFixed(3), '206,241,255', '18 52');
 
     if (options.support !== false && spec.length > 95) {
-      const support = curveSpec(from, to, seed + 0.317, 0.68, (hashUnit(seed, 4, 6) * 2 - 1) * 4.5);
-      out += pathMarkup(support.d, Math.max(0.24, 0.38 * width), (0.12 * intensity).toFixed(3), '91,188,231');
+      const support = curveSpec(from, to, seed + 0.317, 0.78, (hashUnit(seed, 4, 6) * 2 - 1) * 6.5);
+      out += pathMarkup(support.d, Math.max(0.24, 0.38 * width), (0.10 * intensity).toFixed(3), '91,188,231');
     }
+
+    const sproutCount = clamp(Number(options.sprouts) || 0, 0, 4);
+    if (sproutCount > 0 && spec.length > 68) out += branchMarkup(spec, seed + 0.731, sproutCount, width, intensity);
 
     if (options.pulse) out += pulseMarkup(spec.d, seed, Boolean(options.strongPulse));
     return out;
@@ -284,14 +360,14 @@
         const a = cluster.children[i].to;
         const b = cluster.children[j].to;
         const distance = Math.hypot(a.x - b.x, a.y - b.y);
-        if (distance <= 92) links.push({ a, b, distance, seed: segmentSeed(a, b, i * 19 + j * 31) });
+        if (distance <= 118) links.push({ a, b, distance, seed: segmentSeed(a, b, i * 19 + j * 31) });
       }
     }
     links.sort((a, b) => a.distance - b.distance);
     let out = '';
-    for (const link of links.slice(0, Math.min(4, Math.ceil(cluster.children.length / 5)))) {
+    for (const link of links.slice(0, Math.min(7, Math.ceil(cluster.children.length / 3)))) {
       const spec = curveSpec(link.a, link.b, link.seed, 0.34);
-      out += pathMarkup(spec.d, 0.34, 0.07, '71,151,205');
+      out += pathMarkup(spec.d, 0.38, 0.095, '71,151,205');
     }
     return out;
   }
@@ -302,7 +378,9 @@
       intensity: 0.9,
       pulse: true,
       strongPulse: true,
-      support: !mobile
+      support: !mobile,
+      bendScale: 1.18,
+      sprouts: mobile ? 1 : 3
     });
     out += hotspotMarkup(cluster.centre, 0.58, mobile ? 3.8 : 4.5);
 
@@ -316,7 +394,8 @@
         intensity: 0.62,
         pulse: false,
         support: false,
-        bendScale: 0.72
+        bendScale: 0.94,
+        sprouts: children.length > 1 ? 1 : 0
       });
       out += hotspotMarkup(junction, 0.36, 2.9);
 
@@ -328,7 +407,8 @@
           pulse: false,
           support: false,
           glow: false,
-          bendScale: 0.58
+          bendScale: 0.78,
+          sprouts: 0
         });
         if (childIndex % 2 === 0) out += hotspotMarkup(child.to, 0.25, 2.1);
       }
@@ -365,10 +445,12 @@
       const allowPulse = pulseCount < 4 && index % 3 === 0;
       if (allowPulse) pulseCount += 1;
       markup += connectionMarkup(segment.from, segment.to, segment.seed, {
-        widthScale: 0.82,
-        intensity: 0.66,
+        widthScale: 0.86,
+        intensity: 0.68,
         pulse: allowPulse,
-        support: !mobile
+        support: !mobile,
+        bendScale: 1.16,
+        sprouts: mobile ? 1 : (segment.seed > 0.45 ? 2 : 1)
       });
     }
 
@@ -448,7 +530,7 @@
         coreConnections: coreSegments.length,
         groupedClusters: clusters.length,
         groupedChildren: groupedChildPoints(clusters).length,
-        renderer: 'svg-static-dendrite'
+        renderer: 'svg-organic-dendrite-v4'
       };
     }
   });
