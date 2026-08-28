@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 2;
+  const VERSION = 3;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralWidthInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralWidthInstalled', { value: true });
@@ -13,21 +13,47 @@
     return ctx?.canvas?.classList?.contains('memory-graph-neural-scaffold-canvas') === true;
   }
 
-  function gainFor(style) {
+  function graphCanvas(ctx) {
+    return ctx?.canvas?.parentElement?.querySelector?.('.memory-graph-canvas') || null;
+  }
+
+  function renderMode(ctx) {
+    const graph = graphCanvas(ctx);
+    return {
+      interacting: graph?.dataset?.interacting === 'true',
+      mobile: Number(graph?.clientWidth || window.innerWidth || 0) < 760
+    };
+  }
+
+  function shouldSkip(style, mode) {
     const s = String(style || '');
-    if (s.includes('244,253,255')) return 1.9;
-    if (s.includes('104,215,255')) return 2.75;
-    if (s.includes('39,149,255')) return 1.65;
-    if (s.includes('149,232,255')) return 1.45;
-    if (s.includes('157,229,255')) return 1.55;
-    if (s.includes('210,246,255')) return 1.45;
-    if (s.includes('171,235,255')) return 1.55;
+    if (mode.interacting && s.includes('10,55,190')) return true;
+    if (!mode.mobile) return false;
+    if (s.includes('149,232,255')) return true;
+    if (s.includes('210,246,255')) return true;
+    if (s.includes('171,235,255')) return true;
+    return false;
+  }
+
+  function gainFor(style, mode) {
+    const s = String(style || '');
+    const mobileGain = mode.mobile ? 0.82 : 1;
+    if (s.includes('244,253,255')) return 1.95 * mobileGain;
+    if (s.includes('104,215,255')) return 2.75 * mobileGain;
+    if (s.includes('39,149,255')) return 1.72 * mobileGain;
+    if (s.includes('149,232,255')) return 1.58;
+    if (s.includes('157,229,255')) return 1.78 * mobileGain;
+    if (s.includes('210,246,255')) return 1.68;
+    if (s.includes('171,235,255')) return 1.78;
     return 1;
   }
 
   proto.stroke = function memoryGraphNeuralWidthStroke(...args) {
     if (!isScaffold(this)) return originalStroke.apply(this, args);
-    const gain = gainFor(this.strokeStyle);
+    const mode = renderMode(this);
+    if (shouldSkip(this.strokeStyle, mode)) return undefined;
+
+    const gain = gainFor(this.strokeStyle, mode);
     if (gain === 1) return originalStroke.apply(this, args);
 
     const previousWidth = this.lineWidth;
@@ -110,11 +136,22 @@
     groupControlObserver.observe(surface, { childList: true });
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => requestAnimationFrame(watchGroupAddControl), { once: true });
-  } else {
-    requestAnimationFrame(watchGroupAddControl);
+  function loadGroupUx() {
+    if (document.getElementById('memoryGraphGroupUxLoader') || globalThis.MemoryGraphGroupUx) return;
+    const script = document.createElement('script');
+    script.id = 'memoryGraphGroupUxLoader';
+    script.src = './memory-graph-group-ux.js?v=1';
+    script.defer = true;
+    document.head.appendChild(script);
   }
+
+  function mount() {
+    requestAnimationFrame(watchGroupAddControl);
+    loadGroupUx();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true });
+  else mount();
 
   globalThis.MemoryGraphNeuralWidth = Object.freeze({
     version: VERSION,
