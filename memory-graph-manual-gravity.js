@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 4;
+  const VERSION = 5;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
   const PHYSICS_INTERVAL_MS = 14;
@@ -196,7 +196,11 @@
 
     for (let i = 0; i < entries.length; i += 1) {
       const { body } = entries[i];
-      if (body.dragging) continue;
+      if (body.dragging || body.manualOrbit) {
+        body.vx = 0;
+        body.vy = 0;
+        continue;
+      }
 
       let fx = 0;
       let fy = 0;
@@ -270,6 +274,10 @@
     const groups = groupsForSpace().map((group) => {
       const body = bodies.get(String(group.id));
       if (!body) return group;
+      body.vx = 0;
+      body.vy = 0;
+      body.manualOrbit = true;
+      body.targetOrbit = Math.max(82, Math.hypot(body.x - centreX, body.y - centreY));
       return {
         ...group,
         angle: Math.atan2(body.y - centreY, body.x - centreX),
