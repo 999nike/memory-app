@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 6;
+  const VERSION = 7;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
   const PHYSICS_INTERVAL_MS = 14;
@@ -196,10 +196,10 @@
 
     for (let i = 0; i < entries.length; i += 1) {
       const { body } = entries[i];
-      if (body.dragging || body.manualOrbit) {
+      const bodyPinned = body.dragging || body.manualOrbit;
+      if (bodyPinned) {
         body.vx = 0;
         body.vy = 0;
-        continue;
       }
 
       let fx = 0;
@@ -243,12 +243,13 @@
         const pushY = (pairY / pairDistance) * repulsion;
         fx += pushX / Math.max(0.90, body.gravityWeight || 1);
         fy += pushY / Math.max(0.90, body.gravityWeight || 1);
-        if (!other.dragging) {
+        if (!other.dragging && !other.manualOrbit) {
           other.vx -= pushX / Math.max(0.90, other.gravityWeight || 1);
           other.vy -= pushY / Math.max(0.90, other.gravityWeight || 1);
         }
       }
 
+      if (bodyPinned) continue;
       const beforeX = body.x;
       const beforeY = body.y;
       body.vx = (Number(body.vx || 0) + fx) * 0.90;
@@ -610,6 +611,7 @@
           groupProjectionDirty = true;
           schedulePersist();
           scheduleGraphRedraw(false);
+          globalThis.MemoryGraph?.wake?.();
         }
         stopGroupEvent(event);
         return;
@@ -646,6 +648,7 @@
         persistBodies();
         groupProjectionDirty = true;
         scheduleGraphRedraw(true);
+        globalThis.MemoryGraph?.wake?.();
         try { canvas.releasePointerCapture?.(event.pointerId); } catch {}
         stopGroupEvent(event);
         return;
