@@ -1,13 +1,136 @@
 (() => {
   'use strict';
 
-  const VERSION = 3;
+  const VERSION = 4;
+  const WORKSPACE_KEY = 'memory-space-v1';
+  const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
+  const GROUP_KEY = 'memory-graph-folders-v1';
+  const STARTUP_GUARD_MS = 1800;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralWidthInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralWidthInstalled', { value: true });
 
   const originalStroke = proto.stroke;
+  const nativeRequestAnimationFrame = globalThis.requestAnimationFrame.bind(globalThis);
   let groupControlObserver = null;
+  let startupPhysicsGuard = hasCompleteSavedLayout();
+  let startupGuardUntil = performance.now() + STARTUP_GUARD_MS;
+  let startupRebaseDone = false;
+  let startupResizeObserver = null;
+  let startupStableTimer = 0;
+
+  function readJson(key) {
+    try {
+      return JSON.parse(localStorage.getItem(key) || 'null');
+    } catch {
+      return null;
+    }
+  }
+
+  function activeSpace() {
+    const workspace = readJson(WORKSPACE_KEY);
+    if (!workspace || !Array.isArray(workspace.spaces) || !Array.isArray(workspace.memories)) return null;
+    const space = workspace.spaces.find((item) => item.id === workspace.activeSpaceId) || workspace.spaces[0];
+    return space ? { workspace, space } : null;
+  }
+
+  function hasCompleteSavedLayout() {
+    const active = activeSpace();
+    if (!active) return false;
+    const confirmed = active.workspace.memories.filter((memory) =>
+      String(memory.spaceId) === String(active.space.id) && String(memory.status || 'confirmed') === 'confirmed'
+    );
+    if (!confirmed.length) return false;
+
+    const layout = readJson(GRAPH_STATE_KEY);
+    const nodes = layout?.spaces?.[active.space.id]?.nodes;
+    if (!nodes || typeof nodes !== 'object') return false;
+
+    return confirmed.every((memory) => {
+      const saved = nodes[memory.id];
+      return Number.isFinite(Number(saved?.offsetX)) && Number.isFinite(Number(saved?.offsetY));
+    });
+  }
+
+  function isMemoryGraphPhysicsTick(callback) {
+    if (typeof callback !== 'function') return false;
+    try {
+      const source = Function.prototype.toString.call(callback);
+      return source.includes('simulateStep()') &&
+        source.includes('simulationFrames') &&
+        source.includes('persistGraphState(false)');
+    } catch {
+      return false;
+    }
+  }
+
+  function guardedRequestAnimationFrame(callback) {
+    if (startupPhysicsGuard && performance.now() < startupGuardUntil && isMemoryGraphPhysicsTick(callback)) {
+      return 0;
+    }
+    return nativeRequestAnimationFrame(callback);
+  }
+
+  globalThis.requestAnimationFrame = guardedRequestAnimationFrame;
+
+  function unlockStartupPhysics() {
+    startupPhysicsGuard = false;
+  }
+
+  function dispatchGroupGeometryReset() {
+    const raw = localStorage.getItem(GROUP_KEY);
+    try {
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: GROUP_KEY,
+        oldValue: raw,
+        newValue: raw,
+        url: location.href,
+        storageArea: localStorage
+      }));
+      return;
+    } catch {}
+
+    try {
+      const event = new Event('storage');
+      Object.defineProperty(event, 'key', { value: GROUP_KEY });
+      window.dispatchEvent(event);
+    } catch {}
+  }
+
+  function finishStartupGeometry() {
+    if (startupRebaseDone) return;
+    startupRebaseDone = true;
+    startupResizeObserver?.disconnect();
+    startupResizeObserver = null;
+    dispatchGroupGeometryReset();
+    globalThis.MemoryGraph?.refresh?.();
+  }
+
+  function scheduleStartupGeometrySettle() {
+    if (!startupPhysicsGuard || startupRebaseDone) return;
+    if (startupStableTimer) window.clearTimeout(startupStableTimer);
+    startupStableTimer = window.setTimeout(() => {
+      startupStableTimer = 0;
+      finishStartupGeometry();
+    }, 220);
+  }
+
+  function watchStartupGeometry() {
+    if (!startupPhysicsGuard || startupRebaseDone) return;
+    const surface = document.getElementById('memoryGraphSurface');
+    if (!surface) {
+      window.setTimeout(watchStartupGeometry, 80);
+      return;
+    }
+
+    surface.addEventListener('pointerdown', unlockStartupPhysics, { once: true, capture: true });
+    surface.addEventListener('wheel', unlockStartupPhysics, { once: true, capture: true, passive: true });
+
+    startupResizeObserver?.disconnect();
+    startupResizeObserver = new ResizeObserver(scheduleStartupGeometrySettle);
+    startupResizeObserver.observe(surface);
+    scheduleStartupGeometrySettle();
+  }
 
   function isScaffold(ctx) {
     return ctx?.canvas?.classList?.contains('memory-graph-neural-scaffold-canvas') === true;
@@ -146,8 +269,9 @@
   }
 
   function mount() {
-    requestAnimationFrame(watchGroupAddControl);
+    nativeRequestAnimationFrame(watchGroupAddControl);
     loadGroupUx();
+    watchStartupGeometry();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true });
@@ -155,6 +279,7 @@
 
   globalThis.MemoryGraphNeuralWidth = Object.freeze({
     version: VERSION,
-    restoreGroupControl: ensureGroupAddControl
+    restoreGroupControl: ensureGroupAddControl,
+    startupGuardActive: () => startupPhysicsGuard && performance.now() < startupGuardUntil
   });
 })();
