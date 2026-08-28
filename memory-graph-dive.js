@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const ENTER_RATIO = 1.58;
   const EXIT_RATIO = 0.70;
   const MIN_GESTURE_MS = 70;
@@ -298,9 +298,19 @@
     });
   }
 
+  function loadTouchOpen() {
+    if (document.getElementById('memoryGraphTouchOpenLoader') || globalThis.MemoryGraphTouchOpen) return;
+    const script = document.createElement('script');
+    script.id = 'memoryGraphTouchOpenLoader';
+    script.src = './memory-graph-touch-open.js?v=1';
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+
   function mount() {
     ensureUi();
     bind();
+    loadTouchOpen();
   }
 
   globalThis.MemoryGraphDive = Object.freeze({
