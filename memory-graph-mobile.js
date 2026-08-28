@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 2;
+  const VERSION = 3;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphMobileInstalled) return;
 
@@ -18,6 +18,8 @@
   const touches = new Map();
   let gesture = null;
   let cancellingPointer = false;
+  let redrawFrame = 0;
+  let redrawFollowupFrame = 0;
 
   function isGraphCanvas(context) {
     return context?.canvas?.classList?.contains('memory-graph-canvas') === true;
@@ -190,9 +192,32 @@
 
   function forceGraphRedraw() {
     const api = globalThis.MemoryGraph;
-    if (!api) return;
+    if (!api) return false;
     const query = document.getElementById('searchInput')?.value || '';
     api.focusSearchTerm?.(query, true);
+
+    // The neural layers animate independently from the node canvas. During a
+    // touch gesture they intentionally run in reduced-detail mode, so explicitly
+    // release their frame throttle whenever the projected node geometry changes.
+    globalThis.MemoryGraphNeuralScaffold?.redraw?.();
+    globalThis.MemoryGraphNeuralFlow?.redraw?.();
+    return true;
+  }
+
+  function queueGraphLayerFlush(followup = false) {
+    if (redrawFrame) cancelAnimationFrame(redrawFrame);
+    redrawFrame = requestAnimationFrame(() => {
+      redrawFrame = 0;
+      forceGraphRedraw();
+
+      if (followup) {
+        if (redrawFollowupFrame) cancelAnimationFrame(redrawFollowupFrame);
+        redrawFollowupFrame = requestAnimationFrame(() => {
+          redrawFollowupFrame = 0;
+          forceGraphRedraw();
+        });
+      }
+    });
   }
 
   function dispatchPinchZoom(canvas, centreX, centreY, ratio) {
@@ -251,12 +276,15 @@
     const midDx = next.midX - gesture.midX;
     const midDy = next.midY - gesture.midY;
 
-    const zoomed = dispatchPinchZoom(canvas, next.midX, next.midY, ratio);
     const yawDelta = twist * 0.92 + midDx * 0.0068;
     const pitchDelta = midDy * 0.0052;
     const rotated = Math.abs(yawDelta) > 0.001 || Math.abs(pitchDelta) > 0.001
       ? globalThis.MemoryGraphRotation?.updateTouch?.(yawDelta, pitchDelta) === true
       : false;
+
+    // Apply rotation before pinch. The synthetic wheel handler redraws the graph,
+    // so this order guarantees that redraw captures the newest 3D projection.
+    const zoomed = dispatchPinchZoom(canvas, next.midX, next.midY, ratio);
 
     if (
       Math.abs(next.distance - gesture.distance) > 1.5 ||
@@ -272,7 +300,7 @@
     gesture.midY = next.midY;
 
     if (rotated && !zoomed) forceGraphRedraw();
-    else if (rotated) requestAnimationFrame(forceGraphRedraw);
+    if (zoomed || rotated) queueGraphLayerFlush(false);
     return zoomed || rotated;
   }
 
@@ -288,8 +316,13 @@
     // reset pseudo-3D rotation without disturbing zoom or node positions.
     if (!active.moved && performance.now() - active.startedAt < 320) {
       globalThis.MemoryGraphRotation?.reset?.();
-      forceGraphRedraw();
     }
+
+    // Always bank the final projection into every Canvas layer after both fingers
+    // leave the screen. The second RAF catches the independent scaffold/flow loop
+    // after its interaction flag has cleared, preventing stranded old connectors.
+    forceGraphRedraw();
+    queueGraphLayerFlush(true);
   }
 
   function mountGestures() {
