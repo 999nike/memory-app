@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralScaffoldInstalled', { value: true });
@@ -500,7 +500,9 @@
 
     const manualGroups = groupManualSegments(manualSegments);
     for (const group of manualGroups) {
-      drawNetwork(layerContext, group.segments, timestamp, interacting, true);
+      // Manual folders are separate semantic groups, but their neural tissue is
+      // rendered with the exact same full-strength geometry as normal memories.
+      drawNetwork(layerContext, group.segments, timestamp, interacting, false);
     }
   }
 
