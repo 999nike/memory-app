@@ -65,15 +65,27 @@ PATCH 01 - CLEAN RESTART + FIRST NEURAL TISSUE PASS
 - pulse animation runs independently from force simulation so settled graph physics does not need to run forever
 - while the user is interacting, detail is deliberately reduced to protect frame rate
 - source passed node --check before upload
-- visual result still requires user live check before Steps 03-05 are marked complete
+- user live screenshot on 28 Aug confirmed the clean green nodes/groups remained intact and the new blue neural bundles are visibly working
+
+PATCH 02 - DENSE NEURAL WEAVE PASS
+- density renderer commit: ba879866febb11d16823befbca9f85ac5951542f
+- loader commit: ba8b30fe09b923c305168606be93b0554c82cdd2
+- adds a second isolated visual-only Canvas pass over the semantic edge geometry; it does not add new memory relationships
+- broad low-alpha blue sheaths make each logical edge read as tissue rather than a wire
+- each edge now receives more irregular companion fibres with greater lateral spread
+- long curved dendrite branches fork into secondary filaments and are allowed to overlap neighbouring bundles visually
+- source and target junctions gain soft nexus glow so nearby bundles visually merge into one nervous system
+- manual group links receive the same treatment without changing group physics or membership
+- interaction mode cuts strand/branch detail; narrow/mobile canvases also use reduced density
+- Step 06 remains waiting for live screenshot comparison before being accepted
 
 TICK BOX
 Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
 [x] 01 - Clean baseline restored; rejected morning experiment preserved on backup branch
 [x] 02 - Isolated Canvas neural-tissue renderer loaded
-[~] 03 - Space -> memory neural bundles patched; waiting live visual check
-[~] 04 - Manual group / satellite neural bundles patched; waiting live visual check
-[~] 05 - Energy pulses + centre junction glow patched; waiting live visual check
-[ ] 06 - Visual density / thickness tuned toward screenshot
+[x] 03 - Space -> memory neural bundles working; live screenshot confirmed
+[x] 04 - Manual group / satellite neural bundles working; live screenshot confirmed
+[~] 05 - Energy pulses + centre junction glow patched; motion still needs live confirmation
+[~] 06 - Dense visual weave / thickness pass patched; waiting live screenshot comparison
 [ ] 07 - Interaction/mobile performance pass
 [ ] 08 - User live visual approval
