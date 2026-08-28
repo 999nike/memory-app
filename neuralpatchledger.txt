@@ -77,7 +77,21 @@ PATCH 02 - DENSE NEURAL WEAVE PASS
 - source and target junctions gain soft nexus glow so nearby bundles visually merge into one nervous system
 - manual group links receive the same treatment without changing group physics or membership
 - interaction mode cuts strand/branch detail; narrow/mobile canvases also use reduced density
-- Step 06 remains waiting for live screenshot comparison before being accepted
+- user asked to continue toward the approved reference rather than stop at the current cable-like appearance
+
+PATCH 03 - SHARED TISSUE MASS + HUB SPLITTING
+- mass renderer commit: 1f43308a0f89d61c9911c32b98f5b3f4a6321960
+- loader commit: 5030d585322a2f0eed54820136b1789e3463e350
+- adds a third isolated visual-only Canvas pass; semantic graph relationships are unchanged
+- broad irregular low-alpha sheaths now fill more of the negative space around major trunks
+- central Memory App gets a larger living blue/cyan root mass instead of clean spokes simply meeting at one point
+- neighbouring centre spokes are sorted by angle and visually bridged near the hub so close routes share tissue before splitting
+- extra long decorative tendrils and forked micro-branches increase overlap without creating fake semantic relationships
+- subtle micro-activity particles move through both ordinary and manual group paths
+- manual Space -> group and group -> satellite paths receive ambient mass treatment without changing group positions or membership
+- interaction mode keeps only a reduced mass pass; mobile uses fewer root strands/tendrils
+- source passed node --check before upload
+- waiting for user live screenshot before further brightness/density tuning
 
 TICK BOX
 Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
@@ -86,6 +100,6 @@ Legend: [x] complete / [~] patched and waiting live check / [ ] not complete
 [x] 03 - Space -> memory neural bundles working; live screenshot confirmed
 [x] 04 - Manual group / satellite neural bundles working; live screenshot confirmed
 [~] 05 - Energy pulses + centre junction glow patched; motion still needs live confirmation
-[~] 06 - Dense visual weave / thickness pass patched; waiting live screenshot comparison
+[~] 06 - Dense weave + shared tissue mass/hub splitting patched; waiting live screenshot comparison
 [ ] 07 - Interaction/mobile performance pass
 [ ] 08 - User live visual approval
