@@ -1,13 +1,14 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const MIN_DESKTOP_WIDTH = 1051;
   const state = {
     yaw: 0,
     pitch: 0,
     active: false,
-    rotating: false
+    rotating: false,
+    touchRotating: false
   };
 
   function clamp(value, min, max) {
@@ -32,7 +33,7 @@
     return (hash >>> 0) / 4294967295;
   }
 
-  function supported() {
+  function desktopSupported() {
     if (window.innerWidth < MIN_DESKTOP_WIDTH) return false;
     try {
       return window.matchMedia('(pointer: fine)').matches;
@@ -41,9 +42,29 @@
     }
   }
 
+  function touchSupported() {
+    const points = Math.max(0, Number(navigator.maxTouchPoints || 0));
+    if (points >= 2) return true;
+    try {
+      return window.matchMedia('(pointer: coarse)').matches;
+    } catch {
+      return false;
+    }
+  }
+
+  // Desktop compatibility: the existing graph pointer handler still uses this
+  // for Ctrl + drag rotation. Mobile gestures use beginTouch/updateTouch.
+  function supported() {
+    return desktopSupported();
+  }
+
+  function visualSupported() {
+    return desktopSupported() || touchSupported();
+  }
+
   function shouldStart(event) {
     return Boolean(
-      supported() &&
+      desktopSupported() &&
       event &&
       event.button === 0 &&
       event.ctrlKey
@@ -51,13 +72,13 @@
   }
 
   function begin() {
-    if (!supported()) return false;
+    if (!desktopSupported()) return false;
     state.rotating = true;
     return true;
   }
 
   function update(deltaX, deltaY) {
-    if (!state.rotating || !supported()) return false;
+    if (!state.rotating || !desktopSupported()) return false;
 
     state.active = true;
     state.yaw = normaliseAngle(state.yaw + Number(deltaX || 0) * 0.0085);
@@ -69,19 +90,45 @@
     state.rotating = false;
   }
 
+  function beginTouch() {
+    if (!touchSupported()) return false;
+    state.touchRotating = true;
+    return true;
+  }
+
+  function updateTouch(yawDelta, pitchDelta) {
+    if (!state.touchRotating || !touchSupported()) return false;
+    const yaw = Number(yawDelta || 0);
+    const pitch = Number(pitchDelta || 0);
+    if (!Number.isFinite(yaw) || !Number.isFinite(pitch)) return false;
+
+    state.active = true;
+    state.yaw = normaliseAngle(state.yaw + yaw);
+    state.pitch = clamp(state.pitch + pitch, -1.22, 1.22);
+    return true;
+  }
+
+  function endTouch() {
+    state.touchRotating = false;
+  }
+
   function reset() {
     state.yaw = 0;
     state.pitch = 0;
     state.active = false;
     state.rotating = false;
+    state.touchRotating = false;
   }
 
   function isActive() {
-    return Boolean(state.active && supported());
+    return Boolean(state.active && visualSupported());
   }
 
   function isRotating() {
-    return Boolean(state.rotating && supported());
+    return Boolean(
+      (state.rotating && desktopSupported()) ||
+      (state.touchRotating && touchSupported())
+    );
   }
 
   function pseudoDepth(node, graph) {
@@ -145,17 +192,22 @@
       yaw: state.yaw,
       pitch: state.pitch,
       active: isActive(),
-      rotating: isRotating()
+      rotating: isRotating(),
+      touchRotating: Boolean(state.touchRotating)
     };
   }
 
   globalThis.MemoryGraphRotation = Object.freeze({
     version: VERSION,
     supported,
+    touchSupported,
     shouldStart,
     begin,
     update,
     end,
+    beginTouch,
+    updateTouch,
+    endTouch,
     reset,
     isActive,
     isRotating,
