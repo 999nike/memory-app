@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralFlowInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralFlowInstalled', { value: true });
@@ -365,7 +365,11 @@
     if (!interacting) drawNetworkFlow(mainSegments, timestamp, false);
 
     if (!interacting) {
-      for (const group of groupManualSegments(manualSegments)) drawNetworkFlow(group.segments, timestamp, true);
+      for (const group of groupManualSegments(manualSegments)) {
+        // Folder pulses use the same route geometry, pulse count and glow size
+        // as normal memory routes; grouping remains semantic only.
+        drawNetworkFlow(group.segments, timestamp, false);
+      }
     }
   }
 
