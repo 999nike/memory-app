@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 5;
+  const VERSION = 6;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
   const PHYSICS_INTERVAL_MS = 14;
@@ -554,6 +554,14 @@
     flushNeuralLayers();
   }
 
+  function restartBaseSimulation() {
+    const api = globalThis.MemoryGraph;
+    if (typeof api?.refresh !== 'function') return false;
+    api.refresh();
+    flushNeuralLayers();
+    return true;
+  }
+
   function scheduleGraphRedraw(immediate = false) {
     if (immediate) {
       if (redrawFrame) cancelAnimationFrame(redrawFrame);
@@ -668,7 +676,7 @@
         canvas.removeAttribute('data-interacting');
         persistBodies();
         groupProjectionDirty = true;
-        scheduleGraphRedraw(true);
+        if (!restartBaseSimulation()) scheduleGraphRedraw(true);
         try { canvas.releasePointerCapture?.(event.pointerId); } catch {}
         stopGroupEvent(event);
         return;
@@ -703,7 +711,7 @@
         canvas.removeAttribute('data-hover-group');
         canvas.removeAttribute('data-interacting');
         groupProjectionDirty = true;
-        scheduleGraphRedraw(false);
+        if (!restartBaseSimulation()) scheduleGraphRedraw(false);
       }
       if (memoryDrag?.pointerId === event.pointerId) memoryDrag = null;
     }, true);
