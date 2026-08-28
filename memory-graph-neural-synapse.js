@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralSynapseInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralSynapseInstalled', { value: true });
@@ -289,6 +289,132 @@
     ctx.restore();
   }
 
+  function drawNeuronCell(segment, t, interacting, index = 0) {
+    if (interacting || segment.compact || segment.length < 115) return;
+    const mobile = source?.clientWidth < 700;
+    if (mobile && index > 0) return;
+    const seed = segment.seed + 12.7 + index * 0.719;
+    const along = index === 0 ? 0.34 + hash(seed, 1, 2) * 0.09 : 0.60 + hash(seed, 3, 4) * 0.08;
+    const centre = lerp(segment.from, segment.to, along);
+    const dx = segment.to.x - segment.from.x;
+    const dy = segment.to.y - segment.from.y;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const tangent = { x: dx / len, y: dy / len };
+    const px = -tangent.y;
+    const py = tangent.x;
+    const cellR = mobile ? 4.2 : 5.2 + hash(seed, 5, 6) * 2.4;
+
+    drawSynapse(centre, seed + 0.31, t, cellR / 6.2, hash(seed, 7, 8) > 0.76);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const arms = mobile ? 5 : 8;
+    for (let arm = 0; arm < arms; arm += 1) {
+      const armSeed = seed + arm * 0.413;
+      const angle = (arm / arms) * Math.PI * 2 + (hash(armSeed, 9, 10) - 0.5) * 0.72;
+      const directional = (hash(armSeed, 11, 12) - 0.5) * 0.42;
+      const ux = Math.cos(angle) * 0.76 + tangent.x * directional + px * (hash(armSeed, 13, 14) - 0.5) * 0.26;
+      const uy = Math.sin(angle) * 0.76 + tangent.y * directional + py * (hash(armSeed, 15, 16) - 0.5) * 0.26;
+      const mag = Math.max(0.01, Math.hypot(ux, uy));
+      const ax = ux / mag;
+      const ay = uy / mag;
+      const reach = (mobile ? 16 : 22) + hash(armSeed, 17, 18) * (mobile ? 18 : 42);
+      const bend = (hash(armSeed, 19, 20) - 0.5) * reach * 0.40;
+      const bx = -ay;
+      const by = ax;
+      const mid = {
+        x: centre.x + ax * reach * 0.48 + bx * bend,
+        y: centre.y + ay * reach * 0.48 + by * bend
+      };
+      const end = {
+        x: centre.x + ax * reach + bx * bend * 0.45,
+        y: centre.y + ay * reach + by * bend * 0.45
+      };
+
+      ctx.beginPath();
+      ctx.moveTo(centre.x, centre.y);
+      ctx.quadraticCurveTo(mid.x, mid.y, end.x, end.y);
+      ctx.lineWidth = 2.6;
+      ctx.strokeStyle = 'rgba(34,123,255,.040)';
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(centre.x, centre.y);
+      ctx.quadraticCurveTo(mid.x, mid.y, end.x, end.y);
+      ctx.lineWidth = 0.52;
+      ctx.strokeStyle = 'rgba(189,241,255,.28)';
+      ctx.stroke();
+
+      if (!mobile && hash(armSeed, 21, 22) > 0.46) {
+        const forkSide = hash(armSeed, 23, 24) > 0.5 ? 1 : -1;
+        const forkReach = reach * (0.28 + hash(armSeed, 25, 26) * 0.24);
+        const forkEnd = {
+          x: mid.x + ax * forkReach * 0.55 + bx * forkSide * forkReach,
+          y: mid.y + ay * forkReach * 0.55 + by * forkSide * forkReach
+        };
+        ctx.beginPath();
+        ctx.moveTo(mid.x, mid.y);
+        ctx.quadraticCurveTo((mid.x + forkEnd.x) * 0.5 + bx * forkSide * 4, (mid.y + forkEnd.y) * 0.5 + by * forkSide * 4, forkEnd.x, forkEnd.y);
+        ctx.lineWidth = 0.24;
+        ctx.strokeStyle = 'rgba(205,247,255,.20)';
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawVeinWeave(segment, t, interacting) {
+    if (interacting || segment.compact || segment.length < 90) return;
+    const mobile = source?.clientWidth < 700;
+    const count = mobile ? 2 : 4;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (let i = 0; i < count; i += 1) {
+      const seed = segment.seed + 16.2 + i * 0.537;
+      const start = lerp(segment.from, segment.to, 0.08 + i * 0.035);
+      const end = lerp(segment.from, segment.to, 0.84 - i * 0.045);
+      curvePath(start, end, seed + Math.sin(t * 0.00031 + seed * 7) * 0.08, 27 + i, 1.22 + i * 0.12);
+      ctx.lineWidth = i === 0 ? 0.72 : 0.36 + i * 0.06;
+      ctx.strokeStyle = i === 0 ? 'rgba(125,218,255,.18)' : 'rgba(167,235,255,.12)';
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawPlexus(centre, t, interacting) {
+    if (!centre || interacting || base.length < 3) return;
+    const mobile = source?.clientWidth < 700;
+    const sorted = [...base].sort((a, b) => a.angle - b.angle);
+    const ringCount = Math.min(sorted.length, mobile ? 6 : 10);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    const points = [];
+    for (let i = 0; i < ringCount; i += 1) {
+      const s = sorted[Math.floor(i * sorted.length / ringCount)];
+      const seed = s.seed + i * 0.37;
+      const p = lerp(s.from, s.to, 0.12 + hash(seed, 1, 2) * 0.10);
+      points.push(p);
+    }
+    for (let i = 0; i < points.length; i += 1) {
+      const a = points[i];
+      const b = points[(i + 1) % points.length];
+      const seed = i * 0.781 + 22.3;
+      curvePath(a, b, seed + Math.sin(t * 0.0002 + seed) * 0.05, 31 + i, 0.76);
+      ctx.lineWidth = i % 3 === 0 ? 1.1 : 0.42;
+      ctx.strokeStyle = i % 3 === 0 ? 'rgba(62,157,255,.045)' : 'rgba(183,239,255,.12)';
+      ctx.stroke();
+      if (!mobile && i % 2 === 0) {
+        const mid = lerp(a, b, 0.5);
+        drawSynapse(mid, seed + 0.44, t, 0.50, false);
+      }
+    }
+    ctx.restore();
+  }
+
   function drawFrame(t) {
     frame = requestAnimationFrame(drawFrame);
     if (!ctx || !layer || !source?.isConnected || document.hidden) return;
@@ -306,6 +432,9 @@
       drawSegmentFog(s, t, interacting);
       drawSecondaryJunctions(s, t, interacting);
       drawMicroWeb(s, t, interacting);
+      drawVeinWeave(s, t, interacting);
+      drawNeuronCell(s, t, interacting, 0);
+      if (s.length > 190) drawNeuronCell(s, t, interacting, 1);
     }
     for (const s of manual) {
       drawSegmentFog(s, t, interacting);
@@ -313,6 +442,7 @@
       drawMicroWeb(s, t, interacting);
     }
     drawCrossLinks(centre, t, interacting);
+    drawPlexus(centre, t, interacting);
   }
 
   proto.beginPath = function (...args) {
