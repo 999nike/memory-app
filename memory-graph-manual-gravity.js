@@ -1,13 +1,14 @@
 (() => {
   'use strict';
 
-  const VERSION = 3;
+  const VERSION = 4;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
   const PHYSICS_INTERVAL_MS = 14;
   const PERSIST_DELAY_MS = 420;
   const OVERLAY_FRAME_MS = 40;
   const DRAG_OVERLAY_FRAME_MS = 28;
+  const MIN_GRAPH_SCALE = 0.45;
 
   const baseRotation = globalThis.MemoryGraphRotation || null;
   if (!baseRotation || baseRotation.__manualGravityPhysicsWrapped) return;
@@ -140,10 +141,15 @@
 
   function containBody(body, graph) {
     const margin = Number(body.radius || 35) + 34;
-    const minX = margin;
-    const maxX = Math.max(margin, Number(graph.width || 1) - margin);
-    const minY = margin;
-    const maxY = Math.max(margin, Number(graph.height || 1) - margin);
+    const width = Math.max(1, Number(graph.width || 1));
+    const height = Math.max(1, Number(graph.height || 1));
+    const zoomExtent = Math.max(1, 1 / MIN_GRAPH_SCALE);
+    const extraX = Math.max(0, width * (zoomExtent - 1) / 2);
+    const extraY = Math.max(0, height * (zoomExtent - 1) / 2);
+    const minX = margin - extraX;
+    const maxX = width - margin + extraX;
+    const minY = margin - extraY;
+    const maxY = height - margin + extraY;
 
     if (body.x < minX) {
       body.x = minX;
