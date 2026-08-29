@@ -1,0 +1,564 @@
+MOLECULAR VIEW — FULL-SCREEN FRONT-SKIN PROTOTYPE PLAN
+Project: Memory Space visual lab
+Lab root ONLY:
+E:\WIZZ-Server\new-version\memory-app-visual-lab\memory-app
+
+======================================================================
+0. PRIMARY INTENT
+======================================================================
+
+THIS SCREEN IS THE TARGET:
+
+The graph fills the entire application viewport.
+
+There is no normal dashboard visible in Molecular View:
+- no permanent sidebar
+- no permanent Shared Memory cards
+- no permanent AI Workspace panel
+- no permanent stats blocks
+- no rectangular Memory Graph widget
+
+The molecular graph IS the application front skin.
+
+The existing app logic remains underneath and is invoked by the molecular skin.
+
+Think:
+
+EXISTING APP LOGIC
+(memory, AI Access, proposals, context, settings, inspector)
+        ↑
+        │ controlled by
+        │
+MOLECULAR FRONT SKIN
+(full-screen graph + nodes + expanding control branches)
+
+Do not rebuild working app systems.
+Do not duplicate their data/state.
+The skin is a controller/presentation layer above them.
+
+======================================================================
+1. HARD SAFETY BOUNDARY
+======================================================================
+
+WORK ONLY inside:
+E:\WIZZ-Server\new-version\memory-app-visual-lab\memory-app
+
+Do not touch frozen/production folders.
+
+Do not commit or push unless explicitly instructed.
+
+Do not replace:
+- memory persistence
+- app.js truth/state
+- onboarding
+- Memory Bridge
+- OAuth/DCR
+- provider connection logic
+- proposal approval/persistence
+- customer isolation
+- localStorage schemas
+
+The visual-lab copy may be heavily redesigned visually.
+
+======================================================================
+2. EXISTING GRAPH IS THE ENGINE
+======================================================================
+
+Use the existing Memory Graph engine.
+
+Current known ownership:
+- memory-graph.js = canonical node positions, velocities, gravity, edges,
+  drag/pan/zoom, hit testing, inspector routing
+- MemoryGraphRotation = pseudo-3D projection
+- memory-graph visuals/neural/synapse/flow/nebula layers = presentation derived
+  from current projected node positions
+
+Do not create a second graph.
+Do not create another memory physics system.
+Do not recreate memory nodes in Three.js.
+
+The existing graph becomes full-screen.
+
+======================================================================
+3. MOLECULAR VIEW = FULL SCREEN
+======================================================================
+
+Implement a Molecular View mode.
+
+When active:
+- graph canvas/container fills the usable viewport
+- existing graph card/panel border disappears
+- background nebula/world treatment fills edge-to-edge
+- normal dashboard chrome is visually hidden/suppressed
+- graph remains fully interactive
+- only lightweight floating overlays remain when needed
+
+Workspace View may remain available as a hidden fallback toggle during prototype
+development, but Molecular View is the primary prototype.
+
+======================================================================
+4. GRAPH NODE TYPES
+======================================================================
+
+A. SPACE CORE NODE
+Existing blue electric center node.
+This is Home.
+
+Click:
+- recentres molecular system
+- closes any currently expanded control branch/panel where appropriate
+
+B. MEMORY NODES
+Existing green memory nodes.
+
+Click:
+- select/focus
+- open the existing memory inspector as a temporary floating overlay
+- do NOT navigate to a normal dashboard page
+
+Drag:
+- existing graph drag behaviour
+
+C. CONTROL NODES
+New ephemeral UI-only nodes.
+
+Initial top-level control nodes:
+- AI Access
+- Add Memory
+- Context
+- Proposals
+- Settings
+
+These nodes:
+- are NOT durable memories
+- do NOT enter memory counts
+- do NOT enter exports
+- do NOT enter AI context
+- do NOT publish through Memory Bridge
+- do NOT enter proposal queues
+
+They exist only in the Molecular View presentation/controller layer.
+
+======================================================================
+5. EXPANDING NODE MENUS
+======================================================================
+
+THIS IS IMPORTANT.
+
+Clicking a control node should expand MORE NODES around it.
+
+Example:
+
+                    ○ Claude
+                   /
+        ○ Grok --- ○ AI Access --- ○ Mistral
+                   \
+                    ○ Cursor
+
+The exact children must reflect existing available state where practical.
+
+AI ACCESS NODE
+Click:
+- expand child nodes/options around AI Access
+- examples:
+  - Connected AIs
+  - Connect AI
+  - Revoke / Disconnect
+  - On-device AI
+- child-node actions invoke existing AI Access/provider UI/logic
+- do not build a second provider system
+
+SETTINGS NODE
+Click:
+- expand child nodes such as:
+  - Motion
+  - Labels
+  - Pulses
+  - Recenter
+  - Workspace View
+- presentation settings only unless safely invoking an existing settings surface
+
+PROPOSALS NODE
+Click:
+- expand proposal-related nodes or badges
+- examples:
+  - Pending count
+  - Review proposals
+- actual review uses existing proposal data/UI
+
+CONTEXT NODE
+Click:
+- expand options such as:
+  - View current context
+  - Copy context
+- invoke existing context logic
+
+ADD MEMORY NODE
+Click:
+- either open existing Add Memory dialog immediately
+OR
+- expand simple child nodes if useful
+- must use existing memory creation flow
+
+RULE:
+Only one control branch needs to be expanded at once in the first prototype.
+Opening a second control branch can collapse the previous branch.
+
+======================================================================
+6. NODE MENU BEHAVIOUR
+======================================================================
+
+Control subnodes should:
+- emerge smoothly from their parent
+- remain connected visually to the parent
+- use the same projected coordinate system as the graph
+- not use a separate physics engine
+- be anchored/kinematic if necessary
+- collapse smoothly when dismissed
+
+Prefer radial / orbital expansion around the parent.
+
+Do not let control-node menus disturb the actual memory-node physics.
+
+======================================================================
+7. FRONT-SKIN CONTROLLER RULE
+======================================================================
+
+The molecular skin controls EXISTING systems.
+
+Examples:
+
+AI Access control node
+    -> trigger/open existing AI Access functionality
+
+Add Memory control node
+    -> trigger existing Add Memory flow
+
+Memory node
+    -> trigger existing inspector
+
+Context node
+    -> trigger existing context view
+
+Proposal node
+    -> trigger/focus existing proposal review
+
+Do not duplicate:
+- forms
+- providers
+- storage
+- permission rules
+- proposal logic
+- memory lifecycle
+
+If an existing system has no clean callable function, use the safest adapter:
+- trigger its existing button
+- dispatch its existing event
+- expose the smallest wrapper hook
+
+Do not rewrite the system.
+
+======================================================================
+8. TEMPORARY OVERLAYS
+======================================================================
+
+Some complex tasks still need readable HTML.
+
+Allowed:
+- floating memory inspector
+- Add Memory dialog
+- AI Access dialog/panel
+- proposal review panel
+- Context dialog
+
+But these are TEMPORARY overlays above the graph.
+
+They must not restore the normal dashboard layout.
+
+The graph stays visible behind them.
+
+The goal:
+"node summons tool"
+not
+"node sends user back to dashboard"
+
+======================================================================
+9. VISUAL TARGET
+======================================================================
+
+Use the user's existing graph identity:
+
+- blue electric Space core
+- green memory nodes
+- thick neural/brain-like connections
+- pulses travelling through connections
+- dark space/nebula background
+- drifting/gravity feel
+- pseudo-3D depth
+
+No:
+- wireframe planets
+- duplicate 3D spheres
+- generic Three.js demo visuals
+- second graph behind the real graph
+- giant static dashboard columns
+
+The screenshot/reference style is the baseline:
+the graph should occupy essentially the whole application screen.
+
+======================================================================
+10. LAYOUT / RESPONSIVENESS
+======================================================================
+
+Desktop:
+- full-window molecular field
+- control nodes can live around outer regions of the main cluster
+- temporary panels slide/fade above field
+
+Mobile:
+- same interaction model
+- fewer simultaneously visible control labels
+- control branch may expand in a tighter radial pattern
+- temporary panels can use bottom sheet / full-height overlay where needed
+- graph remains the background/world
+
+Do not create a separate mobile app design yet.
+
+======================================================================
+11. CAMERA / FOCUS
+======================================================================
+
+Use current graph camera/projection.
+
+Home:
+- Space core and top-level control nodes visible
+
+Memory click:
+- ease toward selected memory
+- keep enough network context visible
+- open inspector
+
+Control click:
+- subtly bias camera toward control node
+- expand its child nodes
+
+Close/collapse:
+- ease back to useful home framing
+
+Do not use scroll-driven navigation as the primary interaction.
+
+======================================================================
+12. CONTROL NODE DISCOVERABILITY
+======================================================================
+
+Top-level control nodes should be understandable without a manual.
+
+Use:
+- readable labels
+- distinct but compatible icon/symbol treatment
+- subtle visual difference from real memories
+
+Suggested treatment:
+- real memory nodes = current green style
+- Space core = current blue electric core
+- control nodes = green/blue hybrid ring or clearly marked utility style
+- subnodes = smaller related utility nodes
+
+Keep the visual language unified.
+
+======================================================================
+13. SETTINGS FOR THE PROTOTYPE
+======================================================================
+
+Settings branch may include:
+- Motion: Low / Normal / Off
+- Labels: Minimal / All
+- Pulses: Low / Normal
+- Recenter
+- Workspace View fallback
+
+These are presentation-only.
+
+Use a new presentation-only localStorage key only if needed.
+Do not alter existing workspace schema.
+
+======================================================================
+14. PERFORMANCE
+======================================================================
+
+Preserve one graph engine.
+
+Avoid:
+- duplicate requestAnimationFrame loops
+- heavy post-processing
+- new physics engines
+- unbounded MutationObservers
+- rebuilding node DOM/canvas structures every frame
+- leaking listeners during branch open/close
+
+Check:
+- drag remains smooth
+- connectors remain attached
+- subnode expansion does not destabilise memory physics
+- repeated open/close does not create duplicate controls
+- mobile reduces visual extras if necessary
+
+======================================================================
+15. IMPLEMENTATION STRATEGY
+======================================================================
+
+Preferred new files:
+- molecular-view.js
+- molecular-view.css
+
+Review current:
+- memory-graph-spatial.js
+- memory-graph-spatial.css
+
+Consolidate rather than stacking competing layers.
+
+Small hooks in memory-graph.js are allowed if required to:
+- inject ephemeral control nodes
+- expose selected/focus state
+- distinguish memory nodes vs UI control nodes
+
+But:
+- do not replace physics
+- do not rewrite large unrelated sections
+
+If control nodes cannot safely live in the graph engine without contaminating
+durable memory state, keep them in a separate PRESENTATION collection that uses
+the same projection/camera space.
+
+Still no second physics engine.
+
+======================================================================
+16. LEDGERPATCH.txt — NEW SECTION
+======================================================================
+
+Add:
+
+FOURTH PASS — FULL-SCREEN MOLECULAR FRONT SKIN
+
+Safety
+[ ] Verified working directory is visual-lab root
+[ ] Frozen product untouched
+[ ] Core memory/AI/bridge data systems unchanged
+
+Full-screen shell
+[ ] Molecular View fills application viewport
+[ ] Normal dashboard chrome suppressed in Molecular View
+[ ] Graph card/widget boundary removed
+[ ] Existing graph remains interactive full-screen
+
+Engine integrity
+[ ] Existing memory graph remains canonical position owner
+[ ] Existing physics preserved
+[ ] Existing connectors remain attached
+[ ] No second memory graph exists
+[ ] No second memory physics loop exists
+
+Top-level control nodes
+[ ] AI Access node
+[ ] Add Memory node
+[ ] Context node
+[ ] Proposals node
+[ ] Settings node
+[ ] Space core acts as Home
+
+Expandable control branches
+[ ] Clicking control node expands child nodes
+[ ] Expanded branch remains connected to parent
+[ ] Only one branch expanded at once
+[ ] Collapse works cleanly
+[ ] Child controls are ephemeral/non-durable
+
+Existing-system adapters
+[ ] Add Memory invokes existing flow
+[ ] AI Access invokes existing flow
+[ ] Context invokes existing flow
+[ ] Proposals invokes existing review state/surface
+[ ] Memory node invokes existing inspector
+[ ] No duplicate provider/storage/proposal logic created
+
+Camera
+[ ] Memory focus easing works
+[ ] Control focus easing works
+[ ] Home/recenter works
+[ ] Close/collapse restores useful framing
+
+Presentation
+[ ] Existing blue core preserved
+[ ] Existing green memory nodes preserved
+[ ] Existing neural connector/pulse style preserved
+[ ] Control nodes visually distinct but coherent
+[ ] Whole screen reads as graph-first UI
+
+Regression
+[ ] Workspace data schema unchanged
+[ ] app.js state truth unchanged
+[ ] onboarding unchanged
+[ ] OAuth/DCR unchanged
+[ ] bridge unchanged
+[ ] proposal persistence unchanged
+
+Performance
+[ ] No duplicate hot animation loop
+[ ] No repeated branch/listener leak
+[ ] Desktop runtime check
+[ ] Mobile degradation check
+[ ] Reduced-motion preserved
+
+FINAL GATE
+[ ] FULL-SCREEN MOLECULAR HUMAN TEST
+
+======================================================================
+17. WORK CONTINUOUSLY
+======================================================================
+
+Do not stop for minor styling questions.
+
+Use conservative judgement and continue.
+
+STOP only if:
+- protected core logic must be rewritten
+- durable memory/state contamination is unavoidable
+- existing graph physics would need replacement
+- full-screen prototype reaches HUMAN TEST
+
+======================================================================
+18. REQUIRED REPORT AT HUMAN TEST
+======================================================================
+
+Report:
+1. Exact files changed/created/deleted
+2. Working directory
+3. How Molecular View starts
+4. Which top-level nodes exist
+5. Which child nodes each control expands
+6. Which existing app functions/surfaces each node invokes
+7. Confirmation no durable control nodes were written
+8. Confirmation graph physics were not replaced
+9. Tests performed
+10. Local URL
+11. Desktop test checklist
+12. Mobile test checklist
+13. Known limitations
+14. What should be judged visually next
+
+======================================================================
+19. PROTOTYPE PASS CONDITION
+======================================================================
+
+The prototype passes this stage when:
+
+- the screen is essentially the molecular graph
+- the old dashboard is not the main UI
+- real memory nodes still work
+- the Space core works as Home
+- AI Access, Add Memory, Context, Proposals, Settings exist as real control nodes
+- control nodes can expand into more option nodes
+- those options control existing app systems
+- complex existing forms/panels appear temporarily over the graph when needed
+- no duplicate memory/AI/provider/proposal engine has been built
+- the graph remains the one visual/physics engine

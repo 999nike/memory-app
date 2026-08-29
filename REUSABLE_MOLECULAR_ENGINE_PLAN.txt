@@ -1,0 +1,387 @@
+REUSABLE MOLECULAR ENGINE PLAN
+
+WORK ONLY IN:
+E:\WIZZ-Server\new-version\memory-app-visual-lab\memory-app
+
+REFERENCE
+Use the newest neural-tree concept image placed in this folder as the visual target.
+Match hierarchy, branch density, and the single living neural-system feel. Do not trace it literally.
+
+GOAL
+Refactor the current prototype into ONE reusable molecular physics/rendering engine that Memory Space uses now and that other apps can reuse later.
+
+CORE ARCHITECTURE
+
+MOLECULAR ENGINE
+- one node registry
+- one edge registry
+- one simulation tick
+- one projection / pseudo-3D system
+- one drag / pan / zoom / rotation model
+- one connector geometry system
+- one branch expansion/collapse model
+- one focus/camera model
+- one hit-test system
+- node-role configuration hooks
+
+MEMORY SPACE ADAPTER
+- maps real Spaces/memories into engine nodes
+- defines ephemeral control nodes
+- defines control hierarchy
+- maps node actions back to existing Memory Space UI
+- owns product meaning; engine must not know what AI Access, Bridge, Settings, etc. mean
+
+HARD RULES
+- Do not touch frozen/production folders.
+- Do not commit or push.
+- Do not create a second graph.
+- Do not create a second physics loop.
+- Do not duplicate app business logic.
+- Do not alter workspace/localStorage schemas.
+- Do not contaminate durable memory with control nodes.
+- Preserve onboarding, OAuth/DCR, Bridge, provider state, proposal persistence, customer isolation.
+- app.js remains source of truth unless a tiny adapter hook is absolutely required; stop before making a broad core change.
+
+ONE PHYSICS WORLD
+All visible nodes use the same engine:
+- core
+- memory
+- space/group
+- control
+- control-child
+- action
+
+Roles may use different force parameters, but they are updated by the same simulation tick.
+
+Suggested per-role settings:
+- mass
+- drag
+- attraction
+- repulsion
+- orbital/parent attraction
+- draggable
+- selectable
+- expandable
+- visual style token
+
+DATA NODES VS CONTROL NODES
+
+DATA NODES
+- real Spaces
+- real memories
+- real groups/folders if currently supported
+- durable where appropriate
+
+CONTROL NODES
+- Shared Memory
+- Add Memory
+- Search
+- Filters
+- Inspector
+- Settings
+- AI Access
+- Local Model
+- Memory Bridge
+- Context Policy
+- Lifecycle
+- AI Inbox
+- their child controls/actions
+
+Control nodes are ephemeral only.
+They must NEVER:
+- enter memory-space-v1
+- affect memory counts
+- enter exports
+- enter AI context
+- publish to Bridge
+- enter proposal state
+
+CONTROL TREE
+Define control hierarchy as app configuration/data, not scattered hard-coded DOM positioning.
+
+The engine should only know:
+- node id
+- kind
+- parent
+- children
+- open/closed
+- action callback
+- force/style config
+
+The Memory Space adapter knows what actions mean.
+
+Example hierarchy intent from the concept image:
+
+Memory App (blue core)
+|
++-- Shared Memory
+|   +-- Add Memory
+|   +-- Search
+|   +-- Filters
+|   +-- Notes
+|   +-- Facts
+|   +-- Decisions
+|   +-- Goals
+|   +-- Inspector
+|
++-- actual Space/project clusters
+|   +-- actual memories
+|
++-- Settings
+    +-- AI Access
+    |   +-- AI in this app
+    |   +-- External AI apps
+    |   +-- On-device AI
+    |   +-- Connect AI
+    |   +-- Advanced
+    |
+    +-- Local Model
+    |   +-- Ollama
+    |   +-- LM Studio
+    |   +-- OpenAI-compatible
+    |
+    +-- Memory Bridge
+    |   +-- Pair Bridge
+    |   +-- Test
+    |   +-- Share
+    |   +-- Pull
+    |   +-- MCP
+    |
+    +-- Context Policy
+    |   +-- Current confirmed
+    |   +-- Approval required
+    |   +-- Exclude archived
+    |
+    +-- Lifecycle
+    |   +-- Active
+    |   +-- Locked
+    |   +-- Critical
+    |   +-- History
+    |   +-- Archive
+    |
+    +-- AI Inbox
+        +-- Suggestions
+        +-- Requires approval
+        +-- Review
+
+Use the real app capabilities, not invented ones.
+
+BRANCH MODEL
+- explicit parent ownership
+- recursive parent/child model
+- clicking a hub expands that hub's children
+- children grow outward from their parent in the parent's branch direction
+- branch follows the parent's live engine position
+- switching hubs collapses/reopens correctly
+- selecting a real memory can collapse active control branches
+- no menu branch may reparent to generic selection/focus state
+- support at least root -> hub -> child -> action
+
+PHYSICS
+Refactor current working graph physics incrementally; do not rewrite blindly.
+
+Current known working ownership:
+- memory-graph.js: positions, velocities, gravity, edges, drag/pan/zoom, hit testing
+- MemoryGraphRotation: pseudo-3D projection
+- neural/synapse/flow visuals: live connector/pulse rendering from projected positions
+
+Recommended extraction:
+1. Audit memory-graph.js and classify generic vs Memory-Space-specific code.
+2. Extract generic physics/projection without changing behavior.
+3. Keep a compatibility layer so current memories behave exactly the same.
+4. Move ephemeral controls into the same canonical node registry.
+5. Move branch ownership/relationships into the engine.
+6. Feed Memory Space through an adapter/config layer.
+
+CONNECTORS
+One connector system for all nodes.
+All edge endpoints derive from the engine's live projected positions.
+
+Support edge roles:
+- memory edge
+- hub trunk
+- control branch
+- selected/focus edge
+
+Visual hierarchy may differ:
+- major hub trunks thicker/brighter
+- child branches finer
+- pulses shared
+- no detached/stale connectors
+
+VISUAL TARGET
+Use the newest supplied concept image as the baseline:
+- central electric-blue Memory App core
+- green hub nodes
+- smaller child/action nodes
+- thick blue/white neural trunks
+- finer utility branches
+- dense organic neural-tree composition
+- full-screen
+- minimal conventional chrome
+- controls and data feel like one organism
+
+Do NOT return to:
+- radial menu buttons floating around a core
+- fixed overlay controls
+- wireframe planets
+- separate Three.js demo graph
+- dashboard with graph panel
+
+APP ACTION ADAPTERS
+Reuse existing working actions:
+- Add Memory -> existing Add Memory flow
+- AI Access -> existing AI Access flow
+- Context -> existing Context view
+- Proposal Review -> existing proposal UI
+- Memory node -> existing inspector
+- Workspace View -> existing fallback
+
+Create named adapter functions instead of duplicating logic.
+
+REUSABILITY
+The generic engine must not require Memory Space names/keys.
+A future app should be able to instantiate the engine with its own nodes, edges, role config, and actions without importing Memory Space product logic.
+
+Do not build another app now.
+
+PERFORMANCE
+- one hot simulation/animation loop
+- no duplicate RAF loop
+- no independent control-node physics loop
+- no unbounded MutationObserver loop
+- no per-frame DOM rebuild
+- no accumulating branch nodes/listeners
+- no stale edges after collapse
+- mobile uses same engine with reduced visual extras
+
+FILES
+Prefer a clean split such as:
+- molecular-engine.js
+- molecular-engine-renderer.js (only if needed)
+- memory-molecular-adapter.js
+- molecular-view.js / molecular-view.css
+
+Review and consolidate existing prototype files rather than stacking more layers.
+Keep file count sensible.
+
+APPEND TO LEDGERPATCH.txt:
+
+FIFTH PASS — REUSABLE MOLECULAR ENGINE
+
+Safety
+[ ] Working directory verified as visual-lab root
+[ ] Frozen product untouched
+[ ] No protected data/auth/bridge system modified
+[ ] No commit/push
+
+Architecture audit
+[ ] Generic physics identified
+[ ] Generic projection identified
+[ ] Memory-Space-specific logic identified
+[ ] Current behavior documented before extraction
+
+Engine
+[ ] Reusable molecular engine module created
+[ ] One canonical node registry
+[ ] One canonical edge registry
+[ ] One simulation tick
+[ ] One projection system
+[ ] One interaction model
+[ ] Existing memory behavior preserved
+
+Node roles
+[ ] core
+[ ] memory
+[ ] space/group if needed
+[ ] control
+[ ] control-child/action
+[ ] per-role force config
+
+Control graph
+[ ] Control tree defined outside generic engine
+[ ] Control nodes remain ephemeral
+[ ] Recursive parent/child model
+[ ] Explicit branch ownership
+[ ] Expand/collapse uses engine relationships
+[ ] Child branch follows live parent position
+
+Memory adapter
+[ ] Memory Space state mapped into generic engine
+[ ] Existing app actions mapped through adapter
+[ ] No duplicate business logic
+
+Physics
+[ ] Memory feel preserved
+[ ] Control hubs use same simulation
+[ ] Control children use same engine/world
+[ ] Controls do not destabilise memory layout
+[ ] Drag works where appropriate
+
+Connectors
+[ ] One connector geometry system
+[ ] Memory/control edges use live projected endpoints
+[ ] Major hub trunks visually distinct
+[ ] Child branches visually distinct
+[ ] No connector drift under drag/drift/rotation
+
+Neural-tree composition
+[ ] Central Memory App core
+[ ] Real data branches
+[ ] Control branches
+[ ] Settings hierarchy
+[ ] AI Access hierarchy
+[ ] Bridge / Lifecycle / Inbox hierarchy from real capabilities
+[ ] Composition matches concept hierarchy rather than radial menu UI
+
+Regression
+[ ] Add Memory flow works
+[ ] AI Access flow works
+[ ] Context flow works
+[ ] Proposal review works
+[ ] Memory inspector works
+[ ] Workspace fallback works
+[ ] Durable memory state/count unaffected by controls
+
+Performance
+[ ] No duplicate hot loop
+[ ] No branch node leak
+[ ] No listener leak found
+[ ] Desktop runtime check
+[ ] Mobile degradation preserved
+[ ] Reduced-motion preserved
+
+FINAL GATE
+[ ] REUSABLE MOLECULAR ENGINE HUMAN TEST
+
+WORK STYLE
+Work continuously.
+Do not stop for minor style decisions.
+Refactor incrementally and test each extraction step.
+Do not add unrelated features.
+
+STOP ONLY IF:
+A. protected Memory Space business logic would require a broad rewrite
+B. working memory physics cannot be preserved without destructive replacement
+C. durable control/memory contamination cannot be avoided
+D. REUSABLE MOLECULAR ENGINE HUMAN TEST is ready
+
+AT HUMAN TEST REPORT:
+1. exact files changed/created/deleted
+2. working directory
+3. generic engine files
+4. Memory Space adapter/product files
+5. confirmation of one physics tick/world
+6. any intentional physics changes
+7. confirmation control nodes remain non-durable
+8. supported node roles
+9. supported branch model
+10. existing app actions wired
+11. tests performed
+12. local URL
+13. desktop test checklist
+14. mobile test checklist
+15. known limitations
+16. what should be judged visually next
+
+Do not commit or push.

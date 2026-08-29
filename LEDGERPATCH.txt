@@ -1,0 +1,554 @@
+# Dora-style Memory World — active patch ledger
+
+## Safety / baseline verification
+- [x] Existing `app.js` unchanged
+- [x] Existing UI remains normal HTML and receives pointer input
+
+## Renderer isolation
+- [x] Fixed transparent WebGL canvas is behind the application
+- [x] Canvas never intercepts pointer or touch input
+
+## Scene / core
+- [x] Active Space renders as the central core
+
+## Memory nodes
+- [x] Visible confirmed memories render as Space nodes
+
+## Connectors
+- [x] Connections use the exact current node positions
+
+## Pulses
+- [x] Restrained energy pulses travel along connections
+
+## Camera behaviour
+- [x] Selection focus and wider Space view are subtly eased
+
+## Space change observation
+- [x] Active Space changes rebuild the read-only world
+
+## Memory selection observation
+- [x] HTML selection is reflected in the world without event hijacking
+
+## Desktop performance
+- [x] Device pixel ratio is capped and scene resources dispose on rebuild
+
+## Mobile degradation
+- [x] Mobile uses reduced node, pulse, and pixel-density budgets
+
+## Failure fallback
+- [x] Missing WebGL/Three.js fails silently without affecting the UI
+- [x] Hidden tab and reduced-motion states stop or reduce animation
+
+## Syntax / runtime checks
+- [x] New JavaScript passes syntax validation
+- [ ] Local page load confirms the canvas is isolated and UI remains available
+
+## FIRST HUMAN VISUAL TEST
+- [ ] Awaiting human visual feedback before further styling
+
+> First-pass Three.js wireframe prototype retired in the second pass. The Memory Graph is again the only rendered node network.
+
+## SECOND PASS — INTEGRATE EXISTING MEMORY GRAPH
+- [x] Inspect existing graph architecture
+- [x] Identify exact node-position owner
+- [x] Identify connector-position owner
+- [x] Remove first-pass wireframe prototype
+- [x] Preserve existing graph physics
+- [x] Integrate spatial depth with existing graph
+- [x] Integrate camera/focus with existing selection
+- [ ] Verify connectors remain attached during drift
+- [ ] Verify normal graph interaction
+- [ ] Verify normal UI interaction
+- [ ] Desktop runtime check
+
+## FIRST INTEGRATED VISUAL TEST
+- [ ] Awaiting human visual feedback before further styling
+
+## FOURTH PASS — FULL-SCREEN MOLECULAR FRONT SKIN
+
+### Safety
+- [x] Verified working directory is visual-lab root
+- [x] Frozen product untouched
+- [x] Core memory/AI/bridge data systems unchanged
+
+### Full-screen shell
+- [x] Molecular View fills application viewport
+- [x] Normal dashboard chrome suppressed in Molecular View
+- [x] Graph card/widget boundary removed
+- [ ] Existing graph remains interactive full-screen
+
+### Engine integrity
+- [x] Existing memory graph remains canonical position owner
+- [x] Existing physics preserved
+- [ ] Existing connectors remain attached
+- [x] No second memory graph exists
+- [x] No second memory physics loop exists
+
+### Top-level control nodes
+- [x] AI Access node
+- [x] Add Memory node
+- [x] Context node
+- [x] Proposals node
+- [x] Settings node
+- [x] Space core acts as Home
+
+### Expandable control branches
+- [x] Clicking control node expands child nodes
+- [x] Expanded branch remains connected to parent
+- [x] Only one branch expanded at once
+- [x] Collapse works cleanly
+- [x] Child controls are ephemeral/non-durable
+
+### Existing-system adapters
+- [x] Add Memory invokes existing flow
+- [x] AI Access invokes existing flow
+- [x] Context invokes existing flow
+- [x] Proposals invokes existing review state/surface
+- [x] Memory node invokes existing inspector
+- [x] No duplicate provider/storage/proposal logic created
+
+### Camera
+- [x] Memory focus easing works
+- [x] Control focus easing works
+- [x] Home/recenter works
+- [x] Close/collapse restores useful framing
+
+### Presentation
+- [x] Existing blue core preserved
+- [x] Existing green memory nodes preserved
+- [x] Existing neural connector/pulse style preserved
+- [x] Control nodes visually distinct but coherent
+- [x] Whole screen reads as graph-first UI
+
+### Regression
+- [x] Workspace data schema unchanged
+- [x] app.js state truth unchanged
+- [x] onboarding unchanged
+- [x] OAuth/DCR unchanged
+- [x] bridge unchanged
+- [x] proposal persistence unchanged
+
+### Performance
+- [x] No duplicate hot animation loop
+- [x] No repeated branch/listener leak
+- [ ] Mobile degradation check
+- [ ] Reduced-motion preserved
+- [ ] Desktop runtime check
+- [ ] Mobile degradation check
+- [ ] Reduced-motion preserved
+
+## FINAL GATE
+- [ ] FULL-SCREEN MOLECULAR HUMAN TEST
+
+## FIFTH PASS — POLISHED DESKTOP COMPOSITION
+- [x] Home molecular framing scaled to occupy more of the viewport
+- [x] Top-level utility nodes distributed into clear core-relative sectors
+- [x] Utility nodes remain outside the real memory-node orbit
+- [x] Expanded child branches fan outward from their parent away from the core
+- [x] Parent/child utility connectors remain visually explicit
+- [x] Existing adapters, overlays, graph physics, and data logic preserved
+- [ ] FIRST POLISHED DESKTOP COMPOSITION HUMAN REVIEW
+
+## SIXTH PASS — CONTROL-NODE PHYSICS / BRANCH OWNERSHIP
+- [x] Control branch owner stored explicitly
+- [x] Child positions derive from exact live control parent position
+- [x] Switching control branches collapses then reparents cleanly
+- [x] Memory selection collapses control branch
+- [x] Top-level controls use existing graph simulation tick
+- [x] Control nodes drift and retain core orbit
+- [x] Control nodes are safely draggable when rotation is inactive
+- [x] Control connectors follow exact live node positions
+- [x] Memory physics unchanged
+- [x] No control nodes enter durable workspace state
+- [x] Syntax and static safety checks
+
+## CONTROL-NODE PHYSICS / BRANCH OWNERSHIP HUMAN TEST
+- [ ] Awaiting human visual interaction review
+
+## FIFTH PASS — REUSABLE MOLECULAR ENGINE
+
+### Safety
+- [x] Working directory verified as visual-lab root
+- [x] Frozen product untouched
+- [x] No protected data/auth/bridge system modified
+- [x] No commit/push
+
+### Architecture audit
+- [x] Generic physics identified
+- [x] Generic projection identified
+- [x] Memory-Space-specific logic identified
+- [x] Current behavior documented before extraction
+
+### Engine
+- [ ] Reusable molecular engine module created
+- [ ] One canonical node registry
+- [ ] One canonical edge registry
+- [ ] One simulation tick
+- [ ] One projection system
+- [ ] One interaction model
+- [ ] Existing memory behavior preserved
+
+### Node roles
+- [ ] core
+- [ ] memory
+- [ ] space/group if needed
+- [ ] control
+- [ ] control-child/action
+- [ ] per-role force config
+
+### Control graph
+- [ ] Control tree defined outside generic engine
+- [ ] Control nodes remain ephemeral
+- [ ] Recursive parent/child model
+- [ ] Explicit branch ownership
+- [ ] Expand/collapse uses engine relationships
+- [ ] Child branch follows live parent position
+
+### Memory adapter
+- [ ] Memory Space state mapped into generic engine
+- [ ] Existing app actions mapped through adapter
+- [ ] No duplicate business logic
+
+### Physics
+- [ ] Memory feel preserved
+- [ ] Control hubs use same simulation
+- [ ] Control children use same engine/world
+- [ ] Controls do not destabilise memory layout
+- [ ] Drag works where appropriate
+
+### Connectors
+- [ ] One connector geometry system
+- [ ] Memory/control edges use live projected endpoints
+- [ ] Major hub trunks visually distinct
+- [ ] Child branches visually distinct
+- [ ] No connector drift under drag/drift/rotation
+
+### Neural-tree composition
+- [ ] Central Memory App core
+- [ ] Real data branches
+- [ ] Control branches
+- [ ] Settings hierarchy
+- [ ] AI Access hierarchy
+- [ ] Bridge / Lifecycle / Inbox hierarchy from real capabilities
+- [ ] Composition matches concept hierarchy rather than radial menu UI
+
+### Regression
+- [ ] Add Memory flow works
+- [ ] AI Access flow works
+- [ ] Context flow works
+- [ ] Proposal review works
+- [ ] Memory inspector works
+- [ ] Workspace fallback works
+- [ ] Durable memory state/count unaffected by controls
+
+### Performance
+- [ ] No duplicate hot loop
+- [ ] No branch node leak
+- [ ] No listener leak found
+- [ ] Desktop runtime check
+- [ ] Mobile degradation preserved
+- [ ] Reduced-motion preserved
+
+## FINAL GATE
+- [ ] REUSABLE MOLECULAR ENGINE HUMAN TEST
+
+> SAFETY STOP B: extracting the current graph into a single generic solver would require broad replacement of its live memory simulation, persistent layout compatibility, manual-group gravity hooks, and Canvas connector interception. That would risk changing working memory physics, so no partial reusable-engine refactor was retained.
+
+## SIXTH PASS — FORK AND PROMOTE MOLECULAR ENGINE
+
+### Safety
+- [x] Known-good `memory-graph.js` frozen as reference
+- [x] No protected-system changes
+- [x] No durable control-state contamination
+
+### Engine fork
+- [x] Solver fork created behind an explicit mode boundary
+- [x] Generic node registry
+- [x] Generic edge registry
+- [x] One simulation tick
+- [x] One projection system
+- [x] Generic payload/data model
+- [x] Supported roles: core, memory, space, group, control, control-child, action
+
+### Memory Space adapter
+- [x] Memory Space adapter created
+- [x] Ephemeral control tree defined in the adapter
+- [x] Data/control nodes use the same physics world in Molecular Engine mode
+- [x] Neural hierarchy modelled from `newdesignpath.png`
+- [x] Legacy/new parity switch added (`?molecularEngine=1`)
+
+### Pending parity and human checks
+- [ ] Gravity parity
+- [ ] Drag parity
+- [ ] Connector parity
+- [ ] Rotation parity
+- [ ] Existing app actions verified through adapter
+- [ ] NEW MOLECULAR ENGINE HUMAN TEST
+
+## SEVENTH PASS — NEW ENGINE VISUAL DENSITY
+- [x] Electric-blue Memory App core strengthened
+- [x] Green hub, Space, memory, and action role hierarchy strengthened
+- [x] Connector geometry derives from current live projected endpoints
+- [x] Thick neural trunks and finer branch tissue added
+- [x] Travelling synapse pulses added within the single engine tick
+- [x] Single-canvas star and nebula depth added
+- [x] Shared Memory and Settings trees default to dense visible hierarchy
+- [x] Existing real Space/memory branch remains data-backed
+- [x] Controls remain adapter-defined and ephemeral
+- [ ] Full visual pass human review
+
+## EIGHTH PASS — HOME / SETTINGS BRANCH BEHAVIOUR
+- [x] Home starts with only major hubs and real data branches visible
+- [x] Settings starts collapsed
+- [x] Settings reveals only its first-level children
+- [x] Deep Settings branches preserve their parent ownership
+- [x] Only one deep control branch is open at a time
+- [x] Memory App core collapses all control branches to Home
+- [ ] Home / Settings interaction human review
+
+## NINTH PASS — HOME COMPOSITION DENSITY
+- [x] Shared Memory useful leaves shown on Home
+- [x] Settings remains collapsed on Home
+- [x] Memory App core made substantially more dominant
+- [x] Major trunks made thicker and more neural
+- [x] Space hubs and memory leaves given stronger role hierarchy
+- [x] Home composition enlarged within the viewport
+- [ ] Home composition human review
+
+## TENTH PASS — ORGANIC HOME COMPOSITION
+- [x] Home framing fills approximately 80% of the viewport
+- [x] Core remains centered while Home framing scales
+- [x] Shared Memory leaves use irregular branch directions and lengths
+- [x] Every real Space maps to a larger hub with its own grouped memory leaves
+- [x] Settings retains equal major-hub visual weight while collapsed
+- [x] Major trunks receive denser forked dendrite detail
+- [x] Symmetrical radial composition avoided
+- [ ] Organic Home composition human review
+
+## ELEVENTH PASS — NEURAL FORKS / CLUSTER DENSITY
+- [x] Child connectors bundle through renderer-only projected junctions
+- [x] Junctions and secondary forks create no physics bodies
+- [x] Connector endpoints remain derived from exact live node projections
+- [x] Shared Memory and real Space clusters use equal neural richness
+- [x] Settings first-level hubs occupy distinct asymmetric sectors
+- [x] Deep Settings leaves cluster around their exact owning hub
+- [x] Major trunks receive longer forked dendrites and stronger haze
+- [x] Single node registry, edge registry, and physics tick preserved
+- [ ] Neural-tree density human review
+
+## TWELFTH PASS — MULTI-LEVEL DATA TREES
+- [x] Major child systems fork through two projected junction levels
+- [x] Dense clusters add a third projected fork level
+- [x] Shared Memory leaves distribute across several intermediate forks
+- [x] Every real Space grows the same multi-level mini-tree
+- [x] Secondary junctions carry renderer-only dendrite webs
+- [x] Blue/green neural haze increased across all tree segments
+- [x] Home organism scale and coverage increased again
+- [x] No decorative junction or dendrite enters physics/node state
+- [ ] Multi-level neural-tree human review
+
+## THIRTEENTH PASS — LEGACY VISUAL RENDERER PARITY
+- [x] Legacy visual stack established as canonical renderer
+- [x] New engine custom node/connector/nebula treatment removed from execution
+- [x] Proven node sprite renderer loaded directly in Molecular mode
+- [x] Proven neural-width treatment loaded with only nonvisual bootstrapping gated
+- [x] Proven neural scaffold loaded directly in Molecular mode
+- [x] Proven neural flow/synapse renderer loaded directly in Molecular mode
+- [x] Proven nebula renderer loaded directly in Molecular mode
+- [x] New engine emits legacy semantic edge, node, and label draws
+- [x] Active Space, confirmed memories, revision edges, recency and radii mapped for parity
+- [x] Saved graph positions read without mutation
+- [x] Settings/AI/control hierarchy withheld from parity scene
+- [x] Legacy `memory-graph.js` remains unloaded in Molecular Engine mode
+- [ ] Legacy/new visual parity human review
+
+## FOURTEENTH PASS — FULL-SCREEN LEGACY GRAPH + SETTINGS
+
+### Canonical engine restoration
+- [x] Reusable molecular-engine loader removed from page startup
+- [x] Proven legacy graph visual stack restored as the only active graph engine
+- [x] Legacy gravity, projection, rotation, neural connectors, pulses, nebula, and node renderer retained
+- [x] Full-screen graph presentation retained
+- [x] Existing Space and confirmed-memory node construction left unchanged
+
+### Ephemeral Settings branch
+- [x] One collapsed Settings hub added to the legacy graph in memory only
+- [x] Settings children use the same legacy simulation tick and projection
+- [x] Settings children are explicitly owned by the Settings hub
+- [x] Control connectors derive from exact live projected endpoints on every draw
+- [x] Settings and child nodes use the existing canvas node/connector visual pipeline
+- [x] Settings and children use the existing canvas hit-test and drag path
+- [x] AI Access action routes to the existing AI Access control
+- [x] Memory Bridge action routes to the existing bridge connection control
+- [x] Local Model action routes to the existing provider connection control
+- [x] Context action routes to the existing Context dialog control
+- [x] Lifecycle action routes to the existing memory inspector/history controls
+- [x] Inbox / Proposals action routes to the existing proposal panel
+
+### Safety and verification
+- [x] Control nodes excluded from workspace data, memory counts, and layout serialization
+- [x] No protected application, onboarding, Bridge, provider, proposal, or schema files changed
+- [x] JavaScript syntax checks passed
+- [x] Diff whitespace check passed
+- [x] Local HTTP entry point and canonical visual assets return 200
+- [ ] Browser runtime interaction check (browser connection unavailable in this session)
+- [ ] FULL-SCREEN LEGACY GRAPH + SETTINGS HUMAN TEST
+
+## FIFTEENTH PASS — CENTRE / SETTINGS INTERACTION FIXES
+- [x] Settings-to-centre connector remains present while collapsed and expanded
+- [x] Expanded setting children connect from their Settings parent
+- [x] Dragging the blue centre translates the existing graph view as one composition
+- [x] Centre drag preserves all relative node and connector positions
+- [x] In-flight simulation pauses during centre drag and resumes without resetting physics progress
+- [x] Centre double-click delegates to the existing Escape rotation-reset handler
+- [x] Existing memory inspector and Ctrl-drag rotation paths retained
+- [x] No protected or durable-data files changed
+- [x] JavaScript syntax and focused source-contract checks passed
+- [x] Updated graph asset served successfully from the local test URL
+- [ ] Browser interaction check (no browser connection available in this session)
+- [ ] CENTRE / SETTINGS INTERACTION HUMAN TEST
+
+## SIXTEENTH PASS — SETTINGS EXPANSION EDGE OWNERSHIP
+- [x] Permanent centre → Settings edge resolves directly to the Settings root
+- [x] All visible Settings children resolve directly to the Settings root only
+- [x] Settings child edges are excluded from centre/memory neural clustering
+- [x] Normal memory and group edge construction remains unchanged
+- [x] Physics, gravity, drag, hit-testing, grouping, and layout remain unchanged
+- [x] JavaScript syntax and focused mapping checks passed
+- [x] Updated mapping served from the local test URL
+- [ ] Browser interaction check (no browser connection available in this session)
+- [ ] SETTINGS EXPANSION CONNECTOR HUMAN TEST
+
+## SEVENTEENTH PASS — LEGACY-ENGINE SETTINGS CONTROL TREE
+
+### Single-engine safety
+- [x] Existing `memory-graph.js` remains the only active graph/physics engine
+- [x] Durable memory force loop and real edge builder remain unchanged
+- [x] Existing drag, pan, zoom, projection, Ctrl-3D, and centre reset paths retained
+- [x] No protected application/provider/Bridge/proposal/onboarding files changed
+
+### Settings hierarchy
+- [x] Settings remains the single permanent control root
+- [x] Seven first-level groups: AI Access, Memory Bridge, Local Model, Context, Lifecycle, AI Inbox, Workspace
+- [x] Every first-level group has useful ephemeral leaf controls
+- [x] Only one deep group branch is visible at a time
+- [x] Root click collapses the full Settings tree
+- [x] Group click toggles only that group’s leaves
+- [x] Leaf actions delegate to existing application controls
+
+### Shared world and ownership
+- [x] Control groups and leaves share the existing simulation tick and projection
+- [x] Control groups and leaves use the existing canvas hit-test and drag path
+- [x] Dragging a visible control hub translates its visible descendants
+- [x] Stable parent attraction and damping applied only to ephemeral controls
+- [x] Every control edge resolves through the control-only parent map
+- [x] Centre → Settings remains permanent
+- [x] Deep branch connectors cannot enter memory/group neural clustering
+
+### Visual direction and layering
+- [x] Existing electric-blue core and green node renderer retained
+- [x] Existing neural trunks, flow, pulses, nebula, and pseudo-3D renderer retained
+- [x] Control branches use exact projected endpoints with blue-white glow and renderer-only dendrite forks
+- [x] Decorative control connectors draw before node bodies
+- [x] Asymmetric orbit scales and offsets applied only to control composition
+
+### Persistence and checks
+- [x] Control nodes excluded from `memory-space-v1`
+- [x] Control nodes excluded from memory counts and graph-layout serialization
+- [x] 41-node ephemeral hierarchy validated with no missing or duplicate parents
+- [x] JavaScript syntax and diff checks passed
+- [x] Updated assets served successfully from the local URL
+- [ ] Browser interaction/visual check (no browser connection available in this session)
+- [ ] LEGACY-ENGINE SETTINGS CONTROL TREE HUMAN TEST
+
+## EIGHTEENTH PASS - CONNECTOR OCCLUSION / UNIFIED CONTROL PHYSICS
+
+### Connector layering
+- [x] Main connectors remain behind every canonical node body
+- [x] Neural scaffold, flow, pulse, crackle, and dendrite canvases remain below the node canvas
+- [x] Opaque face occlusion prevents lower electric layers showing through translucent nodes
+- [x] Folder/group connector strokes and node bodies use separate compositing layers
+- [x] Folder/group bodies render above all connector-related layers
+- [x] Connector geometry and projected endpoints remain unchanged
+
+### Unified control physics
+- [x] Control-only solver removed
+- [x] Visible controls enter the existing memory-node simulation array
+- [x] Controls use the existing radial gravity, pairwise repulsion, damping, integration, and containment equations
+- [x] Controls participate in existing folder/group collision interactions
+- [x] Parent-anchored control attraction and custom force coefficients removed
+- [x] Expansion-time forced child positioning removed
+- [x] Descendant translation during control drag removed
+- [x] Control hierarchy retained only as explicit ephemeral edges and click semantics
+- [x] Controls remain excluded from workspace data, memory counts, and graph-layout serialization
+
+### Verification
+- [x] JavaScript syntax checks passed
+- [x] Focused render-layer and shared-solver source contracts passed
+- [x] Mocked runtime verified Settings motion, expansion, independent drag, and persistence exclusion
+- [x] Updated assets return HTTP 200 from the local server
+- [ ] Browser visual/gesture check (no browser connection available in this session)
+- [ ] CONNECTOR OCCLUSION / UNIFIED CONTROL PHYSICS HUMAN TEST
+
+## NINETEENTH PASS - CANONICAL SETTINGS NODE / EDGE PIPELINE
+
+### Canonical collections
+- [x] Every registered Settings node is inserted into `graph.nodes`
+- [x] Every registered Settings edge is inserted into `graph.edges`
+- [x] Expansion and collapse rebuild the same live canonical collections
+- [x] Main simulation reads non-fixed nodes directly from `graph.nodes`
+- [x] Drawing reads every live connection directly from `graph.edges`
+- [x] Hit-testing and 3D ordering read directly from `graph.nodes`
+
+### Original graph machinery only
+- [x] Settings and children use the original radial gravity equation
+- [x] Settings and children use the original pairwise repulsion and integration loop
+- [x] Settings and children use the original drag and projection paths
+- [x] Folder/group collision extension reads controls from canonical `graph.nodes`
+- [x] Special control connector renderer removed
+- [x] Control edges use the original straight connector geometry and edge kind
+- [x] Neural scaffold, flow, pulse, and electric renderers receive normal graph-edge strokes
+- [x] Control-specific label rendering removed
+- [x] No active control layout, attraction, gravity, or descendant-drag path remains
+
+### Data safety and verification
+- [x] Settings hierarchy, actions, and expansion semantics retained
+- [x] Controls remain ephemeral and absent from `memory-space-v1`
+- [x] Controls remain absent from memory counts and graph-layout serialization
+- [x] JavaScript syntax and diff checks passed
+- [x] Mocked runtime verified canonical simulation, projection, and connector geometry
+- [x] Updated assets return HTTP 200 from the local server
+- [ ] Browser visual check (no browser connection available in this session)
+- [ ] CANONICAL SETTINGS NODE / EDGE PIPELINE HUMAN TEST
+
+## TWENTIETH PASS - ACTIVE SETTINGS DETACHED CLUSTER
+
+- [x] Settings remains a normal canonical graph node
+- [x] Settings children remain canonical graph nodes and ordinary edges
+- [x] Active centre-to-Settings trunk is hidden without removing the canonical edge
+- [x] Closing Settings restores the centre-to-Settings trunk
+- [x] Active visible children receive one local parent attraction inside `simulateStep`
+- [x] Only children of the currently active parent receive that local attraction
+- [x] Main gravity, repulsion, collision, integration, drag, projection, and 3D motion remain shared
+- [x] Children remain independently draggable; no descendant drag propagation added
+- [x] Memory physics and persistence remain unchanged
+- [x] Controls remain ephemeral and excluded from durable state
+- [x] Existing neural connector renderer remains the only connector renderer
+- [x] JavaScript syntax and diff checks passed
+- [x] Mocked active-cluster attraction and independent-drag checks passed
+- [x] Updated assets return HTTP 200 from the local server
+- [ ] Browser visual/gesture check (no browser connection available in this session)
+- [ ] ACTIVE SETTINGS DETACHED CLUSTER HUMAN TEST
+
+## TWENTY-FIRST PASS - NESTED SETTINGS ATTRACTION TARGET
+
+- [x] First-level Settings children still resolve attraction to Settings
+- [x] Nested children resolve attraction from their own canonical `parentId`
+- [x] Memory Bridge children target Memory Bridge
+- [x] AI Access, Workspace, Local Model, Context, Lifecycle, and Inbox descendants use their own live parent hubs
+- [x] Nested attraction never falls back to the blue centre/root
+- [x] Existing shared solver, gravity, repulsion, collision, drag, projection, and rendering remain unchanged
+- [x] Memory persistence and control ephemerality remain unchanged
+- [x] Mocked two-level branch verified parent-directed attraction
+- [x] JavaScript syntax, source-contract, diff, and HTTP checks passed
+- [ ] NESTED SETTINGS ATTRACTION HUMAN TEST

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 6;
+  const VERSION = 10;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
   const PHYSICS_INTERVAL_MS = 14;
@@ -25,6 +25,8 @@
   let redrawFrame = 0;
   let overlayCanvas = null;
   let overlayContext = null;
+  let bodyCanvas = null;
+  let bodyContext = null;
   let overlayFrame = 0;
   let lastOverlayPaint = 0;
   let drag = null;
@@ -200,7 +202,9 @@
     const entries = syncBodies(graph);
     if (!entries.length) return;
     const grouped = groupedMemoryIds();
-    const memories = (graph.memoryNodes || []).filter((node) => !grouped.has(String(node.id)));
+    const memories = (graph.nodes || []).filter((node) =>
+      !node.fixed && !node.hidden && !(node.kind === 'memory' && grouped.has(String(node.id)))
+    );
     let moved = false;
     let totalSpeed = 0;
     let simulatedCount = 0;
@@ -727,7 +731,14 @@
       surface.appendChild(overlayCanvas);
       overlayContext = overlayCanvas.getContext('2d');
     }
-    if (!overlayContext) return false;
+    if (!bodyCanvas || !bodyCanvas.isConnected) {
+      bodyCanvas = document.createElement('canvas');
+      bodyCanvas.className = 'memory-graph-manual-gravity-body-canvas';
+      bodyCanvas.setAttribute('aria-hidden', 'true');
+      surface.appendChild(bodyCanvas);
+      bodyContext = bodyCanvas.getContext('2d');
+    }
+    if (!overlayContext || !bodyContext) return false;
 
     const rect = surface.getBoundingClientRect();
     const width = Math.max(1, Math.round(rect.width));
@@ -738,8 +749,15 @@
       overlayCanvas.height = Math.round(height * dpr);
       overlayContext.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
+    if (bodyCanvas.width !== Math.round(width * dpr) || bodyCanvas.height !== Math.round(height * dpr)) {
+      bodyCanvas.width = Math.round(width * dpr);
+      bodyCanvas.height = Math.round(height * dpr);
+      bodyContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
     overlayCanvas.style.width = `${width}px`;
     overlayCanvas.style.height = `${height}px`;
+    bodyCanvas.style.width = `${width}px`;
+    bodyCanvas.style.height = `${height}px`;
     return true;
   }
 
@@ -778,6 +796,10 @@
   function drawGroupBubble(ctx, group, screen, radius, timestamp) {
     const pulse = 0.5 + Math.sin(timestamp * 0.002 + Number(group.phase || 0)) * 0.5;
     ctx.save();
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, radius + 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#030d0a';
+    ctx.fill();
     const glow = ctx.createRadialGradient(screen.x, screen.y, radius * 0.25, screen.x, screen.y, radius * 1.65);
     glow.addColorStop(0, `rgba(120, 184, 255, ${(0.12 + pulse * 0.035).toFixed(3)})`);
     glow.addColorStop(0.42, 'rgba(199, 255, 86, 0.10)');
@@ -832,6 +854,7 @@
     const rect = overlayCanvas.getBoundingClientRect();
     if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;
     overlayContext.clearRect(0, 0, rect.width, rect.height);
+    bodyContext.clearRect(0, 0, rect.width, rect.height);
 
     const centreScreen = worldToScreen({ x: Number(lastGraph.centreX || 0), y: Number(lastGraph.centreY || 0) });
     if (!centreScreen) return;
@@ -851,7 +874,7 @@
         if (memoryScreen) traceLightning(overlayContext, groupScreen, memoryScreen, seed + index * 0.193, timestamp, 0.72);
       }
 
-      drawGroupBubble(overlayContext, group, groupScreen, radius, timestamp);
+      drawGroupBubble(bodyContext, group, groupScreen, radius, timestamp);
     }
   }
 
@@ -864,6 +887,14 @@
         position:absolute;
         inset:0;
         z-index:1;
+        width:100%;
+        height:100%;
+        pointer-events:none;
+      }
+      .memory-graph-manual-gravity-body-canvas {
+        position:absolute;
+        inset:0;
+        z-index:3;
         width:100%;
         height:100%;
         pointer-events:none;

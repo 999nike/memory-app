@@ -1,0 +1,238 @@
+/* Molecular View is a front skin around the existing Canvas graph, not a second graph. */
+body.molecular-view-active {
+  overflow: hidden;
+  background: #03070d;
+}
+
+body.molecular-view-active .app-shell,
+body.molecular-view-active .app-shell.detail-open {
+  display: block;
+  min-height: 100dvh;
+}
+
+body.molecular-view-active .sidebar,
+body.molecular-view-active .sidebar-backdrop,
+body.molecular-view-active .topbar,
+body.molecular-view-active .workspace-summary,
+body.molecular-view-active .toolbar,
+body.molecular-view-active .main-panel > .memory-section:not(.memory-graph-section) {
+  display: none !important;
+}
+
+body.molecular-view-active .main-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  min-width: 0;
+  padding: 0;
+}
+
+body.molecular-view-active .memory-graph-section {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  perspective: 1400px;
+}
+
+body.molecular-view-active .memory-graph-section .phase2-layout,
+body.molecular-view-active .memory-graph-section .phase2-memory-pane {
+  display: block !important;
+  height: 100%;
+}
+
+body.molecular-view-active .memory-graph-section .phase2-chat-pane {
+  display: none !important;
+}
+
+body.molecular-view-active .memory-graph-section .section-heading.large {
+  display: none;
+}
+
+body.molecular-view-active #memoryGraphSurface {
+  position: absolute;
+  inset: 0;
+  min-height: 100dvh;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  background:
+    radial-gradient(ellipse 80% 74% at calc(50% + var(--molecular-parallax-x, 0px)) calc(48% + var(--molecular-parallax-y, 0px)), rgb(31 100 231 / 0.18), transparent 53%),
+    radial-gradient(ellipse 56% 66% at calc(42% - var(--molecular-parallax-x, 0px)) calc(65% - var(--molecular-parallax-y, 0px)), rgb(199 255 86 / 0.07), transparent 60%),
+    linear-gradient(180deg, #07101d, #03070d 74%);
+  box-shadow: inset 0 0 160px rgb(0 0 0 / 0.6);
+}
+
+body.molecular-view-active #memoryGraphSurface::before {
+  opacity: 0.62;
+  transform: translate3d(var(--molecular-parallax-x, 0px), var(--molecular-parallax-y, 0px), 0);
+  transition: transform 180ms ease-out;
+}
+
+.molecular-control-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  pointer-events: none;
+  display: none;
+}
+
+body.molecular-view-active .molecular-control-layer { display: block; }
+
+.molecular-control-edge {
+  position: absolute;
+  height: 1.5px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgb(120 184 255 / 0.64), rgb(199 255 86 / 0.38));
+  box-shadow: 0 0 11px rgb(120 184 255 / 0.22);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.molecular-control-edge.is-visible { opacity: 1; }
+
+.molecular-control-node {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  width: 88px;
+  height: 88px;
+  margin: -44px 0 0 -44px;
+  padding: 8px;
+  border: 1px solid rgb(137 224 190 / 0.78);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 27%, rgb(230 255 244 / 0.28), transparent 18%),
+    radial-gradient(circle at 50% 50%, rgb(57 143 104 / 0.35), rgb(5 22 19 / 0.94) 68%);
+  color: #ecfff3;
+  box-shadow: 0 0 0 1px rgb(199 255 86 / 0.10), 0 0 24px rgb(116 234 167 / 0.18);
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translate3d(var(--node-x, -9999px), var(--node-y, -9999px), 0) scale(var(--node-scale, 1));
+  transform-origin: center;
+  transition: transform 220ms cubic-bezier(.2, .8, .2, 1), border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.molecular-control-node:hover,
+.molecular-control-node:focus-visible,
+.molecular-control-node.is-expanded {
+  border-color: rgb(206 255 136 / 0.98);
+  box-shadow: 0 0 0 1px rgb(199 255 86 / 0.32), 0 0 34px rgb(113 227 167 / 0.38);
+  outline: none;
+}
+
+.molecular-control-node .molecular-node-icon { font-size: 1.05rem; line-height: 1; }
+.molecular-control-node .molecular-node-label { font-size: 0.64rem; font-weight: 850; line-height: 1.1; letter-spacing: 0.035em; text-align: center; }
+
+.molecular-control-node.is-child {
+  width: 68px;
+  height: 68px;
+  margin: -34px 0 0 -34px;
+  border-color: rgb(120 184 255 / 0.72);
+  background: radial-gradient(circle at 35% 25%, rgb(224 248 255 / 0.28), transparent 18%), radial-gradient(circle at 50% 50%, rgb(29 75 130 / 0.52), rgb(5 13 25 / 0.96) 72%);
+  box-shadow: 0 0 18px rgb(91 168 255 / 0.18);
+}
+
+.molecular-control-node.is-child .molecular-node-label { font-size: 0.56rem; }
+.molecular-control-node.is-hidden { opacity: 0; pointer-events: none; }
+
+.molecular-hud {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(18px, env(safe-area-inset-left));
+  z-index: 25;
+  pointer-events: none;
+  display: none;
+}
+
+body.molecular-view-active .molecular-hud { display: block; }
+
+.molecular-hud strong,
+.molecular-hud span { display: block; text-shadow: 0 2px 16px rgb(0 0 0 / 0.9); }
+.molecular-hud strong { font-size: 0.9rem; letter-spacing: -0.02em; }
+.molecular-hud span { margin-top: 3px; color: rgb(191 213 235 / 0.7); font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; }
+
+.molecular-close-tool {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(18px, env(safe-area-inset-right));
+  z-index: 55;
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid rgb(120 184 255 / 0.32);
+  border-radius: 999px;
+  background: rgb(4 12 23 / 0.8);
+  color: var(--soft);
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+}
+
+.molecular-close-tool[hidden] { display: none; }
+
+body.molecular-view-active .detail-panel {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 45;
+  width: min(390px, calc(100vw - 32px));
+  height: auto;
+  border: 1px solid rgb(120 184 255 / 0.25);
+  border-radius: 20px;
+  background: rgb(10 16 25 / 0.91);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 0.48);
+  backdrop-filter: blur(20px);
+}
+
+body.molecular-view-active .phase2-chat-pane.molecular-tool-open {
+  position: fixed;
+  top: max(72px, calc(env(safe-area-inset-top) + 56px));
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 50;
+  width: min(430px, calc(100vw - 32px));
+  min-height: 0;
+  max-height: none;
+  display: grid;
+  border-color: rgb(120 184 255 / 0.32);
+  background: rgb(10 16 25 / 0.94);
+  backdrop-filter: blur(20px);
+}
+
+body.molecular-view-active .phase2-chat-pane.molecular-tool-open .chat-messages,
+body.molecular-view-active .phase2-chat-pane.molecular-tool-open .chat-form,
+body.molecular-view-active .phase2-chat-pane.molecular-tool-open .context-trace,
+body.molecular-view-active .phase2-chat-pane.molecular-tool-open .external-proposal-check { display: none; }
+
+body.molecular-motion-low .memory-graph-neural-flow-canvas,
+body.molecular-motion-low .memory-graph-neural-synapse-canvas { opacity: 0.48 !important; }
+body.molecular-pulses-low .memory-graph-neural-flow-canvas { opacity: 0.30 !important; }
+body.molecular-labels-minimal .molecular-control-node.is-child .molecular-node-label { display: none; }
+
+@media (max-width: 800px) {
+  .molecular-control-node { width: 66px; height: 66px; margin: -33px 0 0 -33px; }
+  .molecular-control-node.is-child { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
+  .molecular-control-node .molecular-node-label { font-size: 0.54rem; }
+  .molecular-hud span { display: none; }
+  body.molecular-view-active .detail-panel,
+  body.molecular-view-active .phase2-chat-pane.molecular-tool-open {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-width: none;
+    height: min(72dvh, 680px);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 22px 22px 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .molecular-control-node,
+  #memoryGraphSurface::before { transition: none; }
+}

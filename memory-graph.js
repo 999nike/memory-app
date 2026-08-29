@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 7;
+  const VERSION = 11;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -35,6 +35,10 @@
   let searchBound = false;
   let focusedNodeId = null;
   let persistTimer = 0;
+  let viewTransitionFrame = 0;
+  const presentationControlSpecs = new Map();
+  const presentationControlNodes = new Map();
+  let activeControlParentId = null;
   const view = {
     x: 0,
     y: 0,
@@ -117,6 +121,7 @@
   }
 
   function rebuildGraph(width, height) {
+    stopViewTransition();
     stopSimulation();
     context.clearRect(0, 0, width, height);
 
@@ -135,9 +140,12 @@
     if (previousSpaceId && previousSpaceId !== data.space.id) resetView();
 
     graph = buildGraph(data, width, height, savedState);
-    for (const node of graph.memoryNodes) containNode(node);
+    syncCanonicalGraphCollections();
+    for (const node of graph.nodes) {
+      if (!node.fixed) containNode(node);
+    }
     restoreSavedView(savedState?.view, width, height);
-    if (count) count.textContent = String(graph.nodes.length);
+    if (count) count.textContent = String(graph.memoryNodes.length + 1);
     simulationFrames = 0;
 
     const searchInput = document.getElementById('searchInput');
@@ -149,7 +157,7 @@
     }
     drawGraph();
 
-    if (graph.memoryNodes.length) startSimulation();
+    if (graph.nodes.length > 1) startSimulation();
   }
 
   function buildGraph(data, width, height, savedState = null) {
@@ -200,6 +208,7 @@
     });
 
     const edges = buildRealEdges(spaceNode, memoryNodes);
+    buildPresentationControlNodes(width, height, centreX, centreY, baseOrbit);
 
     return {
       width,
@@ -213,6 +222,154 @@
       edges
     };
   }
+
+  function buildPresentationControlNodes(width, height, centreX, centreY, baseOrbit) {
+    const liveIds = new Set(presentationControlSpecs.keys());
+    for (const id of [...presentationControlNodes.keys()]) {
+      if (!liveIds.has(id)) presentationControlNodes.delete(id);
+    }
+
+    const targetOrbit = Math.max(62, baseOrbit);
+    const nodes = [];
+    for (const [id, spec] of presentationControlSpecs) {
+      if (spec.parentId) continue;
+      let node = presentationControlNodes.get(id);
+      if (!node) {
+        const angle = Number(spec.sectorAngle || 0);
+        node = {
+          id,
+          kind: 'control',
+          label: String(spec.label || 'Control'),
+          x: centreX + Math.cos(angle) * targetOrbit,
+          y: centreY + Math.sin(angle) * targetOrbit * 0.76,
+          vx: 0,
+          vy: 0,
+          radius: 18,
+          targetOrbit,
+          parentId: null,
+          action: String(spec.action || ''),
+          expandable: Boolean(spec.expandable),
+          controlDepth: 0,
+          recencyLevel: 0.82,
+          gravityWeight: 1,
+          fixed: false,
+          dragging: false
+        };
+        presentationControlNodes.set(id, node);
+      }
+      node.label = String(spec.label || node.label || 'Control');
+      node.radius = Math.max(12, Number(spec.radius) || 18);
+      node.targetOrbit = targetOrbit;
+      node.parentId = null;
+      node.action = String(spec.action || '');
+      node.expandable = Boolean(spec.expandable);
+      node.controlDepth = 0;
+      node.hidden = false;
+      nodes.push(node);
+    }
+
+    for (const [id, spec] of presentationControlSpecs) {
+      if (!spec.parentId) continue;
+      const parent = presentationControlNodes.get(spec.parentId);
+      if (!parent) continue;
+      const siblings = [...presentationControlSpecs.values()].filter((item) => item.parentId === spec.parentId);
+      const siblingIndex = Math.max(0, siblings.findIndex((item) => item.id === id));
+      const depth = presentationControlDepth(spec);
+      const spawnOrbit = Math.max(48, Number(parent.radius || 15) + Math.max(11, Number(spec.radius) || 15) + 22);
+      let node = presentationControlNodes.get(id);
+      if (!node) {
+        const angle = childControlAngle(parent, siblingIndex, siblings.length, centreX, centreY);
+        node = {
+          id,
+          kind: 'control',
+          label: String(spec.label || 'Control'),
+          x: parent.x + Math.cos(angle) * spawnOrbit,
+          y: parent.y + Math.sin(angle) * spawnOrbit,
+          vx: 0,
+          vy: 0,
+          radius: 15,
+          targetOrbit,
+          parentId: spec.parentId,
+          action: String(spec.action || ''),
+          expandable: Boolean(spec.expandable),
+          controlDepth: depth,
+          recencyLevel: 0.72,
+          gravityWeight: 1,
+          fixed: false,
+          dragging: false
+        };
+        presentationControlNodes.set(id, node);
+      }
+      node.label = String(spec.label || node.label || 'Control');
+      node.radius = Math.max(11, Number(spec.radius) || 15);
+      node.targetOrbit = targetOrbit;
+      node.parentId = spec.parentId;
+      node.action = String(spec.action || '');
+      node.expandable = Boolean(spec.expandable);
+      node.controlDepth = depth;
+      node.hidden = !presentationControlVisible(node);
+      nodes.push(node);
+    }
+    return nodes;
+  }
+
+  function childControlAngle(parent, index, count, centreX = graph?.centreX || 0, centreY = graph?.centreY || 0) {
+    const outward = Math.atan2(parent.y - centreY, parent.x - centreX);
+    const arc = Math.min(Math.PI * 0.92, Math.max(Math.PI * 0.54, count * 0.34));
+    return outward - arc / 2 + ((index + 0.5) / Math.max(1, count)) * arc;
+  }
+
+  function presentationControlDepth(spec) {
+    let depth = 0;
+    let current = spec;
+    const visited = new Set();
+    while (current?.parentId && !visited.has(current.parentId)) {
+      visited.add(current.parentId);
+      depth += 1;
+      current = presentationControlSpecs.get(String(current.parentId));
+    }
+    return depth;
+  }
+
+  function presentationControlVisible(node) {
+    if (!node?.parentId) return true;
+    if (String(node.parentId) === 'settings') return Boolean(activeControlParentId);
+    return String(node.parentId) === String(activeControlParentId || '');
+  }
+
+  function visibleControlNodes() {
+    return (graph?.nodes || []).filter((node) => node.kind === 'control' && !node.hidden);
+  }
+
+  function presentationControlEdges() {
+    if (!graph) return [];
+    const settings = presentationControlNodes.get('settings');
+    if (!settings) return [];
+    const rootEdges = [{
+      source: graph.spaceNode,
+      target: settings,
+      kind: 'space',
+      hidden: Boolean(activeControlParentId)
+    }];
+    const childEdges = [...presentationControlNodes.values()]
+      .filter((node) => node.parentId)
+      .flatMap((node) => {
+        const parent = presentationControlNodes.get(String(node.parentId));
+        return parent?.kind === 'control'
+          ? [{ source: parent, target: node, kind: 'space' }]
+          : [];
+      });
+    return [...rootEdges, ...childEdges];
+  }
+
+  function syncCanonicalGraphCollections() {
+    if (!graph) return false;
+    const controls = [...presentationControlNodes.values()];
+    graph.nodes = [graph.spaceNode, ...graph.memoryNodes, ...controls];
+    graph.edges = [...buildRealEdges(graph.spaceNode, graph.memoryNodes), ...presentationControlEdges()];
+    return true;
+  }
+
 
   function memoryProfile(memory, allMemories) {
     const importance = String(memory.importance || 'normal').toLowerCase();
@@ -317,7 +474,7 @@
   }
 
   function simulateStep() {
-    const nodes = graph.memoryNodes;
+    const nodes = graph.nodes.filter((node) => !node.fixed && !node.hidden);
     const centreX = graph.centreX;
     const centreY = graph.centreY;
     let totalSpeed = 0;
@@ -337,6 +494,18 @@
       const radialForce = -radialOffset * 0.0019 * Math.max(0.8, node.gravityWeight || 1);
       fx += (dx / distance) * radialForce;
       fy += (dy / distance) * radialForce;
+
+      // Active Settings children remain ordinary graph bodies while receiving
+      // one small parent-local attraction in this same simulation tick.
+      const localParent = node.parentId
+        ? graph.nodes.find((candidate) => candidate.kind === 'control'
+          && !candidate.hidden
+          && String(candidate.id) === String(node.parentId))
+        : null;
+      if (localParent && !localParent.hidden) {
+        fx += (localParent.x - node.x) * 0.0011;
+        fy += (localParent.y - node.y) * 0.0011;
+      }
 
       for (let j = i + 1; j < nodes.length; j += 1) {
         const other = nodes[j];
@@ -415,9 +584,10 @@
     };
   }
 
-  function orderedMemoryNodes() {
-    if (!rotationActive()) return graph.memoryNodes;
-    return [...graph.memoryNodes].sort((a, b) => projectedNode(a).depth - projectedNode(b).depth);
+  function orderedDrawableNodes() {
+    const nodes = graph.nodes.filter((node) => !node.fixed && !node.hidden);
+    if (!rotationActive()) return nodes;
+    return nodes.sort((a, b) => projectedNode(a).depth - projectedNode(b).depth);
   }
 
   function syncRotationState() {
@@ -433,17 +603,22 @@
     context.save();
     context.translate(view.x, view.y);
     context.scale(view.scale, view.scale);
-    for (const edge of graph.edges || []) drawEdge(edge);
+    for (const edge of graph.edges || []) {
+      if (!edge.source.hidden && !edge.target.hidden) drawEdge(edge);
+    }
 
     if (rotationActive()) {
-      for (const node of orderedMemoryNodes()) drawNode(node);
-      drawNode(graph.spaceNode);
+      for (const node of orderedDrawableNodes()) drawNodeAboveConnectors(node);
+      drawNodeAboveConnectors(graph.spaceNode);
     } else {
-      drawNode(graph.spaceNode);
-      for (const node of graph.memoryNodes) drawNode(node);
+      drawNodeAboveConnectors(graph.spaceNode);
+      for (const node of graph.nodes) {
+        if (!node.fixed && !node.hidden) drawNodeAboveConnectors(node);
+      }
     }
 
     context.restore();
+    surface?.dispatchEvent(new CustomEvent('memory-graph-drawn'));
   }
 
   function drawEdge(edge) {
@@ -462,6 +637,20 @@
     if (revision) context.setLineDash([5, 4]);
     context.stroke();
     context.restore();
+  }
+
+  function drawNodeAboveConnectors(node) {
+    const projected = projectedNode(node);
+    context.save();
+    context.globalAlpha = 1;
+    context.globalCompositeOperation = 'source-over';
+    context.shadowBlur = 0;
+    context.beginPath();
+    context.arc(projected.x, projected.y, projected.radius + 1.5, 0, Math.PI * 2);
+    context.fillStyle = '#050d12';
+    context.fill();
+    context.restore();
+    drawNode(node);
   }
 
   function drawNode(node) {
@@ -544,6 +733,7 @@
     canvas.addEventListener('pointermove', handlePointerMove);
     canvas.addEventListener('pointerup', handlePointerUp);
     canvas.addEventListener('pointercancel', handlePointerUp);
+    canvas.addEventListener('dblclick', handleGraphDoubleClick);
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     window.addEventListener('keydown', handleGraphKeyDown);
   }
@@ -568,6 +758,7 @@
 
   function handlePointerDown(event) {
     if (!graph || event.button !== 0) return;
+    stopViewTransition();
 
     const point = pointerPoint(event);
     const rotation = rotationApi();
@@ -593,19 +784,28 @@
 
       pointerState = {
         pointerId: event.pointerId,
-        mode: node?.kind === 'memory' ? (rotated ? 'inspect' : 'node') : 'pan',
-        node: node?.kind === 'memory' ? node : null,
+        mode: node?.kind === 'space'
+          ? 'home'
+          : node?.kind === 'memory'
+            ? (rotated ? 'inspect' : 'node')
+            : node?.kind === 'control'
+              ? (rotated ? 'control-inspect' : 'control')
+              : 'pan',
+        node: node?.kind === 'memory' || node?.kind === 'control' ? node : null,
         startX: point.x,
         startY: point.y,
         lastX: point.x,
         lastY: point.y,
-        moved: false
+        moved: false,
+        resumeSimulation: node?.kind === 'space' && Boolean(animationFrame)
       };
 
-      if (pointerState.mode === 'node' && pointerState.node) {
+      if ((pointerState.mode === 'node' || pointerState.mode === 'control') && pointerState.node) {
         pointerState.node.dragging = true;
         pointerState.node.vx = 0;
         pointerState.node.vy = 0;
+        stopSimulation();
+      } else if (pointerState.mode === 'home') {
         stopSimulation();
       }
     }
@@ -622,7 +822,8 @@
     const point = pointerPoint(event);
     if (!pointerState || pointerState.pointerId !== event.pointerId) {
       const world = screenToWorld(point);
-      canvas.dataset.hoverNode = findNodeAt(world.x, world.y)?.kind === 'memory' ? 'true' : 'false';
+      const hoveredKind = findNodeAt(world.x, world.y)?.kind;
+      canvas.dataset.hoverNode = hoveredKind === 'memory' || hoveredKind === 'control' ? 'true' : 'false';
       return;
     }
 
@@ -636,14 +837,14 @@
     if (pointerState.mode === 'rotate') {
       rotationApi()?.update?.(deltaX, deltaY);
       syncRotationState();
-    } else if (pointerState.mode === 'node' && pointerState.node) {
+    } else if ((pointerState.mode === 'node' || pointerState.mode === 'control') && pointerState.node) {
       const world = screenToWorld(point);
       pointerState.node.x = world.x;
       pointerState.node.y = world.y;
       pointerState.node.vx = 0;
       pointerState.node.vy = 0;
       containNode(pointerState.node);
-    } else {
+    } else if (pointerState.mode === 'pan' || pointerState.mode === 'home') {
       view.x += deltaX;
       view.y += deltaY;
     }
@@ -659,23 +860,37 @@
 
     const mode = pointerState.mode;
     const selectedNode = pointerState.node;
-    const shouldOpen = Boolean(selectedNode && !pointerState.moved && (mode === 'node' || mode === 'inspect'));
+    const shouldOpen = Boolean(selectedNode && !pointerState.moved && (
+      mode === 'node' || mode === 'inspect' || mode === 'control' || mode === 'control-inspect'
+    ));
 
     if (mode === 'rotate') {
       rotationApi()?.end?.();
       simulationFrames = 0;
       startSimulation();
-    } else if (mode === 'node' && selectedNode) {
+    } else if ((mode === 'node' || mode === 'control') && selectedNode) {
       selectedNode.dragging = false;
       selectedNode.vx = 0;
       selectedNode.vy = 0;
       simulationFrames = 0;
       startSimulation();
+    } else if (mode === 'home' && pointerState.resumeSimulation) {
+      startSimulation();
     }
 
-    if (shouldOpen) openExistingInspector(selectedNode.id);
+    if (mode === 'home' && !pointerState.moved) {
+      collapsePresentationControls();
+      focusSpace({ animate: true });
+      surface?.dispatchEvent(new CustomEvent('memory-graph-home'));
+    }
 
-    if (pointerState.moved && (mode === 'pan' || mode === 'inspect')) {
+    if (shouldOpen && selectedNode.kind === 'control') activatePresentationControl(selectedNode);
+    else if (shouldOpen) {
+      collapsePresentationControls();
+      openExistingInspector(selectedNode.id);
+    }
+
+    if (pointerState.moved && (mode === 'pan' || mode === 'inspect' || mode === 'home')) {
       persistGraphState(true);
     } else if (pointerState.moved && mode === 'node') {
       persistGraphState(false);
@@ -688,6 +903,14 @@
     } catch {}
     syncRotationState();
     drawGraph();
+  }
+
+  function handleGraphDoubleClick(event) {
+    if (!graph || event.button !== 0) return;
+    const world = screenToWorld(pointerPoint(event));
+    if (findNodeAt(world.x, world.y)?.kind !== 'space') return;
+    handleGraphKeyDown({ key: 'Escape' });
+    event.preventDefault();
   }
 
   function openExistingInspector(memoryId) {
@@ -706,6 +929,7 @@
 
   function handleWheel(event) {
     if (!graph || !canvas) return;
+    stopViewTransition();
 
     const point = pointerPoint(event);
     const worldBefore = screenToWorld(point);
@@ -742,9 +966,10 @@
   function findNodeAt(x, y) {
     if (!graph) return null;
 
+    const drawableNodes = graph.nodes.filter((node) => !node.fixed && !node.hidden);
     const candidates = rotationActive()
-      ? [...graph.memoryNodes].sort((a, b) => projectedNode(b).depth - projectedNode(a).depth)
-      : [...graph.memoryNodes].reverse();
+      ? drawableNodes.sort((a, b) => projectedNode(b).depth - projectedNode(a).depth)
+      : drawableNodes.reverse();
 
     for (const node of candidates) {
       const projected = projectedNode(node);
@@ -836,17 +1061,243 @@
     }, delay);
   }
 
-  function focusMemory(memoryId, redraw = true) {
+  function stopViewTransition() {
+    if (viewTransitionFrame) cancelAnimationFrame(viewTransitionFrame);
+    viewTransitionFrame = 0;
+  }
+
+  function transitionView(target, redraw = true) {
+    stopViewTransition();
+    const start = { x: view.x, y: view.y, scale: view.scale };
+    const startedAt = performance.now();
+    const duration = 320;
+    const animate = (timestamp) => {
+      const progress = Math.min(1, (timestamp - startedAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      view.x = start.x + (target.x - start.x) * eased;
+      view.y = start.y + (target.y - start.y) * eased;
+      view.scale = start.scale + (target.scale - start.scale) * eased;
+      if (redraw) drawGraph();
+      if (progress < 1) viewTransitionFrame = requestAnimationFrame(animate);
+      else viewTransitionFrame = 0;
+    };
+    viewTransitionFrame = requestAnimationFrame(animate);
+  }
+
+  function focusMemory(memoryId, redraw = true, options = {}) {
     if (!graph || !memoryId) return false;
     const node = graph.memoryNodes.find((item) => String(item.id) === String(memoryId));
     if (!node) return false;
 
     const projected = projectedNode(node);
     focusedNodeId = node.id;
-    view.scale = clamp(Math.max(view.scale, 1.15), MIN_SCALE, MAX_SCALE);
-    view.x = graph.width / 2 - projected.x * view.scale;
-    view.y = graph.height / 2 - projected.y * view.scale;
-    if (redraw) drawGraph();
+    const scale = clamp(Math.max(view.scale, 1.15), MIN_SCALE, MAX_SCALE);
+    const target = {
+      scale,
+      x: graph.width / 2 - projected.x * scale,
+      y: graph.height / 2 - projected.y * scale
+    };
+    if (options.animate) transitionView(target, redraw);
+    else {
+      stopViewTransition();
+      Object.assign(view, target);
+      if (redraw) drawGraph();
+    }
+
+    return true;
+  }
+
+  function focusSpace(options = {}) {
+    if (!graph) return false;
+    focusedNodeId = null;
+    const scale = clamp(Number(options.scale) || 1, MIN_SCALE, MAX_SCALE);
+    const target = {
+      scale,
+      x: graph.width / 2 - graph.centreX * scale,
+      y: graph.height / 2 - graph.centreY * scale
+    };
+    if (options.animate) transitionView(target, true);
+    else {
+      stopViewTransition();
+      Object.assign(view, target);
+      drawGraph();
+    }
+    return true;
+  }
+
+  function projectPresentationNode(node) {
+    if (!graph || !node) return null;
+    const projected = projectedNode({
+      id: String(node.id || 'presentation-node'),
+      kind: node.kind || 'memory',
+      x: Number(node.x || graph.centreX),
+      y: Number(node.y || graph.centreY),
+      radius: Number(node.radius || 16)
+    });
+    return {
+      ...projected,
+      screenX: view.x + projected.x * view.scale,
+      screenY: view.y + projected.y * view.scale,
+      screenRadius: projected.radius * view.scale
+    };
+  }
+
+  function registerPresentationControls(definitions = []) {
+    presentationControlSpecs.clear();
+    activeControlParentId = null;
+    for (const definition of definitions) {
+      if (!definition?.id) continue;
+      presentationControlSpecs.set(String(definition.id), {
+        id: String(definition.id),
+        label: String(definition.label || 'Control'),
+        sectorAngle: Number(definition.sectorAngle) || 0,
+        radius: Number(definition.radius) || 18,
+        parentId: definition.parentId ? String(definition.parentId) : null,
+        action: String(definition.action || ''),
+        expandable: Boolean(definition.expandable)
+      });
+    }
+    if (!graph) return true;
+    buildPresentationControlNodes(graph.width, graph.height, graph.centreX, graph.centreY, graph.orbitRadius);
+    syncCanonicalGraphCollections();
+    for (const node of visibleControlNodes()) containNode(node);
+    simulationFrames = 0;
+    drawGraph();
+    if (visibleControlNodes().length) startSimulation();
+    return true;
+  }
+
+  function presentationControlNode(id) {
+    return graph ? presentationControlNodes.get(String(id)) || null : null;
+  }
+
+  function projectPresentationControl(id) {
+    const node = presentationControlNode(id);
+    return node ? projectPresentationNode(node) : null;
+  }
+
+  function presentationControlState(id) {
+    const node = presentationControlNode(id);
+    return node ? {
+      id: node.id,
+      kind: node.kind,
+      x: node.x,
+      y: node.y,
+      radius: node.radius,
+      dragging: node.dragging,
+      hidden: Boolean(node.hidden),
+      parentId: node.parentId || null
+    } : null;
+  }
+
+  function setActiveControlParent(parentId = null) {
+    activeControlParentId = parentId && presentationControlNode(parentId) ? String(parentId) : null;
+    for (const node of presentationControlNodes.values()) {
+      if (!node.parentId) continue;
+      node.hidden = !presentationControlVisible(node);
+      node.dragging = false;
+      if (node.hidden) {
+        node.vx = 0;
+        node.vy = 0;
+      }
+    }
+    syncCanonicalGraphCollections();
+    simulationFrames = 0;
+    drawGraph();
+    if (activeControlParentId) startSimulation();
+    return true;
+  }
+
+  function collapsePresentationControls() {
+    if (!graph || !activeControlParentId) return false;
+    return setActiveControlParent(null);
+  }
+
+  function activatePresentationControl(node) {
+    if (!node || node.hidden) return false;
+    if (node.expandable) {
+      const nextParentId = String(node.id) === 'settings'
+        ? (activeControlParentId ? null : 'settings')
+        : (activeControlParentId === node.id ? node.parentId : node.id);
+      focusedNodeId = nextParentId || null;
+      setActiveControlParent(nextParentId);
+      return true;
+    }
+    if (!node.action) return false;
+    surface?.dispatchEvent(new CustomEvent('memory-graph-control-action', {
+      detail: { id: node.id, action: node.action, parentId: node.parentId || null }
+    }));
+    return true;
+  }
+
+  function focusPresentationControl(id, options = {}) {
+    const node = presentationControlNode(id);
+    return node ? focusPresentationNode(node, options) : false;
+  }
+
+  function beginPresentationControlDrag(id) {
+    const node = presentationControlNode(id);
+    if (!node || rotationActive()) return false;
+    stopViewTransition();
+    stopSimulation();
+    node.dragging = true;
+    node.vx = 0;
+    node.vy = 0;
+    return true;
+  }
+
+  function movePresentationControlDrag(id, clientX, clientY) {
+    const node = presentationControlNode(id);
+    if (!node?.dragging || !canvas) return false;
+    const rect = canvas.getBoundingClientRect();
+    const world = screenToWorld({ x: clientX - rect.left, y: clientY - rect.top });
+    node.x = world.x;
+    node.y = world.y;
+    node.vx = 0;
+    node.vy = 0;
+    containNode(node);
+    drawGraph();
+    return true;
+  }
+
+  function endPresentationControlDrag(id) {
+    const node = presentationControlNode(id);
+    if (!node?.dragging) return false;
+    node.dragging = false;
+    node.vx = 0;
+    node.vy = 0;
+    simulationFrames = 0;
+    startSimulation();
+    return true;
+  }
+
+  function presentationState() {
+    if (!graph) return null;
+    return {
+      width: graph.width,
+      height: graph.height,
+      centreX: graph.centreX,
+      centreY: graph.centreY,
+      view: { ...view }
+    };
+  }
+
+  function focusPresentationNode(node, options = {}) {
+    if (!graph || !node) return false;
+    const projected = projectPresentationNode(node);
+    if (!projected) return false;
+    const scale = clamp(Math.max(view.scale, Number(options.scale) || 1.08), MIN_SCALE, MAX_SCALE);
+    const target = {
+      scale,
+      x: graph.width / 2 - projected.x * scale,
+      y: graph.height / 2 - projected.y * scale
+    };
+    if (options.animate) transitionView(target, true);
+    else {
+      stopViewTransition();
+      Object.assign(view, target);
+      drawGraph();
+    }
     return true;
   }
 
@@ -894,6 +1345,7 @@
   }
 
   function resetView() {
+    stopViewTransition();
     view.x = 0;
     view.y = 0;
     view.scale = 1;
@@ -947,6 +1399,18 @@
     mount,
     refresh,
     focusMemory,
+    focusSpace,
+    projectPresentationNode,
+    focusPresentationNode,
+    presentationState,
+    registerPresentationControls,
+    collapsePresentationControls,
+    projectPresentationControl,
+    presentationControlState,
+    focusPresentationControl,
+    beginPresentationControlDrag,
+    movePresentationControlDrag,
+    endPresentationControlDrag,
     focusSearchTerm,
     resetRotation() {
       rotationApi()?.reset?.();
