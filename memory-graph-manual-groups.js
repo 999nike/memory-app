@@ -1,9 +1,10 @@
 (() => {
   'use strict';
 
-  const VERSION = 4;
+  const VERSION = 5;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
+  const GROUP_CLICK_THRESHOLD = 6;
 
   let workspaceRaw = '';
   let workspaceCache = null;
@@ -170,7 +171,7 @@
     Object.defineProperty(proto, '__manualGroupTitleHitHook', { value: true });
     const previousFillText = proto.fillText;
     proto.fillText = function manualGroupTitleHitText(text, x, y, ...rest) {
-      if (this?.canvas?.classList?.contains('memory-graph-manual-gravity-canvas')) {
+      if (this?.canvas?.classList?.contains('memory-graph-manual-gravity-body-canvas')) {
         const group = groupsForSpace().find((item) => shownGroupTitle(item) === String(text || ''));
         if (group) {
           const width = Math.max(72, this.measureText(String(text || '')).width + 30);
@@ -228,7 +229,7 @@
       if (hitGroupTitle(point)) canvas?.setAttribute('data-hover-group-title', 'true');
       else canvas?.removeAttribute('data-hover-group-title');
       if (pointerCandidate?.pointerId === event.pointerId &&
-          Math.hypot(point.x - pointerCandidate.startX, point.y - pointerCandidate.startY) > 5) {
+          Math.hypot(point.x - pointerCandidate.startX, point.y - pointerCandidate.startY) > GROUP_CLICK_THRESHOLD) {
         pointerCandidate = null;
       }
     }, true);
@@ -264,9 +265,11 @@
       .memory-graph-group-inspector-title{min-width:0;margin:0;color:#f2f4f7;font:800 13px/1.2 Inter,system-ui,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .memory-graph-group-inspector-close{width:28px;height:28px;border:0;border-radius:50%;background:rgb(255 255 255/.05);color:rgb(242 244 247/.72);font:700 17px/1 Inter,system-ui,sans-serif;cursor:pointer}
       .memory-graph-group-inspector-list{margin:0;padding:8px;list-style:none;max-height:270px;overflow:auto}
-      .memory-graph-group-member{display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:center;gap:8px;min-height:40px;padding:4px 4px 4px 10px;border-radius:10px}
+      .memory-graph-group-member{display:grid;grid-template-columns:minmax(0,1fr) auto 32px;align-items:center;gap:8px;min-height:40px;padding:4px 4px 4px 10px;border-radius:10px}
       .memory-graph-group-member:hover{background:rgb(120 184 255/.055)}
       .memory-graph-group-member-name{min-width:0;color:rgb(242 244 247/.88);font:600 12px/1.3 Inter,system-ui,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .memory-graph-group-member-open{min-height:28px;padding:0 9px;border:1px solid rgb(120 184 255/.22);border-radius:8px;background:rgb(120 184 255/.055);color:rgb(210 246 255/.9);font:700 10px/1 Inter,system-ui,sans-serif;cursor:pointer}
+      .memory-graph-group-member-open:hover{border-color:rgb(120 184 255/.48);background:rgb(120 184 255/.1);color:#f2f4f7}
       .memory-graph-group-member-remove{width:30px;height:30px;display:grid;place-items:center;border:1px solid rgb(255 255 255/.08);border-radius:9px;background:rgb(255 255 255/.035);color:rgb(242 244 247/.7);cursor:pointer}
       .memory-graph-group-member-remove:hover{border-color:rgb(199 255 86/.34);color:#c7ff56;background:rgb(199 255 86/.06)}
       .memory-graph-group-empty{padding:16px 12px;color:rgb(145 154 170/.9);font:600 12px/1.4 Inter,system-ui,sans-serif;text-align:center}
@@ -369,6 +372,14 @@
         name.className = 'memory-graph-group-member-name';
         name.textContent = memory?.title || 'Untitled memory';
         name.title = memory?.title || 'Untitled memory';
+        const open = document.createElement('button');
+        open.type = 'button';
+        open.className = 'memory-graph-group-member-open';
+        open.textContent = 'Open';
+        open.setAttribute('aria-label', `Open ${memory?.title || 'memory'}`);
+        open.addEventListener('click', () => {
+          globalThis.MemoryApp?.openMemoryInspector?.(memoryId);
+        });
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.className = 'memory-graph-group-member-remove';
@@ -380,7 +391,7 @@
           renderInspector();
           requestAnimationFrame(() => globalThis.MemoryGraph?.refresh?.());
         });
-        row.append(name, remove);
+        row.append(name, open, remove);
         inspectorList.appendChild(row);
       }
     }

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 10;
+  const VERSION = 11;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
   const PHYSICS_INTERVAL_MS = 14;
@@ -10,6 +10,7 @@
   const OVERLAY_FRAME_MS = 40;
   const DRAG_OVERLAY_FRAME_MS = 28;
   const MIN_GRAPH_SCALE = 0.45;
+  const GROUP_DRAG_THRESHOLD = 6;
 
   const baseRotation = globalThis.MemoryGraphRotation || null;
   if (!baseRotation || baseRotation.__manualGravityPhysicsWrapped) return;
@@ -223,7 +224,8 @@
       fx += (dx / distance) * radialForce;
       fy += (dy / distance) * radialForce;
 
-      // Same pairwise repulsion used by normal memory nodes.
+      // Group bodies still account for nearby canonical nodes, but the
+      // canonical solver remains the only integrator for those nodes.
       for (const node of memories) {
         const pairX = body.x - Number(node.x || 0);
         const pairY = body.y - Number(node.y || 0);
@@ -234,10 +236,6 @@
         const pushY = (pairY / pairDistance) * repulsion;
         fx += pushX / Math.max(0.85, body.gravityWeight || 1);
         fy += pushY / Math.max(0.85, body.gravityWeight || 1);
-        if (!node.dragging) {
-          node.vx = Number(node.vx || 0) - pushX / Math.max(0.85, Number(node.gravityWeight || 1));
-          node.vy = Number(node.vy || 0) - pushY / Math.max(0.85, Number(node.gravityWeight || 1));
-        }
       }
 
       for (let j = i + 1; j < entries.length; j += 1) {
@@ -560,8 +558,8 @@
 
   function restartBaseSimulation() {
     const api = globalThis.MemoryGraph;
-    if (typeof api?.refresh !== 'function') return false;
-    api.refresh();
+    if (typeof api?.wakeSimulation !== 'function') return false;
+    api.wakeSimulation();
     flushNeuralLayers();
     return true;
   }
@@ -591,12 +589,10 @@
     surface.__manualGravityPhysicsPointerHooks = true;
 
     surface.addEventListener('pointerdown', (event) => {
-      wakePhysics();
       if (event.target !== canvas || event.button !== 0 || rotationActive()) return;
       const point = eventPoint(event);
       const group = groupAtScreen(point);
       if (group) {
-        const body = bodyFromGroup(group, lastGraph);
         drag = {
           pointerId: event.pointerId,
           groupId: String(group.id),
@@ -604,16 +600,12 @@
           startY: point.y,
           moved: false
         };
-        body.dragging = true;
-        body.vx = 0;
-        body.vy = 0;
-        canvas.dataset.draggingGroup = 'true';
-        canvas.dataset.interacting = 'true';
         canvas.setPointerCapture?.(event.pointerId);
         stopGroupEvent(event);
         return;
       }
 
+      wakePhysics();
       const memoryId = memoryAtScreen(point);
       if (memoryId) {
         memoryDrag = {
@@ -634,19 +626,31 @@
       const point = eventPoint(event);
 
       if (drag?.pointerId === event.pointerId) {
-        if (!drag.moved && Math.hypot(point.x - drag.startX, point.y - drag.startY) > 3) drag.moved = true;
         const group = groupsForSpace().find((item) => String(item.id) === drag.groupId);
         const body = group ? bodyFromGroup(group, lastGraph) : null;
-        const world = screenToWorld(point);
-        if (body && world) {
-          body.x = world.x;
-          body.y = world.y;
-          body.vx = 0;
-          body.vy = 0;
-          containBody(body, lastGraph);
-          groupProjectionDirty = true;
-          schedulePersist();
-          scheduleGraphRedraw(false);
+        if (!drag.moved && Math.hypot(point.x - drag.startX, point.y - drag.startY) > GROUP_DRAG_THRESHOLD) {
+          drag.moved = true;
+          wakePhysics();
+          if (body) {
+            body.dragging = true;
+            body.vx = 0;
+            body.vy = 0;
+          }
+          canvas.dataset.draggingGroup = 'true';
+          canvas.dataset.interacting = 'true';
+        }
+        if (drag.moved) {
+          const world = screenToWorld(point);
+          if (body && world) {
+            body.x = world.x;
+            body.y = world.y;
+            body.vx = 0;
+            body.vy = 0;
+            containBody(body, lastGraph);
+            groupProjectionDirty = true;
+            schedulePersist();
+            scheduleGraphRedraw(false);
+          }
         }
         stopGroupEvent(event);
         return;
@@ -666,9 +670,10 @@
     surface.addEventListener('pointerup', (event) => {
       const point = eventPoint(event);
       if (drag?.pointerId === event.pointerId) {
+        const active = drag;
         const group = groupsForSpace().find((item) => String(item.id) === drag.groupId);
         const body = group ? bodyFromGroup(group, lastGraph) : null;
-        if (body) {
+        if (body && active.moved) {
           body.dragging = false;
           body.vx = 0;
           body.vy = 0;
@@ -678,9 +683,11 @@
         canvas.removeAttribute('data-dragging-group');
         canvas.removeAttribute('data-hover-group');
         canvas.removeAttribute('data-interacting');
-        persistBodies();
-        groupProjectionDirty = true;
-        if (!restartBaseSimulation()) scheduleGraphRedraw(true);
+        if (active.moved) {
+          persistBodies();
+          groupProjectionDirty = true;
+          if (!restartBaseSimulation()) scheduleGraphRedraw(true);
+        }
         try { canvas.releasePointerCapture?.(event.pointerId); } catch {}
         stopGroupEvent(event);
         return;
@@ -702,9 +709,10 @@
 
     surface.addEventListener('pointercancel', (event) => {
       if (drag?.pointerId === event.pointerId) {
+        const active = drag;
         const group = groupsForSpace().find((item) => String(item.id) === drag.groupId);
         const body = group ? bodyFromGroup(group, lastGraph) : null;
-        if (body) {
+        if (body && active.moved) {
           body.dragging = false;
           body.vx = 0;
           body.vy = 0;
@@ -714,8 +722,10 @@
         canvas.removeAttribute('data-dragging-group');
         canvas.removeAttribute('data-hover-group');
         canvas.removeAttribute('data-interacting');
-        groupProjectionDirty = true;
-        if (!restartBaseSimulation()) scheduleGraphRedraw(false);
+        if (active.moved) {
+          groupProjectionDirty = true;
+          if (!restartBaseSimulation()) scheduleGraphRedraw(false);
+        }
       }
       if (memoryDrag?.pointerId === event.pointerId) memoryDrag = null;
     }, true);

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 2;
+  const VERSION = 3;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralFlowInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralFlowInstalled', { value: true });
@@ -103,7 +103,10 @@
       compact,
       length,
       angle: Math.atan2(points.to.y - points.from.y, points.to.x - points.from.x),
-      seed: seedFor(points.from, points.to)
+      seed: seedFor(points.from, points.to),
+      activityTarget: context.__memoryFlowActivityTarget
+        ? { ...context.__memoryFlowActivityTarget }
+        : null
     });
   }
 
@@ -232,10 +235,16 @@
           stem: controlPoints(junction, shared, childSeed + 0.33, 0.66, i + 4),
           branch: controlPoints(shared, target, childSeed + 0.71, 0.82, i + 7),
           shared,
-          seed: childSeed
+          seed: childSeed,
+          activityTarget: segment.activityTarget
         });
       } else {
-        children.push({ branch: controlPoints(junction, target, childSeed, compact ? 0.72 : 0.88, i + 2), shared: junction, seed: childSeed });
+        children.push({
+          branch: controlPoints(junction, target, childSeed, compact ? 0.72 : 0.88, i + 2),
+          shared: junction,
+          seed: childSeed,
+          activityTarget: segment.activityTarget
+        });
       }
     }
     return { trunk, junction, children, seed: trunkSeed };
@@ -267,27 +276,36 @@
     return curves[curves.length - 1].p3;
   }
 
-  function glow(point, radius, alpha, hot = false) {
+  function glow(point, radius, alpha, hot = false, palette = 'blue') {
     const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
     gradient.addColorStop(0, `rgba(255,255,255,${alpha.toFixed(3)})`);
-    gradient.addColorStop(0.25, hot ? `rgba(173,240,255,${(alpha * 0.84).toFixed(3)})` : `rgba(108,222,255,${(alpha * 0.72).toFixed(3)})`);
-    gradient.addColorStop(0.62, `rgba(49,144,255,${(alpha * 0.34).toFixed(3)})`);
-    gradient.addColorStop(1, 'rgba(30,88,255,0)');
+    if (palette === 'purple') {
+      gradient.addColorStop(0.25, hot ? `rgba(239,184,255,${(alpha * 0.94).toFixed(3)})` : `rgba(214,118,255,${(alpha * 0.84).toFixed(3)})`);
+      gradient.addColorStop(0.62, `rgba(178,64,255,${(alpha * 0.48).toFixed(3)})`);
+      gradient.addColorStop(1, 'rgba(102,0,255,0)');
+    } else {
+      gradient.addColorStop(0.25, hot ? `rgba(173,240,255,${(alpha * 0.84).toFixed(3)})` : `rgba(108,222,255,${(alpha * 0.72).toFixed(3)})`);
+      gradient.addColorStop(0.62, `rgba(49,144,255,${(alpha * 0.34).toFixed(3)})`);
+      gradient.addColorStop(1, 'rgba(30,88,255,0)');
+    }
     ctx.beginPath();
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
     ctx.fillStyle = gradient;
     ctx.fill();
   }
 
-  function drawRoutePulse(curves, seed, timestamp, phase, compact) {
+  function drawRoutePulse(curves, seed, timestamp, phase, compact, options = {}) {
     if (!curves.length) return;
     const metrics = routeMetrics(curves);
     const duration = (compact ? 3000 : 3400) + seed * 1500;
     const raw = ((timestamp + phase * duration + seed * 1100) % duration) / duration;
-    const routeProgress = 0.5 - 0.5 * Math.cos(raw * Math.PI * 2);
+    const activity = options.activity === true;
+    const reverse = options.reverse !== false;
+    const routeProgress = activity ? (reverse ? 1 - raw : raw) : 0.5 - 0.5 * Math.cos(raw * Math.PI * 2);
     const point = routePoint(curves, metrics, routeProgress);
-    const direction = raw < 0.5 ? 1 : -1;
-    const radius = compact ? 8.5 : 11.5;
+    const direction = activity ? (reverse ? -1 : 1) : raw < 0.5 ? 1 : -1;
+    const radius = (compact ? 8.5 : 11.5) * (activity ? 1.18 : 1);
+    const palette = activity ? 'purple' : 'blue';
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -295,25 +313,77 @@
     for (let i = 3; i >= 1; i -= 1) {
       const trailProgress = clamp(routeProgress - direction * i * 0.012, 0, 1);
       const trailPoint = routePoint(curves, metrics, trailProgress);
-      glow(trailPoint, radius * (0.34 + i * 0.09), 0.10 + (4 - i) * 0.035, false);
+      glow(trailPoint, radius * (0.34 + i * 0.09), 0.10 + (4 - i) * 0.035, false, palette);
     }
-    glow(point, radius * 1.75, compact ? 0.20 : 0.26, false);
-    glow(point, radius, compact ? 0.74 : 0.92, true);
+    glow(point, radius * (activity ? 1.88 : 1.75), activity ? 0.34 : compact ? 0.20 : 0.26, false, palette);
+    glow(point, radius, activity ? 1 : compact ? 0.74 : 0.92, true, palette);
 
     for (const boundary of metrics.boundaries) {
       const delta = Math.abs(routeProgress - boundary.progress);
       if (delta < 0.052) {
         const strength = 1 - delta / 0.052;
-        glow(boundary.point, radius * (1.10 + strength * 0.95), 0.16 + strength * 0.40, true);
+        glow(boundary.point, radius * (1.10 + strength * 0.95), 0.16 + strength * (activity ? 0.52 : 0.40), true, palette);
       }
     }
     ctx.restore();
   }
 
-  function drawNetworkFlow(segments, timestamp, compact = false) {
+  function reverseCurve(curve) {
+    return {
+      ...curve,
+      p0: curve.p3,
+      p1: curve.p2,
+      p2: curve.p1,
+      p3: curve.p0
+    };
+  }
+
+  function activityRoute(source, target, trunk, targetRoute = null) {
+    const sourceLeg = [trunk];
+    if (source.stem) sourceLeg.push(source.stem);
+    sourceLeg.push(source.branch);
+    if (source === target) return sourceLeg;
+    if (targetRoute?.length) return sourceLeg.slice().reverse().map(reverseCurve).concat(targetRoute);
+    const targetLeg = [trunk];
+    if (target?.stem) targetLeg.push(target.stem);
+    if (target?.branch) targetLeg.push(target.branch);
+    return sourceLeg.slice().reverse().map(reverseCurve).concat(targetLeg);
+  }
+
+  function collectActivityContext(segments, centre, compact = false) {
+    const activeByApp = new Map();
+    for (const segment of segments) {
+      const activity = activityFor(segment.activityTarget);
+      const appId = segment.activityTarget?.appId;
+      if (!activity || !appId || activeByApp.has(appId)) continue;
+      const targetGeometry = buildClusterGeometry([segment], centre, -1, compact);
+      const targetChild = targetGeometry.children[0] || null;
+      activeByApp.set(appId, {
+        target: segment.activityTarget,
+        activity,
+        targetRoute: targetChild ? [targetGeometry.trunk, ...(targetChild.stem ? [targetChild.stem] : []), targetChild.branch] : []
+      });
+    }
+    return activeByApp;
+  }
+
+  function activityFor(target) {
+    if (!target?.appId || !target?.nodeId) return null;
+    const activity = globalThis.UniversalAppAdapters?.getAppActivity?.(target.appId, target.nodeId);
+    return activity?.pending ? activity : null;
+  }
+
+  function drawActivityHeartbeat(point, count, timestamp) {
+    const pulse = 0.5 + Math.sin(timestamp * 0.0042) * 0.5;
+    const strength = Math.min(1, 0.42 + Math.log2(Math.max(1, Number(count || 1)) + 1) * 0.12);
+    glow(point, 15 + pulse * 5, strength * (0.24 + pulse * 0.12), false, 'purple');
+  }
+
+  function drawNetworkFlow(segments, timestamp, compact = false, activityContext = null) {
     if (!segments.length) return;
     const centre = centrePoint(segments);
     if (!centre) return;
+    const activeByApp = activityContext || collectActivityContext(segments, centre, compact);
     const clusters = makeClusters(segments, centre, compact);
 
     for (let clusterIndex = 0; clusterIndex < clusters.length; clusterIndex += 1) {
@@ -334,6 +404,26 @@
         drawRoutePulse(route, child.seed + geometry.seed, timestamp, clusterIndex * 0.17 + emitted * 0.31, compact);
         emitted += 1;
       }
+
+      let pendingCount = 0;
+      for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
+        const child = children[childIndex];
+        const appId = child.activityTarget?.appId;
+        const active = appId ? activeByApp.get(appId) : null;
+        if (!active) continue;
+        const isTarget = child.activityTarget.nodeId === active.target.nodeId;
+        const targetChild = children.find((candidate) => candidate.activityTarget?.nodeId === active.target.nodeId);
+        const route = isTarget && targetChild
+          ? activityRoute(child, child, geometry.trunk)
+          : activityRoute(child, targetChild, geometry.trunk, active.targetRoute);
+        drawRoutePulse(route, child.seed + geometry.seed, timestamp, clusterIndex * 0.17 + childIndex * 0.083, compact, {
+          activity: true,
+          activityTarget: active.target,
+          reverse: false
+        });
+        if (isTarget) pendingCount += active.activity.count;
+      }
+      if (pendingCount > 0) drawActivityHeartbeat(centre, pendingCount, timestamp);
     }
   }
 
@@ -362,7 +452,12 @@
     const rect = sourceCanvas.getBoundingClientRect();
     if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;
     ctx.clearRect(0, 0, rect.width, rect.height);
-    if (!interacting) drawNetworkFlow(mainSegments, timestamp, false);
+    if (!interacting) {
+      for (const group of groupManualSegments(mainSegments)) {
+        const centre = centrePoint(group.segments);
+        drawNetworkFlow(group.segments, timestamp, false, centre ? collectActivityContext(group.segments, centre, false) : null);
+      }
+    }
 
     if (!interacting) {
       for (const group of groupManualSegments(manualSegments)) {

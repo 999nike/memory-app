@@ -86,6 +86,7 @@
   let activeFilter = 'all';
   let searchTerm = '';
   let selectedMemoryId = null;
+  let directInspectorActive = false;
   let toastTimer;
 
   const els = {
@@ -234,7 +235,7 @@
       </button>`).join('');
   }
 
-  function renderInspector(memoryId) {
+  function renderInspector(memoryId, options = {}) {
     const memory = state.memories.find((item) => item.id === memoryId && item.spaceId === state.activeSpaceId);
     if (!memory) {
       closeInspector();
@@ -242,6 +243,8 @@
     }
 
     selectedMemoryId = memory.id;
+    directInspectorActive = options.preserveWorkspace === true;
+    els.appShell.classList.toggle('detail-overlay', directInspectorActive);
     els.appShell.classList.add('detail-open');
     els.detailTitle.textContent = memory.title;
     els.detailContent.innerHTML = `
@@ -276,19 +279,29 @@
         <button class="ghost-button danger-button" data-action="delete" data-memory-id="${escapeAttr(memory.id)}">Delete</button>
         <button class="ghost-button" data-action="copy" data-memory-id="${escapeAttr(memory.id)}">Copy</button>
       </div>`;
-    renderMemories();
+    if (!directInspectorActive) renderMemories();
   }
 
   function closeInspector() {
+    const preserveWorkspace = directInspectorActive;
+    directInspectorActive = false;
     selectedMemoryId = null;
     els.appShell.classList.remove('detail-open');
+    els.appShell.classList.remove('detail-overlay');
     els.detailTitle.textContent = 'Select a memory';
     els.detailContent.innerHTML = `
       <div class="inspector-placeholder">
         <div class="empty-icon" aria-hidden="true">◇</div>
         <p>Select a memory to see its status, source, history, and controls.</p>
       </div>`;
-    renderMemories();
+    if (!preserveWorkspace) renderMemories();
+  }
+
+  function openMemoryInspector(memoryId) {
+    const id = String(memoryId || '');
+    if (!id || !state.memories.some((memory) => memory.id === id && memory.spaceId === state.activeSpaceId)) return false;
+    renderInspector(id, { preserveWorkspace: true });
+    return true;
   }
 
   function openMemoryDialog(memory = null) {
@@ -597,6 +610,8 @@
     document.execCommand('copy');
     textarea.remove();
   }
+
+  globalThis.MemoryApp = Object.freeze({ openMemoryInspector });
 
   document.getElementById('newMemoryButton').addEventListener('click', () => openMemoryDialog());
   document.getElementById('emptyAddButton').addEventListener('click', () => openMemoryDialog());

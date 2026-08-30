@@ -496,7 +496,9 @@
     if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;
     layerContext.clearRect(0, 0, rect.width, rect.height);
 
-    drawNetwork(layerContext, mainSegments, timestamp, interacting, false);
+    for (const group of groupManualSegments(mainSegments)) {
+      drawNetwork(layerContext, group.segments, timestamp, interacting, false);
+    }
 
     const manualGroups = groupManualSegments(manualSegments);
     for (const group of manualGroups) {

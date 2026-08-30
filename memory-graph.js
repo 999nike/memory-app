@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 11;
+  const VERSION = 14;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -9,6 +9,8 @@
   const SETTLED_SPEED = 0.035;
   const MIN_SCALE = 0.45;
   const MAX_SCALE = 2.8;
+  const UNIVERSE_BOUNDARY_FORCE = 0.0012;
+  const CLUSTER_ROOT_INERTIA = 5;
   const IMPORTANCE_WEIGHT = {
     critical: 1.42,
     high: 1.20,
@@ -21,23 +23,26 @@
     normal: 15,
     low: 12
   };
-
   let surface = null;
   let canvas = null;
   let context = null;
   let resizeObserver = null;
   let workspaceObserver = null;
+  let inspectorBridgeActive = false;
   let graph = null;
   let animationFrame = 0;
   let simulationFrames = 0;
   let pointerState = null;
   let interactionsBound = false;
   let searchBound = false;
+  let appAdaptersBound = false;
   let focusedNodeId = null;
   let persistTimer = 0;
   let viewTransitionFrame = 0;
   const presentationControlSpecs = new Map();
   const presentationControlNodes = new Map();
+  const expandedAppNodeIds = new Set();
+  const expansionAnchoredRootIds = new Set();
   let activeControlParentId = null;
   const view = {
     x: 0,
@@ -167,6 +172,8 @@
     const spaceNode = {
       id: data.space.id,
       kind: 'space',
+      appRoot: true,
+      clusterRoot: true,
       label: data.space.name || 'Memory Space',
       x: centreX,
       y: centreY,
@@ -195,7 +202,9 @@
         vy: 0,
         radius: profile.radius,
         targetOrbit: Math.max(62, baseOrbit / profile.gravityWeight),
+        localOrbit: Math.max(62, baseOrbit / profile.gravityWeight),
         gravityWeight: profile.gravityWeight,
+        parentId: spaceNode.id,
         relationshipCount: profile.relationshipCount,
         recencyLevel: profile.recencyLevel,
         importance: profile.importance,
@@ -207,7 +216,81 @@
       };
     });
 
-    const edges = buildRealEdges(spaceNode, memoryNodes);
+    const appOrbit = baseOrbit * 1.08;
+    const appDefinitions = globalThis.UniversalAppAdapters?.getAppDefinitions?.() || [];
+    const appNodes = [];
+    const appEdges = [];
+    appDefinitions.forEach((appDefinition, appIndex, definitions) => {
+      const appAngle = Math.PI * 0.78 + (appIndex / Math.max(1, definitions.length)) * Math.PI * 2;
+      const appRoot = {
+        id: appDefinition.id,
+        appId: appDefinition.id,
+        nodeId: null,
+        kind: 'control',
+        appRoot: true,
+        clusterRoot: true,
+        label: appDefinition.name,
+        x: centreX + Math.cos(appAngle) * appOrbit,
+        y: centreY + Math.sin(appAngle) * appOrbit,
+        vx: 0,
+        vy: 0,
+        radius: 34,
+        targetOrbit: appOrbit,
+        gravityWeight: 1.18,
+        parentId: null,
+        action: '',
+        view: null,
+        expandable: false,
+        controlDepth: 0,
+        recencyLevel: 1,
+        fixed: false,
+        dragging: false,
+        hidden: false
+      };
+      const stateUpdates = new Map(
+        (globalThis.UniversalAppAdapters?.getAppNodeUpdates?.(appDefinition.id) || [])
+          .map((update) => [String(update.id), update])
+      );
+      appNodes.push(appRoot);
+
+      const appendChildren = (children, parent, depth, parentAngle) => {
+        children.forEach((definition, index, siblings) => {
+          const angle = parentAngle + (index / Math.max(1, siblings.length)) * Math.PI * 2;
+          const spawnOrbit = depth === 1 ? 72 + index * 9 : 54 + index * 7;
+          const current = stateUpdates.get(String(definition.id));
+          const node = {
+            id: definition.id,
+            appId: appDefinition.id,
+            nodeId: definition.nodeId,
+            kind: 'control',
+            label: current?.label || definition.label,
+            state: current?.state || definition.state || null,
+            x: parent.x + Math.cos(angle) * spawnOrbit,
+            y: parent.y + Math.sin(angle) * spawnOrbit,
+            vx: 0,
+            vy: 0,
+            radius: appControlRadius(depth),
+            targetOrbit: appOrbit,
+            localOrbit: spawnOrbit,
+            gravityWeight: 0.92,
+            parentId: parent.id,
+            action: String(definition.action || ''),
+            view: definition.view || null,
+            expandable: Boolean(definition.expandable),
+            controlDepth: depth,
+            recencyLevel: 0.72,
+            fixed: false,
+            dragging: false,
+            hidden: parent.appRoot ? false : (parent.hidden || !expandedAppNodeIds.has(parent.id))
+          };
+          appNodes.push(node);
+          appEdges.push({ source: parent, target: node, kind: 'space' });
+          appendChildren(definition.children || [], node, depth + 1, angle);
+        });
+      };
+      appendChildren(appDefinition.nodes || [], appRoot, 1, appAngle);
+    });
+    const edges = [...buildRealEdges(spaceNode, memoryNodes), ...appEdges];
     buildPresentationControlNodes(width, height, centreX, centreY, baseOrbit);
 
     return {
@@ -218,9 +301,15 @@
       orbitRadius: baseOrbit,
       spaceNode,
       memoryNodes,
-      nodes: [spaceNode, ...memoryNodes],
+      appNodes,
+      appEdges,
+      nodes: [spaceNode, ...memoryNodes, ...appNodes],
       edges
     };
+  }
+
+  function appControlRadius(depth) {
+    return Math.max(9, 15 * Math.pow(0.82, Math.max(0, Number(depth || 1) - 1)));
   }
 
   function buildPresentationControlNodes(width, height, centreX, centreY, baseOrbit) {
@@ -246,7 +335,9 @@
           vy: 0,
           radius: 18,
           targetOrbit,
+          localOrbit: 0,
           parentId: null,
+          clusterRoot: true,
           action: String(spec.action || ''),
           expandable: Boolean(spec.expandable),
           controlDepth: 0,
@@ -260,7 +351,9 @@
       node.label = String(spec.label || node.label || 'Control');
       node.radius = Math.max(12, Number(spec.radius) || 18);
       node.targetOrbit = targetOrbit;
+      node.localOrbit = 0;
       node.parentId = null;
+      node.clusterRoot = true;
       node.action = String(spec.action || '');
       node.expandable = Boolean(spec.expandable);
       node.controlDepth = 0;
@@ -289,7 +382,9 @@
           vy: 0,
           radius: 15,
           targetOrbit,
+          localOrbit: spawnOrbit,
           parentId: spec.parentId,
+          clusterRoot: false,
           action: String(spec.action || ''),
           expandable: Boolean(spec.expandable),
           controlDepth: depth,
@@ -303,7 +398,9 @@
       node.label = String(spec.label || node.label || 'Control');
       node.radius = Math.max(11, Number(spec.radius) || 15);
       node.targetOrbit = targetOrbit;
+      node.localOrbit = spawnOrbit;
       node.parentId = spec.parentId;
+      node.clusterRoot = false;
       node.action = String(spec.action || '');
       node.expandable = Boolean(spec.expandable);
       node.controlDepth = depth;
@@ -343,14 +440,6 @@
 
   function presentationControlEdges() {
     if (!graph) return [];
-    const settings = presentationControlNodes.get('settings');
-    if (!settings) return [];
-    const rootEdges = [{
-      source: graph.spaceNode,
-      target: settings,
-      kind: 'space',
-      hidden: Boolean(activeControlParentId)
-    }];
     const childEdges = [...presentationControlNodes.values()]
       .filter((node) => node.parentId)
       .flatMap((node) => {
@@ -359,14 +448,14 @@
           ? [{ source: parent, target: node, kind: 'space' }]
           : [];
       });
-    return [...rootEdges, ...childEdges];
+    return childEdges;
   }
 
   function syncCanonicalGraphCollections() {
     if (!graph) return false;
     const controls = [...presentationControlNodes.values()];
-    graph.nodes = [graph.spaceNode, ...graph.memoryNodes, ...controls];
-    graph.edges = [...buildRealEdges(graph.spaceNode, graph.memoryNodes), ...presentationControlEdges()];
+    graph.nodes = [graph.spaceNode, ...graph.memoryNodes, ...(graph.appNodes || []), ...controls];
+    graph.edges = [...buildRealEdges(graph.spaceNode, graph.memoryNodes), ...(graph.appEdges || []), ...presentationControlEdges()];
     return true;
   }
 
@@ -453,9 +542,22 @@
     animationFrame = requestAnimationFrame(tick);
   }
 
+  function releaseExpansionAnchors(rootId = null) {
+    const ids = rootId == null ? [...expansionAnchoredRootIds] : [String(rootId)];
+    for (const id of ids) {
+      const root = graph?.nodes?.find((node) => String(node.id) === id);
+      if (root) {
+        root.vx = 0;
+        root.vy = 0;
+      }
+      expansionAnchoredRootIds.delete(id);
+    }
+  }
+
   function stopSimulation() {
     if (animationFrame) cancelAnimationFrame(animationFrame);
     animationFrame = 0;
+    releaseExpansionAnchors();
   }
 
   function tick() {
@@ -469,42 +571,46 @@
     if (simulationFrames < MAX_SIMULATION_FRAMES && speed > SETTLED_SPEED) {
       animationFrame = requestAnimationFrame(tick);
     } else {
+      releaseExpansionAnchors();
       persistGraphState(false);
     }
   }
 
   function simulateStep() {
-    const nodes = graph.nodes.filter((node) => !node.fixed && !node.hidden);
-    const centreX = graph.centreX;
-    const centreY = graph.centreY;
+    const nodes = graph.nodes.filter((node) => (!node.fixed || node.appRoot) && !node.hidden);
     let totalSpeed = 0;
     let simulatedCount = 0;
+    let boundaryActive = false;
 
     for (let i = 0; i < nodes.length; i += 1) {
       const node = nodes[i];
       if (node.dragging) continue;
+      const expansionAnchored = expansionAnchoredRootIds.has(String(node.id));
 
       let fx = 0;
       let fy = 0;
+      let boundaryX = 0;
+      let boundaryY = 0;
 
-      const dx = node.x - centreX;
-      const dy = node.y - centreY;
-      const distance = Math.max(1, Math.hypot(dx, dy));
-      const radialOffset = distance - (node.targetOrbit || graph.orbitRadius);
-      const radialForce = -radialOffset * 0.0019 * Math.max(0.8, node.gravityWeight || 1);
-      fx += (dx / distance) * radialForce;
-      fy += (dy / distance) * radialForce;
-
-      // Active Settings children remain ordinary graph bodies while receiving
-      // one small parent-local attraction in this same simulation tick.
       const localParent = node.parentId
-        ? graph.nodes.find((candidate) => candidate.kind === 'control'
-          && !candidate.hidden
+        ? graph.nodes.find((candidate) => !candidate.hidden
           && String(candidate.id) === String(node.parentId))
         : null;
       if (localParent && !localParent.hidden) {
-        fx += (localParent.x - node.x) * 0.0011;
-        fy += (localParent.y - node.y) * 0.0011;
+        const dx = node.x - localParent.x;
+        const dy = node.y - localParent.y;
+        const distance = Math.max(1, Math.hypot(dx, dy));
+        const radialOffset = distance - (node.localOrbit || node.targetOrbit || graph.orbitRadius);
+        const radialForce = -radialOffset * 0.0019 * Math.max(0.8, node.gravityWeight || 1);
+        fx += (dx / distance) * radialForce;
+        fy += (dy / distance) * radialForce;
+      }
+
+      if (node.clusterRoot && !expansionAnchored) {
+        const boundaryForce = universeBoundaryForce(node);
+        boundaryActive ||= Boolean(boundaryForce.x || boundaryForce.y);
+        boundaryX = boundaryForce.x;
+        boundaryY = boundaryForce.y;
       }
 
       for (let j = i + 1; j < nodes.length; j += 1) {
@@ -518,25 +624,78 @@
         const pushY = (pairY / pairDistance) * repulsion;
         fx += pushX / Math.max(0.85, node.gravityWeight || 1);
         fy += pushY / Math.max(0.85, node.gravityWeight || 1);
-        if (!other.dragging) {
-          other.vx -= pushX / Math.max(0.85, other.gravityWeight || 1);
-          other.vy -= pushY / Math.max(0.85, other.gravityWeight || 1);
+        if (!other.dragging && !expansionAnchoredRootIds.has(String(other.id))) {
+          const otherInertia = other.clusterRoot ? CLUSTER_ROOT_INERTIA : 1;
+          other.vx -= pushX / (Math.max(0.85, other.gravityWeight || 1) * otherInertia);
+          other.vy -= pushY / (Math.max(0.85, other.gravityWeight || 1) * otherInertia);
         }
       }
 
-      node.vx = (node.vx + fx) * 0.90;
-      node.vy = (node.vy + fy) * 0.90;
+      if (expansionAnchored) {
+        node.vx = 0;
+        node.vy = 0;
+        continue;
+      }
+
+      const inertia = node.clusterRoot ? CLUSTER_ROOT_INERTIA : 1;
+      node.vx = (node.vx + fx / inertia + boundaryX) * 0.90;
+      node.vy = (node.vy + fy / inertia + boundaryY) * 0.90;
       node.x += node.vx;
       node.y += node.vy;
       containNode(node);
+      if (node === graph.spaceNode) {
+        graph.centreX = node.x;
+        graph.centreY = node.y;
+      }
       totalSpeed += Math.hypot(node.vx, node.vy);
       simulatedCount += 1;
     }
 
-    return simulatedCount ? totalSpeed / simulatedCount : 0;
+    for (const root of graph.nodes) {
+      if (!root.fixed || root.appRoot || !root.clusterRoot || root.hidden || root.dragging) continue;
+      const boundaryForce = universeBoundaryForce(root);
+      if (!boundaryForce.x && !boundaryForce.y && !root.vx && !root.vy) continue;
+      boundaryActive ||= Boolean(boundaryForce.x || boundaryForce.y);
+
+      root.vx = (root.vx + boundaryForce.x) * 0.90;
+      root.vy = (root.vy + boundaryForce.y) * 0.90;
+      root.x += root.vx;
+      root.y += root.vy;
+      if (root === graph.spaceNode) {
+        graph.centreX = root.x;
+        graph.centreY = root.y;
+      }
+      totalSpeed += Math.hypot(root.vx, root.vy);
+      simulatedCount += 1;
+    }
+
+    const averageSpeed = simulatedCount ? totalSpeed / simulatedCount : 0;
+    return boundaryActive ? Math.max(averageSpeed, SETTLED_SPEED + 0.001) : averageSpeed;
+  }
+
+  function universeBoundaryForce(node) {
+    const zoomExtent = Math.max(1, 1 / MIN_SCALE);
+    const extraX = Math.max(0, graph.width * (zoomExtent - 1) / 2);
+    const extraY = Math.max(0, graph.height * (zoomExtent - 1) / 2);
+    const margin = node.radius + 34;
+    const softZone = Math.max(48, node.radius * 1.5);
+    const minX = margin - extraX + softZone;
+    const maxX = graph.width - margin + extraX - softZone;
+    const minY = margin - extraY + softZone;
+    const maxY = graph.height - margin + extraY - softZone;
+
+    return {
+      x: node.x < minX
+        ? (minX - node.x) * UNIVERSE_BOUNDARY_FORCE
+        : node.x > maxX ? (maxX - node.x) * UNIVERSE_BOUNDARY_FORCE : 0,
+      y: node.y < minY
+        ? (minY - node.y) * UNIVERSE_BOUNDARY_FORCE
+        : node.y > maxY ? (maxY - node.y) * UNIVERSE_BOUNDARY_FORCE : 0
+    };
   }
 
   function containNode(node) {
+    if (node.clusterRoot) return;
     const margin = node.radius + 34;
     const zoomExtent = Math.max(1, 1 / MIN_SCALE);
     const extraX = Math.max(0, graph.width * (zoomExtent - 1) / 2);
@@ -572,6 +731,16 @@
   }
 
   function projectedNode(node) {
+    if (activeControlParentId && rotationActive() && node.kind === 'control') {
+      return {
+        x: node.x,
+        y: node.y,
+        radius: node.radius,
+        depth: 0,
+        alpha: 1,
+        scale: 1
+      };
+    }
     const projected = rotationApi()?.project?.(node, graph);
     if (projected && Number.isFinite(projected.x) && Number.isFinite(projected.y)) return projected;
     return {
@@ -625,8 +794,12 @@
     const revision = edge.kind === 'revision';
     const source = projectedNode(edge.source);
     const target = projectedNode(edge.target);
+    const activityTarget = edge.target?.appId && edge.target?.nodeId
+      ? { appId: String(edge.target.appId), nodeId: String(edge.target.nodeId) }
+      : null;
 
     context.save();
+    context.__memoryFlowActivityTarget = activityTarget;
     context.beginPath();
     context.moveTo(source.x, source.y);
     context.lineTo(target.x, target.y);
@@ -636,6 +809,7 @@
       : 'rgba(120, 184, 255, 0.16)';
     if (revision) context.setLineDash([5, 4]);
     context.stroke();
+    context.__memoryFlowActivityTarget = null;
     context.restore();
   }
 
@@ -654,7 +828,7 @@
   }
 
   function drawNode(node) {
-    const isSpace = node.kind === 'space';
+    const isSpace = node.kind === 'space' || node.appRoot === true;
     const recency = isSpace ? 1 : Number(node.recencyLevel || 0);
     const fillAlpha = isSpace ? 0.24 : 0.10 + recency * 0.16;
     const strokeAlpha = isSpace ? 0.95 : 0.56 + recency * 0.30;
@@ -736,6 +910,10 @@
     canvas.addEventListener('dblclick', handleGraphDoubleClick);
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     window.addEventListener('keydown', handleGraphKeyDown);
+    document.getElementById('closeDetailButton')?.addEventListener('click', () => {
+      inspectorBridgeActive = true;
+      requestAnimationFrame(() => { inspectorBridgeActive = false; });
+    }, true);
   }
 
   function bindSearch() {
@@ -762,7 +940,14 @@
 
     const point = pointerPoint(event);
     const rotation = rotationApi();
-    const rotateMode = rotation?.shouldStart?.(event) === true;
+    const rotateRequested = rotation?.shouldStart?.(event) === true;
+    let world = null;
+    let node = null;
+    if (activeControlParentId && rotateRequested) {
+      world = screenToWorld(point);
+      node = findNodeAt(world.x, world.y);
+    }
+    const rotateMode = rotateRequested && (!activeControlParentId || node?.kind === 'space');
 
     if (rotateMode) {
       rotation.begin?.();
@@ -778,20 +963,25 @@
         moved: false
       };
     } else {
-      const world = screenToWorld(point);
-      const node = findNodeAt(world.x, world.y);
+      world ||= screenToWorld(point);
+      node ||= findNodeAt(world.x, world.y);
       const rotated = rotationActive();
 
       pointerState = {
         pointerId: event.pointerId,
-        mode: node?.kind === 'space'
+        mode: node?.clusterRoot
+          ? 'cluster'
+          : node?.kind === 'space'
           ? 'home'
           : node?.kind === 'memory'
             ? (rotated ? 'inspect' : 'node')
             : node?.kind === 'control'
               ? (rotated ? 'control-inspect' : 'control')
               : 'pan',
-        node: node?.kind === 'memory' || node?.kind === 'control' ? node : null,
+        node: node?.clusterRoot || node?.kind === 'memory' || node?.kind === 'control' ? node : null,
+        clusterNodes: node?.clusterRoot ? [node] : [],
+        nodeStartX: node?.clusterRoot ? node.x : null,
+        nodeStartY: node?.clusterRoot ? node.y : null,
         startX: point.x,
         startY: point.y,
         lastX: point.x,
@@ -800,7 +990,14 @@
         resumeSimulation: node?.kind === 'space' && Boolean(animationFrame)
       };
 
-      if ((pointerState.mode === 'node' || pointerState.mode === 'control') && pointerState.node) {
+      if (pointerState.mode === 'cluster') {
+        releaseExpansionAnchors(pointerState.node?.id);
+        for (const clusterNode of pointerState.clusterNodes) {
+          clusterNode.dragging = true;
+          clusterNode.vx = 0;
+          clusterNode.vy = 0;
+        }
+      } else if ((pointerState.mode === 'node' || pointerState.mode === 'control') && pointerState.node) {
         pointerState.node.dragging = true;
         pointerState.node.vx = 0;
         pointerState.node.vy = 0;
@@ -827,8 +1024,13 @@
       return;
     }
 
+    const wasMoved = pointerState.moved;
     if (Math.hypot(point.x - pointerState.startX, point.y - pointerState.startY) > 6) {
       pointerState.moved = true;
+    }
+    if (!wasMoved && pointerState.moved && pointerState.mode === 'cluster') {
+      simulationFrames = 0;
+      startSimulation();
     }
 
     const deltaX = point.x - pointerState.lastX;
@@ -837,6 +1039,22 @@
     if (pointerState.mode === 'rotate') {
       rotationApi()?.update?.(deltaX, deltaY);
       syncRotationState();
+    } else if (pointerState.mode === 'cluster') {
+      if (pointerState.moved) {
+        const worldDeltaX = (point.x - pointerState.startX) / view.scale;
+        const worldDeltaY = (point.y - pointerState.startY) / view.scale;
+        for (const clusterNode of pointerState.clusterNodes) {
+          clusterNode.x = pointerState.nodeStartX + worldDeltaX;
+          clusterNode.y = pointerState.nodeStartY + worldDeltaY;
+          clusterNode.vx = 0;
+          clusterNode.vy = 0;
+          containNode(clusterNode);
+        }
+      }
+      if (pointerState.node === graph.spaceNode) {
+        graph.centreX = pointerState.node.x;
+        graph.centreY = pointerState.node.y;
+      }
     } else if ((pointerState.mode === 'node' || pointerState.mode === 'control') && pointerState.node) {
       const world = screenToWorld(point);
       pointerState.node.x = world.x;
@@ -847,6 +1065,14 @@
     } else if (pointerState.mode === 'pan' || pointerState.mode === 'home') {
       view.x += deltaX;
       view.y += deltaY;
+      if (pointerState.mode === 'home' && activeControlParentId) {
+        const worldDeltaX = deltaX / view.scale;
+        const worldDeltaY = deltaY / view.scale;
+        for (const node of presentationControlNodes.values()) {
+          node.x -= worldDeltaX;
+          node.y -= worldDeltaY;
+        }
+      }
     }
 
     pointerState.lastX = point.x;
@@ -861,13 +1087,23 @@
     const mode = pointerState.mode;
     const selectedNode = pointerState.node;
     const shouldOpen = Boolean(selectedNode && !pointerState.moved && (
-      mode === 'node' || mode === 'inspect' || mode === 'control' || mode === 'control-inspect'
+      mode === 'cluster' || mode === 'node' || mode === 'inspect' || mode === 'control' || mode === 'control-inspect'
     ));
 
     if (mode === 'rotate') {
       rotationApi()?.end?.();
       simulationFrames = 0;
       startSimulation();
+    } else if (mode === 'cluster' && selectedNode) {
+      for (const clusterNode of pointerState.clusterNodes) {
+        clusterNode.dragging = false;
+        clusterNode.vx = 0;
+        clusterNode.vy = 0;
+      }
+      if (pointerState.moved) {
+        simulationFrames = 0;
+        startSimulation();
+      }
     } else if ((mode === 'node' || mode === 'control') && selectedNode) {
       selectedNode.dragging = false;
       selectedNode.vx = 0;
@@ -884,8 +1120,14 @@
       surface?.dispatchEvent(new CustomEvent('memory-graph-home'));
     }
 
+    if (mode === 'cluster' && !pointerState.moved && selectedNode?.kind === 'space') {
+      collapsePresentationControls();
+      focusSpace({ animate: true });
+      surface?.dispatchEvent(new CustomEvent('memory-graph-home'));
+    }
+
     if (shouldOpen && selectedNode.kind === 'control') activatePresentationControl(selectedNode);
-    else if (shouldOpen) {
+    else if (shouldOpen && selectedNode.kind !== 'space') {
       collapsePresentationControls();
       openExistingInspector(selectedNode.id);
     }
@@ -908,8 +1150,10 @@
   function handleGraphDoubleClick(event) {
     if (!graph || event.button !== 0) return;
     const world = screenToWorld(pointerPoint(event));
-    if (findNodeAt(world.x, world.y)?.kind !== 'space') return;
-    handleGraphKeyDown({ key: 'Escape' });
+    const root = findNodeAt(world.x, world.y);
+    if (!root?.appRoot) return;
+    if (root.appId) collapseAppHierarchy(root.appId);
+    if (root.kind === 'space') handleGraphKeyDown({ key: 'Escape' });
     event.preventDefault();
   }
 
@@ -917,6 +1161,7 @@
     const memoryGrid = document.getElementById('memoryGrid');
     if (!memoryGrid || !memoryId) return false;
 
+    inspectorBridgeActive = true;
     const trigger = document.createElement('button');
     trigger.type = 'button';
     trigger.hidden = true;
@@ -924,6 +1169,7 @@
     memoryGrid.appendChild(trigger);
     trigger.click();
     trigger.remove();
+    requestAnimationFrame(() => { inspectorBridgeActive = false; });
     return true;
   }
 
@@ -982,6 +1228,28 @@
       if (Math.hypot(x - projected.x, y - projected.y) <= projected.radius + 5) return space;
     }
     return null;
+  }
+
+  function clusterNodesFor(root) {
+    if (!graph || !root) return [];
+
+    const clusterNodes = [];
+    const pending = [root];
+    const visited = new Set();
+
+    while (pending.length) {
+      const parent = pending.shift();
+      if (!parent || visited.has(parent.id)) continue;
+
+      visited.add(parent.id);
+      clusterNodes.push(parent);
+
+      for (const node of graph.nodes) {
+        if (node.parentId && String(node.parentId) === String(parent.id)) pending.push(node);
+      }
+    }
+
+    return clusterNodes;
   }
 
   function restoreSavedView(savedView, width, height) {
@@ -1190,7 +1458,7 @@
     } : null;
   }
 
-  function setActiveControlParent(parentId = null) {
+  function setActiveControlParent(parentId = null, options = {}) {
     activeControlParentId = parentId && presentationControlNode(parentId) ? String(parentId) : null;
     for (const node of presentationControlNodes.values()) {
       if (!node.parentId) continue;
@@ -1200,6 +1468,16 @@
         node.vx = 0;
         node.vy = 0;
       }
+    }
+    const anchorRoot = options.anchorRoot?.clusterRoot && (activeControlParentId || animationFrame)
+      ? options.anchorRoot
+      : null;
+    if (anchorRoot) {
+      anchorRoot.vx = 0;
+      anchorRoot.vy = 0;
+      expansionAnchoredRootIds.add(String(anchorRoot.id));
+    } else if (!activeControlParentId) {
+      releaseExpansionAnchors();
     }
     syncCanonicalGraphCollections();
     simulationFrames = 0;
@@ -1216,14 +1494,33 @@
   function activatePresentationControl(node) {
     if (!node || node.hidden) return false;
     if (node.expandable) {
+      if (node.appId) {
+        const expanding = toggleAppNodeExpansion(node);
+        if (expanding && node.action) {
+          globalThis.UniversalAppAdapters?.dispatchAppAction?.(node.appId, node.action, {
+            nodeId: node.nodeId,
+            view: node.view,
+            state: node.state
+          });
+        }
+        return true;
+      }
       const nextParentId = String(node.id) === 'settings'
         ? (activeControlParentId ? null : 'settings')
         : (activeControlParentId === node.id ? node.parentId : node.id);
       focusedNodeId = nextParentId || null;
-      setActiveControlParent(nextParentId);
+      setActiveControlParent(nextParentId, { anchorRoot: node });
       return true;
     }
     if (!node.action) return false;
+    if (node.appId) {
+      globalThis.UniversalAppAdapters?.dispatchAppAction?.(node.appId, node.action, {
+        nodeId: node.nodeId,
+        view: node.view,
+        state: node.state
+      });
+      return true;
+    }
     surface?.dispatchEvent(new CustomEvent('memory-graph-control-action', {
       detail: { id: node.id, action: node.action, parentId: node.parentId || null }
     }));
@@ -1233,6 +1530,172 @@
   function focusPresentationControl(id, options = {}) {
     const node = presentationControlNode(id);
     return node ? focusPresentationNode(node, options) : false;
+  }
+
+  function updateAppNodes(updates) {
+    if (!graph || !Array.isArray(updates)) return false;
+    let changed = false;
+    for (const update of updates) {
+      const node = graph.appNodes?.find((candidate) => String(candidate.id) === String(update?.id || ''));
+      if (!node) continue;
+      if (Object.hasOwn(update, 'label')) node.label = String(update.label || '');
+      if (Object.hasOwn(update, 'state')) node.state = update.state || null;
+      changed = true;
+    }
+    if (changed) drawGraph();
+    return changed;
+  }
+
+  function appNodeVisible(node) {
+    if (!graph || !node?.parentId) return true;
+    const parent = graph.appNodes?.find((candidate) => String(candidate.id) === String(node.parentId));
+    if (!parent || parent.appRoot) return true;
+    return expandedAppNodeIds.has(parent.id) && appNodeVisible(parent);
+  }
+
+  function syncAppNodeVisibility(appId) {
+    if (!graph) return false;
+    for (const node of graph.appNodes || []) {
+      if (String(node.appId) !== String(appId) || node.appRoot) continue;
+      node.hidden = !appNodeVisible(node);
+      node.dragging = false;
+      if (node.hidden) {
+        node.vx = 0;
+        node.vy = 0;
+      }
+    }
+    return true;
+  }
+
+  function collapseExpandedAppDescendants(parentId) {
+    if (!graph) return;
+    const pending = [String(parentId)];
+    while (pending.length) {
+      const currentId = pending.shift();
+      expandedAppNodeIds.delete(currentId);
+      for (const node of graph.appNodes || []) {
+        if (String(node.parentId || '') === currentId) pending.push(String(node.id));
+      }
+    }
+  }
+
+  function toggleAppNodeExpansion(node) {
+    if (!graph || !node?.appId || !node.expandable) return false;
+    const expanding = !expandedAppNodeIds.has(node.id);
+    if (expanding) expandedAppNodeIds.add(node.id);
+    else collapseExpandedAppDescendants(node.id);
+    syncAppNodeVisibility(node.appId);
+    simulationFrames = 0;
+    drawGraph();
+    if (expanding) startSimulation();
+    return expanding;
+  }
+
+  function collapseAppHierarchy(appId) {
+    if (!graph || !appId) return false;
+    let changed = false;
+    for (const node of graph.appNodes || []) {
+      if (String(node.appId) !== String(appId) || !expandedAppNodeIds.has(node.id)) continue;
+      expandedAppNodeIds.delete(node.id);
+      changed = true;
+    }
+    if (!changed) return false;
+    syncAppNodeVisibility(appId);
+    simulationFrames = 0;
+    drawGraph();
+    startSimulation();
+    return true;
+  }
+
+  function replaceAppNodeChildren(appId, parentId, children) {
+    if (!graph || !Array.isArray(children)) return false;
+    const parent = graph.appNodes?.find((node) => String(node.id) === String(parentId) && String(node.appId) === String(appId));
+    const appRoot = graph.appNodes?.find((node) => node.appRoot && String(node.appId) === String(appId));
+    if (!parent || !appRoot) return false;
+
+    const removeIds = new Set();
+    const pending = [String(parent.id)];
+    while (pending.length) {
+      const currentId = pending.shift();
+      for (const node of graph.appNodes || []) {
+        if (String(node.parentId || '') !== currentId || removeIds.has(node.id)) continue;
+        removeIds.add(node.id);
+        pending.push(String(node.id));
+      }
+    }
+    for (const id of removeIds) expandedAppNodeIds.delete(id);
+    graph.appNodes = (graph.appNodes || []).filter((node) => !removeIds.has(node.id));
+
+    const stateUpdates = new Map(
+      (globalThis.UniversalAppAdapters?.getAppNodeUpdates?.(appId) || [])
+        .map((update) => [String(update.id), update])
+    );
+    const appOrbit = appRoot.targetOrbit || graph.orbitRadius * 1.08;
+    const initialAngle = Math.atan2(parent.y - appRoot.y, parent.x - appRoot.x);
+    const appendChildren = (definitions, localParent, depth, parentAngle) => {
+      definitions.forEach((definition, index, siblings) => {
+        const angle = parentAngle + (index / Math.max(1, siblings.length)) * Math.PI * 2;
+        const spawnOrbit = depth === 1 ? 72 + index * 9 : 54 + index * 7;
+        const current = stateUpdates.get(String(definition.id));
+        const node = {
+          id: definition.id,
+          appId: String(appId),
+          nodeId: definition.nodeId,
+          kind: 'control',
+          label: current?.label || definition.label,
+          state: current?.state || definition.state || null,
+          x: localParent.x + Math.cos(angle) * spawnOrbit,
+          y: localParent.y + Math.sin(angle) * spawnOrbit,
+          vx: 0,
+          vy: 0,
+          radius: appControlRadius(depth),
+          targetOrbit: appOrbit,
+          localOrbit: spawnOrbit,
+          gravityWeight: 0.92,
+          parentId: localParent.id,
+          action: String(definition.action || ''),
+          view: definition.view || null,
+          expandable: Boolean(definition.expandable),
+          controlDepth: depth,
+          recencyLevel: 0.72,
+          fixed: false,
+          dragging: false,
+          hidden: true
+        };
+        graph.appNodes.push(node);
+        appendChildren(definition.children || [], node, depth + 1, angle);
+      });
+    };
+    appendChildren(children, parent, Number(parent.controlDepth || 0) + 1, initialAngle);
+    parent.expandable = true;
+    graph.appEdges = (graph.appNodes || []).flatMap((node) => {
+      if (!node.parentId) return [];
+      const source = graph.appNodes.find((candidate) => String(candidate.id) === String(node.parentId));
+      return source ? [{ source, target: node, kind: 'space' }] : [];
+    });
+    syncAppNodeVisibility(appId);
+    syncCanonicalGraphCollections();
+    for (const node of graph.appNodes || []) {
+      if (!node.hidden) containNode(node);
+    }
+    simulationFrames = 0;
+    drawGraph();
+    startSimulation();
+    return true;
+  }
+
+  function bindAppAdapters() {
+    const registry = globalThis.UniversalAppAdapters;
+    if (appAdaptersBound || !registry?.stateEvent) return;
+    appAdaptersBound = true;
+    document.addEventListener(registry.stateEvent, (event) => {
+      updateAppNodes(event.detail?.updates || []);
+    });
+    if (registry.hierarchyEvent) {
+      document.addEventListener(registry.hierarchyEvent, (event) => {
+        replaceAppNodeChildren(event.detail?.appId, event.detail?.parentId, event.detail?.children || []);
+      });
+    }
   }
 
   function beginPresentationControlDrag(id) {
@@ -1368,7 +1831,14 @@
     const spaceTitle = document.getElementById('spaceTitle');
     if (!memoryGrid && !spaceTitle) return;
 
-    workspaceObserver = new MutationObserver(refresh);
+    workspaceObserver = new MutationObserver(() => {
+      if (inspectorBridgeActive) {
+        simulationFrames = 0;
+        startSimulation();
+        return;
+      }
+      refresh();
+    });
     if (memoryGrid) workspaceObserver.observe(memoryGrid, { childList: true });
     if (spaceTitle) workspaceObserver.observe(spaceTitle, { childList: true, characterData: true, subtree: true });
   }
@@ -1383,6 +1853,7 @@
     syncRotationState();
 
     bindSearch();
+    bindAppAdapters();
 
     resizeObserver?.disconnect();
     resizeObserver = new ResizeObserver(resizeCanvas);
@@ -1398,6 +1869,10 @@
     version: VERSION,
     mount,
     refresh,
+    wakeSimulation() {
+      simulationFrames = 0;
+      startSimulation();
+    },
     focusMemory,
     focusSpace,
     projectPresentationNode,
@@ -1408,6 +1883,7 @@
     projectPresentationControl,
     presentationControlState,
     focusPresentationControl,
+    updateAppNodes,
     beginPresentationControlDrag,
     movePresentationControlDrag,
     endPresentationControlDrag,
