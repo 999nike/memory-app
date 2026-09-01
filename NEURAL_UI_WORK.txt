@@ -49,34 +49,30 @@ LAYER CHECKLIST
 [x] 19 — Final spoke/tip tissue polish
 [x] 20 — Mobile spoke balance pass
 [x] 21 — App-star removal + terminal blend
+[x] 22 — Child/free-root terminal taper repair
 
-[x] 22 — Child/free-root terminal taper repair  < CODE APPLIED — VISUAL REVIEW PENDING
+[x] 23 — Terminal alignment correction  < CODE APPLIED — VISUAL REVIEW PENDING
     Latest screenshot diagnosis:
-    - app spokes now read substantially better and the black radial-star problem is no longer the dominant defect.
-    - main trunks, soma, lattice and primary branch hierarchy are good enough and remain untouched.
-    - the remaining visible defect is several smaller secondary/tertiary and free-soma roots ending as flat purple stubs.
-    - previous terminal finishing only covered the main second-order roots, not every child/free-root endpoint.
+    - overall organism, trunks, soma and app clusters remain strong and must stay untouched.
+    - VERSION 1 terminal repair introduced a new problem: some added tip fragments were detached because it reconstructed child/free-root geometry with its own seed family rather than following the exact existing medium-root renderer.
+    - several visible purple stubs actually originate from memory-graph-neural-arms.js medium roots, whose body currently keeps a large terminal width.
 
-    Added memory-graph-neural-terminal.js VERSION 1:
-    - synthetic render-only terminal repair for child roots and free soma roots.
-    - reconstructs the same deterministic branch geometry from the existing visible root/nexus positions.
-    - starts terminal repair well before each old endpoint so the new tissue overlaps the blunt cap instead of attaching after it.
-    - extends each child/free root into a tapered blue/violet tissue point with a thin bright internal spine.
-    - adds two restrained fine forks at the new tip so roots finish biologically rather than as rectangular purple bars.
-    - does not create, move or persist graph nodes/edges and does not alter physics or interactions.
-    - disabled during active interaction to keep motion light.
+    Replaced memory-graph-neural-terminal.js with VERSION 2:
+    - removed the separate child/free-root reconstruction that could create detached floating tip fragments.
+    - VERSION 2 now targets only the existing medium-root family that visually produces the blunt purple stubs.
+    - uses the exact same hash constants, root seed, trunk seed, branch positions and medium-branch geometry as memory-graph-neural-arms.js VERSION 4.
+    - each repair tail begins deep inside the real medium root, follows the real existing centreline through the old endpoint, then continues beyond it into a tapered point.
+    - terminal width matches the existing arm taper at the overlap and then falls almost to zero after the old cap.
+    - adds two small biological forks only after the aligned taper, so no independent floating tips are generated.
+    - no graph/data/physics/drag/persistence/app behaviour changes.
+    - no new loader or architecture added; existing VERSION 13 loader continues to load the same terminal file.
 
-    Loader integration:
-    - memory-graph-neural-width.js VERSION 13 loads neural-terminal after lattice.
-    - terminal canvas sits above thick branch anatomy but below app-spoke finishing.
-
-[ ] 23 — Final screenshot / bank decision
+[ ] 24 — Screenshot / bank decision
     Check only:
-    - are the remaining flat purple child/free-root stubs now blended into tapered tips?
-    - does the extra tip layer remain subordinate to the main trunks?
-    - are app spokes still clean and organic?
-    - if yes, stop visual anatomy work and bank this version.
-    - if one local defect remains, tune that exact layer only.
+    - are the detached floating tip fragments gone?
+    - do the medium purple stubs now continue smoothly into tapered tips?
+    - does the terminal repair stay visually subordinate to the main root tissue?
+    - if yes, stop adding anatomy systems and bank the neural visual stack.
 
 CURRENT FILE ROLES
 - memory-graph-neural-nexus.js VERSION 4
@@ -97,14 +93,14 @@ CURRENT FILE ROLES
 - memory-graph-neural-lattice.js VERSION 2
   Fine outer lattice, cross-links, embedded axon lights, dense soma mesh.
 
-- memory-graph-neural-terminal.js VERSION 1
-  Tapered finishing for child roots and free soma roots that were still ending as flat purple stubs.
+- memory-graph-neural-terminal.js VERSION 2
+  Exact-geometry taper finishing for medium roots; replaces detached V1 child/free-root reconstruction.
 
 - memory-graph-neural-spokes.js VERSION 5
   Organic app-child roots, minimal beam suppression, bright blue/violet tissue, small app-root cuffs and primary terminal finishing.
 
 - memory-graph-neural-width.js VERSION 13
-  Loader/integration and existing startup responsibilities; now loads terminal repair after lattice.
+  Loader/integration and existing startup responsibilities; loads terminal repair after lattice.
 
 LATEST IMPORTANT COMMITS
 - Main trunk renderer V4: 11d2a43e3f270e2367fa6dfc392472a34eb60db0
@@ -113,6 +109,7 @@ LATEST IMPORTANT COMMITS
 - Spoke V5: 0f11395eebfe31250bb83f92247530992f9b99da
 - Child/free terminal repair V1: 95825ce333ffc66063a34c03a4f0a5b47fd8bcb8
 - Loader V13: ebc01a78cd953c2db4122bc52f1739e966f171a7
+- Terminal exact-geometry correction V2: 31ab4e2300805a282ea308f1a02570f52502b38b
 
 WORKING RULE
 Use the newest screenshot and original reference side by side. Fix visible anatomy only. Stop expanding the system once the remaining differences are tuning-level rather than structural.
