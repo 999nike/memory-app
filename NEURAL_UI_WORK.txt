@@ -51,29 +51,34 @@ LAYER CHECKLIST
 [x] 21 — App-star removal + terminal blend
 [x] 22 — Child/free-root terminal taper repair
 [x] 23 — Terminal alignment correction
+[x] 24 — Exact rendered-path terminal capture
 
-[x] 24 — Exact rendered-path terminal capture  < CODE APPLIED — VISUAL REVIEW PENDING
+[x] 25 — Original app-beam suppression mask  < CODE APPLIED — VISUAL REVIEW PENDING
     Latest screenshot diagnosis:
-    - trunks, soma, app clusters and broad branching remain strong and stay untouched.
-    - VERSION 2 removed the worst detached fragments but still reconstructed medium-root geometry from the main graph, leaving a few isolated purple/taper fragments where renderer ordering/indexing did not line up perfectly.
-    - the safe fix is to stop reconstructing branch positions entirely.
+    - exact rendered-path terminal capture removed the detached synthetic tip problem well enough; terminal work now stops.
+    - main trunks, soma, root hierarchy and lattice remain strong and stay untouched.
+    - the dominant remaining mismatch is now obvious at Email and, to a lesser extent, Code Space: the original straight bright child beams are still visible underneath the organic spoke renderer, creating a fibre-optic fan instead of neural roots.
 
-    Replaced memory-graph-neural-terminal.js with VERSION 3:
-    - no longer rebuilds roots from graph positions or seed/index assumptions.
-    - observes the ACTUAL centre-spine paths drawn by memory-graph-neural-arms.js on its own synthetic canvas.
-    - captures only the medium-root centreline stroke family (207,240,255), so every repair uses the exact branch path that is visibly on screen.
-    - begins the taper inside the real rendered branch, masks the old purple blunt terminal along that exact path, then extends the same path into a near-zero-width blue/violet point.
-    - adds only two tiny forks at the new endpoint.
-    - because geometry comes from the rendered branch itself, detached reconstructed terminal fragments should be eliminated.
-    - no graph/data/physics/drag/persistence/app behaviour changes.
-    - existing VERSION 13 loader still loads the same terminal file; no new architecture was added.
+    Added memory-graph-neural-spoke-mask.js VERSION 1:
+    - render-only mask layer for the same top-level app-root groups already used by the organic spoke renderer.
+    - captures only the existing thin semantic blue app-child lines from the real graph draw.
+    - masks those straight beams on their exact existing endpoints with a broad near-background navy pass plus a narrower blue tissue-base pass.
+    - deliberately starts/ends slightly inside the nodes so green child circles stay visible.
+    - masks the root-centre white starburst underneath with a soft near-background radial cover.
+    - sits below memory-graph-neural-spokes.js, so the existing curved blue/violet organic roots and app-root collars remain visible on top.
+    - does not suppress graph semantics, remove edges, change topology or affect hit testing; this is purely a synthetic visual cover.
 
-[ ] 25 — Screenshot / bank decision
+    Integration:
+    - index.html now loads memory-graph-neural-spoke-mask.js immediately before memory-graph-neural-spokes.js.
+    - no existing neural renderer was rewritten for this pass.
+
+[ ] 26 — Screenshot / bank decision
     Check only:
-    - are detached purple/taper fragments gone?
-    - are visible medium-root blunt caps covered by continuous tapered tissue?
-    - does the main organism remain dominant and uncluttered?
-    - if yes, stop terminal work and bank the neural stack.
+    - has the bright white Email fan been replaced visually by the curved organic spoke roots?
+    - is Code Space free of the radial electric-star look?
+    - are green child nodes still clear and unobscured?
+    - are trunks/soma/branching unchanged?
+    - if yes, stop visual anatomy work and bank this stack.
 
 CURRENT FILE ROLES
 - memory-graph-neural-nexus.js VERSION 4
@@ -97,8 +102,11 @@ CURRENT FILE ROLES
 - memory-graph-neural-terminal.js VERSION 3
   Exact rendered-path terminal capture/taper for medium roots; no reconstructed branch geometry.
 
+- memory-graph-neural-spoke-mask.js VERSION 1
+  Exact straight-beam visual suppression below organic app-child roots.
+
 - memory-graph-neural-spokes.js VERSION 5
-  Organic app-child roots, minimal beam suppression, bright blue/violet tissue, small app-root cuffs and primary terminal finishing.
+  Organic app-child roots, bright blue/violet tissue, small app-root cuffs and primary terminal finishing.
 
 - memory-graph-neural-width.js VERSION 13
   Loader/integration and existing startup responsibilities; loads terminal repair after lattice.
@@ -109,8 +117,9 @@ LATEST IMPORTANT COMMITS
 - Lattice V2: 3c174cfafb0a6cce869ab7d0812bac6020e93ae3
 - Spoke V5: 0f11395eebfe31250bb83f92247530992f9b99da
 - Loader V13: ebc01a78cd953c2db4122bc52f1739e966f171a7
-- Terminal exact-geometry correction V2: 31ab4e2300805a282ea308f1a02570f52502b38b
 - Terminal exact rendered-path capture V3: f065fa4e6e3a92010695916b651618d67c2ce9db
+- App-beam suppression mask V1: 2f0d9a672d2dc68482aee6a73704af6009addf56
+- Mask script integration: 7b173691c8d1b238bdab21e4a80feb57c4eea831
 
 WORKING RULE
 Use the newest screenshot and original reference side by side. Fix visible anatomy only. Stop expanding the system once the remaining differences are tuning-level rather than structural.
