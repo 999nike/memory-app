@@ -52,33 +52,37 @@ LAYER CHECKLIST
 [x] 22 — Child/free-root terminal taper repair
 [x] 23 — Terminal alignment correction
 [x] 24 — Exact rendered-path terminal capture
+[x] 25 — Original app-beam suppression mask
 
-[x] 25 — Original app-beam suppression mask  < CODE APPLIED — VISUAL REVIEW PENDING
+[x] 26 — Bundled app-root convergence  < CODE APPLIED — VISUAL REVIEW PENDING
     Latest screenshot diagnosis:
-    - exact rendered-path terminal capture removed the detached synthetic tip problem well enough; terminal work now stops.
-    - main trunks, soma, root hierarchy and lattice remain strong and stay untouched.
-    - the dominant remaining mismatch is now obvious at Email and, to a lesser extent, Code Space: the original straight bright child beams are still visible underneath the organic spoke renderer, creating a fibre-optic fan instead of neural roots.
+    - the straight original child beams are now largely suppressed; the mask did its job.
+    - main trunks, soma, branching hierarchy and terminal repair remain good and stay untouched.
+    - the remaining obvious mismatch is local to Email/Code Space: their organic app-child roots still begin as a bright radial/fibre-optic fan from one point and then hang as separate tentacles.
+    - target anatomy wants a small shared root body/collar first, then biological splitting into child roots.
 
-    Added memory-graph-neural-spoke-mask.js VERSION 1:
-    - render-only mask layer for the same top-level app-root groups already used by the organic spoke renderer.
-    - captures only the existing thin semantic blue app-child lines from the real graph draw.
-    - masks those straight beams on their exact existing endpoints with a broad near-background navy pass plus a narrower blue tissue-base pass.
-    - deliberately starts/ends slightly inside the nodes so green child circles stay visible.
-    - masks the root-centre white starburst underneath with a soft near-background radial cover.
-    - sits below memory-graph-neural-spokes.js, so the existing curved blue/violet organic roots and app-root collars remain visible on top.
-    - does not suppress graph semantics, remove edges, change topology or affect hit testing; this is purely a synthetic visual cover.
+    Added memory-graph-neural-spoke-bundle.js VERSION 1:
+    - synthetic visual finishing layer only; no graph/data/physics changes.
+    - captures the same existing semantic app-child endpoints used by spoke/mask rendering.
+    - sits above the existing spoke renderer and masks its bright organic fan paths on their exact deterministic curves.
+    - computes the mean child direction for each app root and creates a short shared organic stem/bundle before the split.
+    - draws a small irregular tissue collar at the app root instead of a starburst centre.
+    - redraws child roots from the bundle hub to their existing real child-node endpoints as darker blue/violet tapered tissue with a restrained cyan lumen and much thinner white spine.
+    - adds only three subtle side fibres per child root; no extra particle clutter.
+    - keeps green child nodes and all hit-testing untouched.
 
     Integration:
-    - index.html now loads memory-graph-neural-spoke-mask.js immediately before memory-graph-neural-spokes.js.
-    - no existing neural renderer was rewritten for this pass.
+    - memory-graph-neural-spoke-mask.js VERSION 2 now loads the bundle layer dynamically.
+    - no index rewrite needed for this pass.
+    - bundle canvas is z-index 5, above the older spoke canvas, so it can visually replace the fan without touching graph semantics.
 
-[ ] 26 — Screenshot / bank decision
+[ ] 27 — Screenshot / bank decision
     Check only:
-    - has the bright white Email fan been replaced visually by the curved organic spoke roots?
-    - is Code Space free of the radial electric-star look?
-    - are green child nodes still clear and unobscured?
-    - are trunks/soma/branching unchanged?
-    - if yes, stop visual anatomy work and bank this stack.
+    - do Email and Code Space now read as one small root body that branches, rather than a fibre-optic fan?
+    - are their child roots darker/softer and subordinate to the main organism?
+    - are green child nodes still clear?
+    - are trunks/soma/large root hierarchy unchanged?
+    - if yes, stop app-root work and bank this neural stack.
 
 CURRENT FILE ROLES
 - memory-graph-neural-nexus.js VERSION 4
@@ -102,11 +106,14 @@ CURRENT FILE ROLES
 - memory-graph-neural-terminal.js VERSION 3
   Exact rendered-path terminal capture/taper for medium roots; no reconstructed branch geometry.
 
-- memory-graph-neural-spoke-mask.js VERSION 1
-  Exact straight-beam visual suppression below organic app-child roots.
+- memory-graph-neural-spoke-mask.js VERSION 2
+  Exact straight-beam suppression plus loader for the bundled app-root finishing layer.
 
 - memory-graph-neural-spokes.js VERSION 5
-  Organic app-child roots, bright blue/violet tissue, small app-root cuffs and primary terminal finishing.
+  Earlier organic app-child roots retained below the final bundle layer.
+
+- memory-graph-neural-spoke-bundle.js VERSION 1
+  Final app-root crown/bundle: masks radial organic fan, creates one short shared root body, then rebranches to real child endpoints with restrained tissue/lumen rendering.
 
 - memory-graph-neural-width.js VERSION 13
   Loader/integration and existing startup responsibilities; loads terminal repair after lattice.
@@ -120,6 +127,8 @@ LATEST IMPORTANT COMMITS
 - Terminal exact rendered-path capture V3: f065fa4e6e3a92010695916b651618d67c2ce9db
 - App-beam suppression mask V1: 2f0d9a672d2dc68482aee6a73704af6009addf56
 - Mask script integration: 7b173691c8d1b238bdab21e4a80feb57c4eea831
+- Bundled app-root finishing V1: 18bbf2360254a68dd943cd371b0bf9a2cf5f1de1
+- Mask loader V2: 9d76a09e430776ad5d9b2ec32aa27e34dda58ff8
 
 WORKING RULE
 Use the newest screenshot and original reference side by side. Fix visible anatomy only. Stop expanding the system once the remaining differences are tuning-level rather than structural.
