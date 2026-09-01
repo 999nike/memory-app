@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 9;
+  const VERSION = 10;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
@@ -277,13 +277,29 @@
     document.head.appendChild(script);
   }
 
+  function loadNeuralBranches() {
+    if (document.getElementById('memoryGraphNeuralBranchesLoader') || globalThis.MemoryGraphNeuralBranches) return;
+    const script = document.createElement('script');
+    script.id = 'memoryGraphNeuralBranchesLoader';
+    script.src = './memory-graph-neural-branches.js?v=1';
+    script.async = false;
+    script.addEventListener('load', () => globalThis.MemoryGraph?.redraw?.());
+    document.head.appendChild(script);
+  }
+
   function loadNeuralArms() {
-    if (document.getElementById('memoryGraphNeuralArmsLoader') || globalThis.MemoryGraphNeuralArms) return;
+    if (document.getElementById('memoryGraphNeuralArmsLoader') || globalThis.MemoryGraphNeuralArms) {
+      loadNeuralBranches();
+      return;
+    }
     const script = document.createElement('script');
     script.id = 'memoryGraphNeuralArmsLoader';
     script.src = './memory-graph-neural-arms.js?v=1';
     script.async = false;
-    script.addEventListener('load', () => globalThis.MemoryGraph?.redraw?.());
+    script.addEventListener('load', () => {
+      loadNeuralBranches();
+      globalThis.MemoryGraph?.redraw?.();
+    });
     document.head.appendChild(script);
   }
 
@@ -326,7 +342,7 @@
     }
     const script = document.createElement('script');
     script.id = 'memoryGraphNeuralNexusLoader';
-    script.src = './memory-graph-neural-nexus.js?v=3';
+    script.src = './memory-graph-neural-nexus.js?v=4';
     script.async = false;
     script.addEventListener('load', () => {
       loadNeuralDetail();
