@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 3;
+  const VERSION = 4;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralNexusInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralNexusInstalled', { value: true });
@@ -23,6 +23,7 @@
   const INTERACTING_FRAME_MS = 84;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const distance = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+  const lerp = (a, b, t) => a + (b - a) * t;
   const hash = (seed, a = 0, b = 0) => {
     const value = Math.sin(seed * 7127.913 + a * 79.117 + b * 193.731) * 43758.5453;
     return value - Math.floor(value);
@@ -34,8 +35,7 @@
 
   function isSemanticBlueLine(ctx) {
     if (!ctx?.__memoryNexusStart || !ctx?.__memoryNexusEnd) return false;
-    const style = String(ctx.strokeStyle || '');
-    return style.includes('120, 184, 255');
+    return String(ctx.strokeStyle || '').includes('120, 184, 255');
   }
 
   function ensureLayer(canvas) {
@@ -147,17 +147,17 @@
     const px = -dy / length;
     const py = dx / length;
     const side = hash(seed, lane, 1) > 0.5 ? 1 : -1;
-    const bend = side * clamp(length * (0.09 + hash(seed, lane, 2) * 0.10), 10, 86) * bendScale;
-    const skew = (hash(seed, lane, 3) - 0.5) * 0.16;
+    const bend = side * clamp(length * (0.10 + hash(seed, lane, 2) * 0.11), 12, 94) * bendScale;
+    const skew = (hash(seed, lane, 3) - 0.5) * 0.18;
     return {
       p0: from,
       p1: {
-        x: from.x + dx * (0.28 + skew) + px * bend * 0.72,
-        y: from.y + dy * (0.28 + skew) + py * bend * 0.72
+        x: from.x + dx * (0.27 + skew) + px * bend * 0.76,
+        y: from.y + dy * (0.27 + skew) + py * bend * 0.76
       },
       p2: {
-        x: from.x + dx * (0.70 - skew) + px * bend,
-        y: from.y + dy * (0.70 - skew) + py * bend
+        x: from.x + dx * (0.71 - skew) + px * bend,
+        y: from.y + dy * (0.71 - skew) + py * bend
       },
       p3: to,
       length,
@@ -187,74 +187,6 @@
     return { x: x / length, y: y / length };
   }
 
-  function strokeCurve(ctx, curve, width, colour) {
-    ctx.beginPath();
-    ctx.moveTo(curve.p0.x, curve.p0.y);
-    ctx.bezierCurveTo(curve.p1.x, curve.p1.y, curve.p2.x, curve.p2.y, curve.p3.x, curve.p3.y);
-    ctx.lineWidth = width;
-    ctx.strokeStyle = colour;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    previousStroke.call(ctx);
-  }
-
-  function organicTubePoints(curve, width, seed, interacting) {
-    const sampleCount = interacting ? 22 : 44;
-    const left = [];
-    const right = [];
-    const centre = [];
-    const phaseCentre = hash(seed, 2, 7) * Math.PI * 2;
-    const phaseLeftA = hash(seed, 4, 1) * Math.PI * 2;
-    const phaseLeftB = hash(seed, 5, 2) * Math.PI * 2;
-    const phaseRightA = hash(seed, 6, 3) * Math.PI * 2;
-    const phaseRightB = hash(seed, 7, 4) * Math.PI * 2;
-    const leftFrequency = 3.1 + hash(seed, 8, 5) * 2.2;
-    const rightFrequency = 3.4 + hash(seed, 9, 6) * 2.4;
-
-    for (let index = 0; index <= sampleCount; index += 1) {
-      const t = index / sampleCount;
-      const point = pointOnCurve(curve, t);
-      const tangent = tangentOnCurve(curve, t);
-      const nx = -tangent.y;
-      const ny = tangent.x;
-      const edgeWindow = Math.pow(Math.sin(Math.PI * t), 0.58);
-
-      // Broad shoulder at the soma, a quieter middle, then a small distal collar into the app root.
-      const nexusSwell = 0.56 * Math.exp(-Math.pow((t - 0.09) / 0.20, 2));
-      const distalSwell = 0.17 * Math.exp(-Math.pow((t - 0.89) / 0.15, 2));
-      const rhythm = edgeWindow * Math.sin(t * Math.PI * 1.55 + phaseCentre) * 0.055;
-      const taper = 0.60 + (1 - t) * 0.40 + nexusSwell + distalSwell + rhythm;
-      const baseHalfWidth = width * 0.72 * taper;
-
-      // The tissue body itself wanders slightly so the two walls do not describe a perfect pipe.
-      const centreDrift = width * edgeWindow * (
-        Math.sin(t * Math.PI * 2.15 + phaseCentre) * 0.085
-        + Math.sin(t * Math.PI * 5.35 + phaseCentre * 0.73) * 0.030
-      );
-      const cx = point.x + nx * centreDrift;
-      const cy = point.y + ny * centreDrift;
-
-      const leftRipple = edgeWindow * (
-        Math.sin(t * Math.PI * leftFrequency + phaseLeftA) * 0.170
-        + Math.sin(t * Math.PI * (leftFrequency * 2.35) + phaseLeftB) * 0.060
-        + Math.sin(t * Math.PI * 0.92 + phaseLeftB * 0.55) * 0.055
-      );
-      const rightRipple = edgeWindow * (
-        Math.sin(t * Math.PI * rightFrequency + phaseRightA) * 0.180
-        + Math.sin(t * Math.PI * (rightFrequency * 2.08) + phaseRightB) * 0.064
-        + Math.sin(t * Math.PI * 1.07 + phaseRightA * 0.61) * 0.050
-      );
-
-      const leftWidth = baseHalfWidth * (1 + leftRipple);
-      const rightWidth = baseHalfWidth * (1 + rightRipple);
-      centre.push({ x: cx, y: cy });
-      left.push({ x: cx + nx * leftWidth, y: cy + ny * leftWidth });
-      right.push({ x: cx - nx * rightWidth, y: cy - ny * rightWidth });
-    }
-
-    return { left, right, centre };
-  }
-
   function traceSmoothOpen(ctx, points) {
     if (!points.length) return;
     ctx.beginPath();
@@ -263,9 +195,7 @@
     for (let index = 1; index < points.length - 1; index += 1) {
       const current = points[index];
       const next = points[index + 1];
-      const midX = (current.x + next.x) * 0.5;
-      const midY = (current.y + next.y) * 0.5;
-      ctx.quadraticCurveTo(current.x, current.y, midX, midY);
+      ctx.quadraticCurveTo(current.x, current.y, (current.x + next.x) * 0.5, (current.y + next.y) * 0.5);
     }
     const last = points[points.length - 1];
     ctx.lineTo(last.x, last.y);
@@ -279,80 +209,144 @@
     for (let index = 1; index <= points.length; index += 1) {
       const current = points[index % points.length];
       const next = points[(index + 1) % points.length];
-      const midX = (current.x + next.x) * 0.5;
-      const midY = (current.y + next.y) * 0.5;
-      ctx.quadraticCurveTo(current.x, current.y, midX, midY);
+      ctx.quadraticCurveTo(current.x, current.y, (current.x + next.x) * 0.5, (current.y + next.y) * 0.5);
     }
     ctx.closePath();
   }
 
+  function organicTubePoints(curve, width, seed, interacting) {
+    const sampleCount = interacting ? 24 : 52;
+    const left = [];
+    const right = [];
+    const centre = [];
+    const phaseCentre = hash(seed, 2, 7) * Math.PI * 2;
+    const phaseLeftA = hash(seed, 4, 1) * Math.PI * 2;
+    const phaseLeftB = hash(seed, 5, 2) * Math.PI * 2;
+    const phaseRightA = hash(seed, 6, 3) * Math.PI * 2;
+    const phaseRightB = hash(seed, 7, 4) * Math.PI * 2;
+    const leftFrequency = 2.6 + hash(seed, 8, 5) * 2.1;
+    const rightFrequency = 2.9 + hash(seed, 9, 6) * 2.3;
+
+    for (let index = 0; index <= sampleCount; index += 1) {
+      const t = index / sampleCount;
+      const point = pointOnCurve(curve, t);
+      const tangent = tangentOnCurve(curve, t);
+      const nx = -tangent.y;
+      const ny = tangent.x;
+      const edgeWindow = Math.pow(Math.sin(Math.PI * t), 0.52);
+
+      const nexusSwell = 0.82 * Math.exp(-Math.pow((t - 0.08) / 0.22, 2));
+      const distalSwell = 0.28 * Math.exp(-Math.pow((t - 0.90) / 0.16, 2));
+      const midSwell = 0.16 * Math.exp(-Math.pow((t - (0.43 + hash(seed, 18, 2) * 0.18)) / 0.24, 2));
+      const rhythm = edgeWindow * (
+        Math.sin(t * Math.PI * 1.55 + phaseCentre) * 0.10
+        + Math.sin(t * Math.PI * 4.1 + phaseCentre * 0.61) * 0.038
+      );
+      const taper = 0.63 + (1 - t) * 0.37 + nexusSwell + distalSwell + midSwell + rhythm;
+      const baseHalfWidth = width * 0.82 * taper;
+
+      const centreDrift = width * edgeWindow * (
+        Math.sin(t * Math.PI * 1.95 + phaseCentre) * 0.14
+        + Math.sin(t * Math.PI * 4.8 + phaseCentre * 0.73) * 0.052
+      );
+      const cx = point.x + nx * centreDrift;
+      const cy = point.y + ny * centreDrift;
+
+      const leftRipple = edgeWindow * (
+        Math.sin(t * Math.PI * leftFrequency + phaseLeftA) * 0.25
+        + Math.sin(t * Math.PI * (leftFrequency * 2.45) + phaseLeftB) * 0.095
+        + Math.sin(t * Math.PI * 0.84 + phaseLeftB * 0.55) * 0.070
+      );
+      const rightRipple = edgeWindow * (
+        Math.sin(t * Math.PI * rightFrequency + phaseRightA) * 0.27
+        + Math.sin(t * Math.PI * (rightFrequency * 2.15) + phaseRightB) * 0.10
+        + Math.sin(t * Math.PI * 1.04 + phaseRightA * 0.61) * 0.068
+      );
+
+      const leftWidth = baseHalfWidth * (1 + leftRipple);
+      const rightWidth = baseHalfWidth * (1 + rightRipple);
+      centre.push({ x: cx, y: cy });
+      left.push({ x: cx + nx * leftWidth, y: cy + ny * leftWidth });
+      right.push({ x: cx - nx * rightWidth, y: cy - ny * rightWidth });
+    }
+
+    return { left, right, centre };
+  }
+
+  function interiorLane(tube, ratio, seed) {
+    return tube.left.map((left, index) => {
+      const right = tube.right[index];
+      const t = index / Math.max(1, tube.left.length - 1);
+      const localRatio = clamp(
+        ratio + Math.sin(t * Math.PI * (2.4 + seed * 0.7) + seed * 9.1) * 0.055,
+        0.12,
+        0.88
+      );
+      return { x: lerp(left.x, right.x, localRatio), y: lerp(left.y, right.y, localRatio) };
+    });
+  }
+
   function drawOrganicTube(ctx, curve, width, seed, interacting) {
     const tube = organicTubePoints(curve, width, seed, interacting);
-    const detail = interacting ? 0.66 : 1;
+    const detail = interacting ? 0.62 : 1;
 
-    // Layer 1: broad tissue body. Stronger near-body depth, but no neon outer cable.
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     traceClosedTube(ctx, tube);
-    ctx.shadowBlur = interacting ? 4 : 15;
-    ctx.shadowColor = `rgba(48,74,246,${(0.26 * detail).toFixed(3)})`;
-    ctx.fillStyle = `rgba(24,55,154,${(0.17 * detail).toFixed(3)})`;
+    ctx.shadowBlur = interacting ? 4 : 18;
+    ctx.shadowColor = `rgba(46,67,228,${(0.26 * detail).toFixed(3)})`;
+    ctx.fillStyle = `rgba(20,43,128,${(0.22 * detail).toFixed(3)})`;
     ctx.fill();
     ctx.restore();
 
-    // Layer 2: translucent blue/violet tissue inside the root body.
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     traceClosedTube(ctx, tube);
     const tissue = ctx.createLinearGradient(curve.p0.x, curve.p0.y, curve.p3.x, curve.p3.y);
-    tissue.addColorStop(0, `rgba(108,73,255,${(0.34 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.24, `rgba(67,91,255,${(0.29 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.55, `rgba(39,121,247,${(0.25 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.82, `rgba(45,151,255,${(0.22 * detail).toFixed(3)})`);
-    tissue.addColorStop(1, `rgba(44,112,226,${(0.18 * detail).toFixed(3)})`);
+    tissue.addColorStop(0, `rgba(113,73,255,${(0.37 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.23, `rgba(74,85,249,${(0.32 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.54, `rgba(42,112,235,${(0.28 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.80, `rgba(38,138,236,${(0.24 * detail).toFixed(3)})`);
+    tissue.addColorStop(1, `rgba(44,106,207,${(0.17 * detail).toFixed(3)})`);
     ctx.fillStyle = tissue;
     ctx.fill();
-    ctx.restore();
 
-    // Layer 3: subdued independent membranes. Their job is to imply living walls, not draw rails.
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
+    if (!interacting) {
+      const lanes = [
+        { ratio: 0.32, alpha: 0.13, width: Math.max(0.42, width * 0.035) },
+        { ratio: 0.50, alpha: 0.16, width: Math.max(0.45, width * 0.040) },
+        { ratio: 0.68, alpha: 0.11, width: Math.max(0.38, width * 0.030) }
+      ];
+      lanes.forEach((lane, laneIndex) => {
+        traceSmoothOpen(ctx, interiorLane(tube, lane.ratio, seed + laneIndex * 0.73));
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = lane.width;
+        ctx.strokeStyle = `rgba(129,205,255,${lane.alpha.toFixed(3)})`;
+        previousStroke.call(ctx);
+      });
+    }
+
+    ctx.shadowBlur = interacting ? 0 : 2;
+    traceSmoothOpen(ctx, tube.left);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.shadowBlur = interacting ? 1 : 3;
-    ctx.shadowColor = `rgba(86,145,255,${(0.18 * detail).toFixed(3)})`;
-
-    traceSmoothOpen(ctx, tube.left);
-    ctx.lineWidth = Math.max(1.0, width * 0.10);
-    ctx.strokeStyle = `rgba(100,135,255,${(0.20 * detail).toFixed(3)})`;
-    previousStroke.call(ctx);
-    traceSmoothOpen(ctx, tube.left);
-    ctx.lineWidth = Math.max(0.42, width * 0.032);
-    ctx.strokeStyle = `rgba(164,216,255,${(0.38 * detail).toFixed(3)})`;
+    ctx.lineWidth = Math.max(0.48, width * 0.038);
+    ctx.strokeStyle = `rgba(126,173,255,${(0.13 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
 
     traceSmoothOpen(ctx, tube.right);
-    ctx.lineWidth = Math.max(1.0, width * 0.10);
-    ctx.strokeStyle = `rgba(89,109,241,${(0.19 * detail).toFixed(3)})`;
+    ctx.lineWidth = Math.max(0.48, width * 0.038);
+    ctx.strokeStyle = `rgba(111,158,249,${(0.12 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
-    traceSmoothOpen(ctx, tube.right);
-    ctx.lineWidth = Math.max(0.42, width * 0.032);
-    ctx.strokeStyle = `rgba(134,201,255,${(0.35 * detail).toFixed(3)})`;
-    previousStroke.call(ctx);
-    ctx.restore();
 
-    // Layer 4: one narrow internal spine following the living centre of the tissue body.
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
     traceSmoothOpen(ctx, tube.centre);
-    ctx.lineWidth = Math.max(1.0, width * 0.085);
-    ctx.strokeStyle = `rgba(58,164,255,${(0.24 * detail).toFixed(3)})`;
+    ctx.lineWidth = Math.max(0.75, width * 0.050);
+    ctx.strokeStyle = `rgba(64,166,255,${(0.20 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
     traceSmoothOpen(ctx, tube.centre);
-    ctx.lineWidth = Math.max(0.42, width * 0.032);
-    ctx.strokeStyle = `rgba(226,248,255,${(0.80 * detail).toFixed(3)})`;
+    ctx.lineWidth = Math.max(0.34, width * 0.018);
+    ctx.strokeStyle = `rgba(226,248,255,${(0.72 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
     ctx.restore();
   }
@@ -366,23 +360,23 @@
     for (const root of roots) {
       const rootAngle = Math.atan2(root.centre.y - point.y, root.centre.x - point.x);
       const alignment = Math.max(0, Math.cos(angleDelta(angle, rootAngle)));
-      influence = Math.max(influence, Math.pow(alignment, 6) * 0.42);
+      influence = Math.max(influence, Math.pow(alignment, 5) * 0.58);
     }
     return influence;
   }
 
   function traceOrganicNexus(ctx, point, radius, seed, roots, scale = 1) {
-    const count = 64;
+    const count = 72;
     ctx.beginPath();
     for (let index = 0; index <= count; index += 1) {
       const angle = (index / count) * Math.PI * 2;
       const lobe = nexusRootLobe(angle, point, roots);
-      const shape = 0.89
+      const shape = 0.86
         + lobe
-        + Math.sin(angle * 2 + seed * 5.3) * 0.045
-        + Math.sin(angle * 5 + seed * 11.1) * 0.055
-        + Math.sin(angle * 9 + seed * 17.7) * 0.026
-        + Math.sin(angle * 13 + seed * 23.9) * 0.013;
+        + Math.sin(angle * 2 + seed * 5.3) * 0.060
+        + Math.sin(angle * 5 + seed * 11.1) * 0.075
+        + Math.sin(angle * 9 + seed * 17.7) * 0.036
+        + Math.sin(angle * 13 + seed * 23.9) * 0.020;
       const x = point.x + Math.cos(angle) * radius * shape * scale;
       const y = point.y + Math.sin(angle) * radius * shape * scale;
       if (index === 0) ctx.moveTo(x, y);
@@ -391,61 +385,81 @@
     ctx.closePath();
   }
 
+  function drawNexusWeb(ctx, point, radius, seed, interacting) {
+    if (interacting) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.lineCap = 'round';
+    for (let index = 0; index < 26; index += 1) {
+      const local = seed + index * 0.437;
+      const a0 = hash(local, 1, 2) * Math.PI * 2;
+      const a1 = a0 + (0.5 + hash(local, 3, 4) * 1.6) * (hash(local, 5, 6) > 0.5 ? 1 : -1);
+      const r0 = radius * (0.14 + hash(local, 7, 8) * 0.28);
+      const r1 = radius * (0.48 + hash(local, 9, 10) * 0.48);
+      const p0 = { x: point.x + Math.cos(a0) * r0, y: point.y + Math.sin(a0) * r0 };
+      const p1 = { x: point.x + Math.cos(a1) * r1, y: point.y + Math.sin(a1) * r1 };
+      const midAngle = (a0 + a1) * 0.5 + (hash(local, 11, 12) - 0.5) * 0.75;
+      const midRadius = (r0 + r1) * 0.52;
+      const mid = { x: point.x + Math.cos(midAngle) * midRadius, y: point.y + Math.sin(midAngle) * midRadius };
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.quadraticCurveTo(mid.x, mid.y, p1.x, p1.y);
+      ctx.lineWidth = index % 6 === 0 ? 0.42 : 0.24;
+      ctx.strokeStyle = index % 6 === 0 ? 'rgba(186,229,255,.18)' : 'rgba(111,192,255,.10)';
+      previousStroke.call(ctx);
+    }
+    ctx.restore();
+  }
+
   function drawNexus(ctx, point, roots, timestamp, interacting) {
     const rootCount = roots.length;
-    const pulse = 0.985 + Math.sin(timestamp * 0.00115) * 0.020;
-    const radius = clamp(34 + rootCount * 5.0, 48, 68);
+    const pulse = 0.986 + Math.sin(timestamp * 0.00115) * 0.018;
+    const radius = clamp(43 + rootCount * 6.0, 58, 84);
     const seed = rootCount * 0.173 + point.x * 0.0007 + point.y * 0.0009;
-    const detail = interacting ? 0.65 : 1;
+    const detail = interacting ? 0.62 : 1;
 
-    // Outer soma: broad irregular living mass with lobes that reach into each major trunk direction.
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     traceOrganicNexus(ctx, point, radius * pulse, seed, roots);
-    ctx.shadowBlur = interacting ? 6 : 22;
-    ctx.shadowColor = `rgba(52,72,235,${(0.31 * detail).toFixed(3)})`;
-    const body = ctx.createRadialGradient(point.x, point.y, radius * 0.05, point.x, point.y, radius * 1.15);
-    body.addColorStop(0, `rgba(91,108,239,${(0.34 * detail).toFixed(3)})`);
-    body.addColorStop(0.34, `rgba(70,82,226,${(0.31 * detail).toFixed(3)})`);
-    body.addColorStop(0.68, `rgba(57,67,199,${(0.24 * detail).toFixed(3)})`);
-    body.addColorStop(1, `rgba(29,46,133,${(0.08 * detail).toFixed(3)})`);
+    ctx.shadowBlur = interacting ? 7 : 26;
+    ctx.shadowColor = `rgba(48,66,220,${(0.32 * detail).toFixed(3)})`;
+    const body = ctx.createRadialGradient(point.x, point.y, radius * 0.04, point.x, point.y, radius * 1.18);
+    body.addColorStop(0, `rgba(91,103,229,${(0.36 * detail).toFixed(3)})`);
+    body.addColorStop(0.32, `rgba(67,77,212,${(0.33 * detail).toFixed(3)})`);
+    body.addColorStop(0.66, `rgba(51,59,178,${(0.27 * detail).toFixed(3)})`);
+    body.addColorStop(1, `rgba(24,38,112,${(0.10 * detail).toFixed(3)})`);
     ctx.fillStyle = body;
     ctx.fill();
     ctx.restore();
 
-    // Inner tissue mass adds depth without turning the soma into a bright outlined badge.
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
-    traceOrganicNexus(ctx, point, radius * pulse, seed + 0.371, roots, 0.77);
-    const tissue = ctx.createRadialGradient(point.x - radius * 0.10, point.y - radius * 0.08, 0, point.x, point.y, radius * 0.82);
-    tissue.addColorStop(0, `rgba(117,102,255,${(0.30 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.42, `rgba(56,132,255,${(0.25 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.78, `rgba(45,96,227,${(0.18 * detail).toFixed(3)})`);
+    traceOrganicNexus(ctx, point, radius * pulse, seed + 0.371, roots, 0.79);
+    const tissue = ctx.createRadialGradient(point.x - radius * 0.12, point.y - radius * 0.10, 0, point.x, point.y, radius * 0.88);
+    tissue.addColorStop(0, `rgba(126,101,255,${(0.32 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.42, `rgba(56,130,249,${(0.26 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.78, `rgba(42,92,214,${(0.20 * detail).toFixed(3)})`);
     tissue.addColorStop(1, 'rgba(55,70,214,0)');
     ctx.fillStyle = tissue;
     ctx.fill();
-    ctx.restore();
 
-    // A subdued membrane and quiet nucleus. The root lobes hide the old crisp Y intersection.
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
     traceOrganicNexus(ctx, point, radius * pulse, seed, roots);
-    ctx.lineWidth = 0.9;
-    ctx.strokeStyle = `rgba(130,184,255,${(0.24 * detail).toFixed(3)})`;
-    ctx.shadowBlur = interacting ? 1 : 4;
-    ctx.shadowColor = `rgba(79,139,255,${(0.17 * detail).toFixed(3)})`;
+    ctx.lineWidth = 0.52;
+    ctx.strokeStyle = `rgba(127,179,255,${(0.13 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
 
-    const nucleusRadius = radius * 0.27;
+    const nucleusRadius = radius * 0.22;
     const nucleus = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, nucleusRadius);
-    nucleus.addColorStop(0, `rgba(222,246,255,${(0.38 * detail).toFixed(3)})`);
-    nucleus.addColorStop(0.40, `rgba(102,184,255,${(0.21 * detail).toFixed(3)})`);
+    nucleus.addColorStop(0, `rgba(220,245,255,${(0.32 * detail).toFixed(3)})`);
+    nucleus.addColorStop(0.42, `rgba(99,180,255,${(0.18 * detail).toFixed(3)})`);
     nucleus.addColorStop(1, 'rgba(65,83,244,0)');
     ctx.beginPath();
     ctx.arc(point.x, point.y, nucleusRadius, 0, Math.PI * 2);
     ctx.fillStyle = nucleus;
     ctx.fill();
     ctx.restore();
+
+    drawNexusWeb(ctx, point, radius, seed + 0.61, interacting);
   }
 
   function drawSharedNetwork(ctx, roots, timestamp, interacting) {
@@ -455,11 +469,10 @@
     roots.forEach((root, index) => {
       const seed = Math.abs(Math.sin(root.centre.x * 0.017 + root.centre.y * 0.029 + index * 0.731));
       const curve = controlPoints(nexus, root.centre, seed, 0.78, index + 1);
-      const width = clamp(curve.length * 0.055, 10, 20);
+      const width = clamp(curve.length * 0.068, 14, 26);
       drawOrganicTube(ctx, curve, width, seed, interacting);
     });
 
-    // Paint the soma last so its broad root-facing lobes fuse over the individual trunk starts.
     drawNexus(ctx, nexus, roots, timestamp, interacting);
   }
 
@@ -507,9 +520,7 @@
   };
 
   proto.stroke = function neuralNexusStroke(...args) {
-    if (isMainGraph(this) && isSemanticBlueLine(this) && Number(this.lineWidth || 1) <= 1.6) {
-      capture(this);
-    }
+    if (isMainGraph(this) && isSemanticBlueLine(this) && Number(this.lineWidth || 1) <= 1.6) capture(this);
     return previousStroke.apply(this, args);
   };
 
@@ -526,7 +537,7 @@
         height:100%;
         pointer-events:none;
         mix-blend-mode:screen;
-        opacity:.98;
+        opacity:.94;
       }
     `;
     document.head.appendChild(style);
