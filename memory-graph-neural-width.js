@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 10;
+  const VERSION = 11;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
@@ -277,13 +277,29 @@
     document.head.appendChild(script);
   }
 
-  function loadNeuralBranches() {
-    if (document.getElementById('memoryGraphNeuralBranchesLoader') || globalThis.MemoryGraphNeuralBranches) return;
+  function loadNeuralLattice() {
+    if (document.getElementById('memoryGraphNeuralLatticeLoader') || globalThis.MemoryGraphNeuralLattice) return;
     const script = document.createElement('script');
-    script.id = 'memoryGraphNeuralBranchesLoader';
-    script.src = './memory-graph-neural-branches.js?v=1';
+    script.id = 'memoryGraphNeuralLatticeLoader';
+    script.src = './memory-graph-neural-lattice.js?v=1';
     script.async = false;
     script.addEventListener('load', () => globalThis.MemoryGraph?.redraw?.());
+    document.head.appendChild(script);
+  }
+
+  function loadNeuralBranches() {
+    if (document.getElementById('memoryGraphNeuralBranchesLoader') || globalThis.MemoryGraphNeuralBranches) {
+      loadNeuralLattice();
+      return;
+    }
+    const script = document.createElement('script');
+    script.id = 'memoryGraphNeuralBranchesLoader';
+    script.src = './memory-graph-neural-branches.js?v=2';
+    script.async = false;
+    script.addEventListener('load', () => {
+      loadNeuralLattice();
+      globalThis.MemoryGraph?.redraw?.();
+    });
     document.head.appendChild(script);
   }
 
