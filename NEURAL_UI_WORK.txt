@@ -23,7 +23,7 @@ TARGET ANATOMY
 - swollen irregular central soma
 - tiny travelling fibre lights
 - dense fine roots/webbing
-- medium and second-order organic root branches
+- medium, second-order and tertiary organic root branches
 - grown transitions into app clusters
 - internal vascular mesh
 
@@ -40,34 +40,35 @@ LAYER CHECKLIST
 [x] Layer 10 — Dense root-field convergence
 [x] Layer 11 — Trunk bark / soma mantle
 [x] Layer 12 — Main trunk renderer convergence
+[x] Layer 13 — Second-order root anatomy
 
-[x] Layer 13 — Second-order root anatomy  < CODE APPLIED — VISUAL REVIEW PENDING
+[x] Layer 14 — Branch hierarchy refinement  < CODE APPLIED — VISUAL REVIEW PENDING
     Latest screenshot diagnosis:
-    - the main trunks are finally thicker and more organic, but the whole network still reads as three dominant arms.
-    - the reference has clear second-order thick roots coming off the main trunks before dissolving into fine webbing.
-    - current micro-roots are too fine to change the silhouette; the missing anatomy is a middle hierarchy between major trunk and hairline tendril.
-    - the central soma also needs free biological roots between the three app-facing trunks so it stops reading as a three-way junction.
+    - clear improvement: second-order roots finally break the three-arm silhouette.
+    - remaining gap versus target: the new roots still read as single ribbon offshoots in places instead of branching biological trees.
+    - the reference has a hierarchy: trunk -> thick root -> smaller tissue fork -> hair fibres/webbing.
+    - central soma needs more irregular free processes, but without simply increasing glow.
 
-    Added memory-graph-neural-branches.js VERSION 1 as a dedicated reversible synthetic layer:
-    - four thick tapered second-order roots grow from staggered positions along each major trunk.
-    - each root starts deep inside the parent trunk, has a broad shoulder, irregular independent walls, blue/violet tissue and a thin internal spine.
-    - root tips fork into three finer fibres.
-    - seven short free roots grow from open angular gaps around the central soma, avoiding the real app-trunk directions.
-    - these free roots make the nexus read more like a neuron body with multiple processes instead of a clean Y.
-    - interaction mode reduces each major trunk to one extra root and disables the free-root crown.
-    - no real graph edges, nodes, topology or persisted state are created.
+    Applied memory-graph-neural-branches.js VERSION 2:
+    - increased main second-order attachment zones from four to five per major trunk.
+    - changed side choice to an irregular alternating rhythm so roots populate both sides of each trunk rather than collecting on one side.
+    - root bodies now have stronger asymmetric wall ripple, centre drift, base shoulder and mid-root swelling.
+    - each thick root now forks into two smaller TISSUE root bodies instead of ending in three simple line strokes.
+    - most second-order roots also grow one tertiary child root from their middle section.
+    - added eight restrained fine hair fibres around each thick/tertiary root for the web transition.
+    - root membranes remain deliberately dim; the blue/violet tissue body and thin internal spine remain dominant.
+    - increased free soma processes from seven to up to ten, made them narrower and more irregular, and allowed selected free roots to fork into smaller tissue roots.
+    - all geometry remains synthetic and derived from existing rendered app-root positions.
+    - interaction mode remains heavily reduced.
+    - no graph topology, persistence, physics, nodes, drag/drop or app behaviour changed.
 
-    Loader integration:
-    - memory-graph-neural-width.js VERSION 10 now loads the branch layer after neural arms.
-    - nexus loader cache tag moved to v=4 so the actual VERSION 4 trunk renderer is fetched consistently.
-
-[ ] Layer 14 — Screenshot balance only
+[ ] Layer 15 — Screenshot balance / convergence only
     Check:
-    - do second-order roots now give the network the thick branching silhouette seen in the reference?
-    - do free soma roots make the centre feel like a living neural body?
-    - are these roots too long/thick or about right?
-    - if wrong, tune only width/reach/opacity/count in memory-graph-neural-branches.js.
-    - do not alter graph behaviour or add another graphics system.
+    - does the hierarchy now read trunk -> thick root -> smaller fork -> fine web?
+    - are roots distributed around both sides of the major trunks naturally?
+    - is the central soma becoming a many-process neural body instead of a Y/star junction?
+    - are tertiary roots too busy or about right?
+    - next patch should tune count/width/reach/opacity only unless the screenshot reveals one specific missing anatomy.
 
 CURRENT FILE ROLES
 - memory-graph-neural-nexus.js
@@ -83,7 +84,7 @@ CURRENT FILE ROLES
   VERSION 4: trunk bark/mantle, internal mesh, medium branches, micro-roots, enlarged soma mantle and nexus lace.
 
 - memory-graph-neural-branches.js
-  VERSION 1: thick second-order organic roots from the major trunks plus free roots around the central soma.
+  VERSION 2: second-order roots plus tissue forks, tertiary child roots, hair fibres and free soma processes.
 
 - memory-graph-neural-width.js
   VERSION 10: loader/integration plus existing width/startup responsibilities.
@@ -93,13 +94,14 @@ CURRENT CODE STATE
 - memory-graph-neural-detail.js VERSION = 1
 - memory-graph-neural-crowns.js VERSION = 1
 - memory-graph-neural-arms.js VERSION = 4
-- memory-graph-neural-branches.js VERSION = 1
+- memory-graph-neural-branches.js VERSION = 2
 - memory-graph-neural-width.js VERSION = 10
 
 LATEST IMPORTANT COMMITS
 - Main trunk renderer VERSION 4: 11d2a43e3f270e2367fa6dfc392472a34eb60db0
 - Second-order roots VERSION 1: 3fea42bdf70d2237ede036a3165a46b8b046e40f
 - Branch-layer loader VERSION 10: 0bec1dd76baee85678797df88f401030058c47c2
+- Branch hierarchy VERSION 2: ac801622aa304c985cbddbbeb896a9c5de0a35b0
 
 WORKING RULE
 Use the newest browser screenshot and original reference side by side. Fix visible anatomy only. Do not alter graph/data/physics behaviour.
