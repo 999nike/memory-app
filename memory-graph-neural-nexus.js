@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralNexusInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralNexusInstalled', { value: true });
@@ -198,171 +198,198 @@
     previousStroke.call(ctx);
   }
 
-  function drawTube(ctx, curve, width, interacting) {
-    const detail = interacting ? 0.52 : 1;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    strokeCurve(ctx, curve, width * 5.6, `rgba(11,55,205,${(0.050 * detail).toFixed(3)})`);
-    strokeCurve(ctx, curve, width * 3.4, `rgba(25,105,255,${(0.105 * detail).toFixed(3)})`);
-    strokeCurve(ctx, curve, width * 1.8, `rgba(45,157,255,${(0.23 * detail).toFixed(3)})`);
-    strokeCurve(ctx, curve, Math.max(1, width * 0.48), `rgba(107,220,255,${(0.62 * detail).toFixed(3)})`);
-    strokeCurve(ctx, curve, Math.max(0.45, width * 0.11), `rgba(245,254,255,${(0.94 * detail).toFixed(3)})`);
-    ctx.restore();
-  }
+  function organicTubePoints(curve, width, seed, interacting) {
+    const sampleCount = interacting ? 18 : 34;
+    const left = [];
+    const right = [];
+    const phaseLeftA = hash(seed, 4, 1) * Math.PI * 2;
+    const phaseLeftB = hash(seed, 5, 2) * Math.PI * 2;
+    const phaseRightA = hash(seed, 6, 3) * Math.PI * 2;
+    const phaseRightB = hash(seed, 7, 4) * Math.PI * 2;
+    const leftFrequency = 4.4 + hash(seed, 8, 5) * 2.6;
+    const rightFrequency = 4.8 + hash(seed, 9, 6) * 2.8;
 
-  function drawBundle(ctx, curve, width, seed, interacting) {
-    if (interacting) return;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (let lane = 1; lane <= 9; lane += 1) {
-      const filament = controlPoints(curve.p0, curve.p3, seed + lane * 0.491, 0.26 + lane * 0.065, lane + 11);
-      strokeCurve(ctx, filament, Math.max(0.55, width * (0.16 - lane * 0.009)), `rgba(111,220,255,${(0.43 - lane * 0.025).toFixed(3)})`);
-      strokeCurve(ctx, filament, Math.max(0.22, width * 0.034), `rgba(241,253,255,${(0.70 - lane * 0.035).toFixed(3)})`);
-    }
-    ctx.restore();
-  }
-
-  function drawDendrites(ctx, curve, seed, interacting) {
-    if (interacting) return;
-    const mobile = sourceCanvas?.clientWidth < 700;
-    const count = clamp(Math.round(curve.length / (mobile ? 23 : 14)), mobile ? 8 : 14, mobile ? 16 : 30);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.lineCap = 'round';
-
-    for (let index = 0; index < count; index += 1) {
-      const localSeed = seed + index * 0.337;
-      const t = 0.08 + ((index + 0.45 + hash(localSeed, 1, 2) * 0.45) / (count + 1)) * 0.84;
-      const origin = pointOnCurve(curve, t);
-      const tangent = tangentOnCurve(curve, t);
-      const px = -tangent.y;
-      const py = tangent.x;
-      const side = hash(localSeed, 3, 4) > 0.5 ? 1 : -1;
-      const reach = 18 + hash(localSeed, 5, 6) * (mobile ? 36 : 72);
-      const forward = (hash(localSeed, 7, 8) - 0.38) * reach * 0.72;
-      const mid = {
-        x: origin.x + px * side * reach * 0.55 + tangent.x * forward * 0.36,
-        y: origin.y + py * side * reach * 0.55 + tangent.y * forward * 0.36
-      };
-      const end = {
-        x: origin.x + px * side * reach + tangent.x * forward,
-        y: origin.y + py * side * reach + tangent.y * forward
-      };
-
-      ctx.beginPath();
-      ctx.moveTo(origin.x, origin.y);
-      ctx.quadraticCurveTo(mid.x, mid.y, end.x, end.y);
-      ctx.lineWidth = 0.62;
-      ctx.strokeStyle = 'rgba(139,220,255,.38)';
-      previousStroke.call(ctx);
-
-      if (hash(localSeed, 9, 10) > 0.28) {
-        const forkSide = hash(localSeed, 11, 12) > 0.5 ? 1 : -1;
-        const fork = {
-          x: mid.x + px * forkSide * reach * 0.48 + tangent.x * reach * 0.18,
-          y: mid.y + py * forkSide * reach * 0.48 + tangent.y * reach * 0.18
-        };
-        ctx.beginPath();
-        ctx.moveTo(mid.x, mid.y);
-        ctx.quadraticCurveTo((mid.x + fork.x) * 0.5, (mid.y + fork.y) * 0.5, fork.x, fork.y);
-        ctx.lineWidth = 0.32;
-        ctx.strokeStyle = 'rgba(202,242,255,.28)';
-        previousStroke.call(ctx);
-      }
-    }
-    ctx.restore();
-  }
-
-  function drawFibreLights(ctx, curve, seed, timestamp, interacting) {
-    if (interacting) return;
-    const count = clamp(Math.round(curve.length / 6), 18, 58);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (let index = 0; index < count; index += 1) {
-      const localSeed = seed + index * 0.213;
-      const drift = ((timestamp * (0.000035 + hash(localSeed, 7, 8) * 0.000030)) + hash(localSeed, 9, 10)) % 1;
-      const t = 0.03 + ((index / count + drift + hash(localSeed, 1, 2) * 0.11) % 1) * 0.94;
+    for (let index = 0; index <= sampleCount; index += 1) {
+      const t = index / sampleCount;
       const point = pointOnCurve(curve, t);
-      const pulse = 0.62 + Math.sin(timestamp * 0.004 + localSeed * 17.9) * 0.25;
-      const radius = 0.45 + hash(localSeed, 3, 4) * 0.78;
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(205,248,255,${(0.48 * pulse).toFixed(3)})`;
-      ctx.fill();
-      if (index % 4 === 0) {
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, radius * 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(60,178,255,${(0.12 * pulse).toFixed(3)})`;
-        ctx.fill();
-      }
+      const tangent = tangentOnCurve(curve, t);
+      const nx = -tangent.y;
+      const ny = tangent.x;
+      const edgeWindow = Math.pow(Math.sin(Math.PI * t), 0.72);
+      const nexusSwell = 0.22 * Math.exp(-Math.pow((t - 0.13) / 0.18, 2));
+      const taper = 0.66 + (1 - t) * 0.50 + Math.sin(Math.PI * t) * 0.08 + nexusSwell;
+      const baseHalfWidth = width * 0.70 * taper;
+
+      const leftRipple = edgeWindow * (
+        Math.sin(t * Math.PI * leftFrequency + phaseLeftA) * 0.105
+        + Math.sin(t * Math.PI * (leftFrequency * 2.15) + phaseLeftB) * 0.040
+      );
+      const rightRipple = edgeWindow * (
+        Math.sin(t * Math.PI * rightFrequency + phaseRightA) * 0.115
+        + Math.sin(t * Math.PI * (rightFrequency * 1.92) + phaseRightB) * 0.044
+      );
+
+      const leftWidth = baseHalfWidth * (1 + leftRipple);
+      const rightWidth = baseHalfWidth * (1 + rightRipple);
+      left.push({ x: point.x + nx * leftWidth, y: point.y + ny * leftWidth });
+      right.push({ x: point.x - nx * rightWidth, y: point.y - ny * rightWidth });
     }
-    ctx.restore();
+
+    return { left, right };
   }
 
-  function drawPulse(ctx, curve, seed, timestamp) {
-    const duration = 1900 + seed * 1500;
-    const progress = ((timestamp + seed * 1100) % duration) / duration;
-    const point = pointOnCurve(curve, progress);
-    const alpha = Math.sin(Math.PI * progress);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, 7);
-    gradient.addColorStop(0, `rgba(255,255,255,${(0.92 * alpha).toFixed(3)})`);
-    gradient.addColorStop(0.35, `rgba(96,219,255,${(0.62 * alpha).toFixed(3)})`);
-    gradient.addColorStop(1, 'rgba(38,112,255,0)');
+  function traceClosedTube(ctx, tube) {
+    const { left, right } = tube;
+    if (!left.length || !right.length) return;
     ctx.beginPath();
-    ctx.arc(point.x, point.y, 7, 0, Math.PI * 2);
-    ctx.fillStyle = gradient;
+    ctx.moveTo(left[0].x, left[0].y);
+    for (let index = 1; index < left.length; index += 1) ctx.lineTo(left[index].x, left[index].y);
+    for (let index = right.length - 1; index >= 0; index -= 1) ctx.lineTo(right[index].x, right[index].y);
+    ctx.closePath();
+  }
+
+  function traceBoundary(ctx, points) {
+    if (!points.length) return;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y);
+  }
+
+  function drawOrganicTube(ctx, curve, width, seed, interacting) {
+    const tube = organicTubePoints(curve, width, seed, interacting);
+    const detail = interacting ? 0.66 : 1;
+
+    // Layer 1: soft body halo. Kept broad and dim so the trunk reads as tissue, not a neon cable.
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    traceClosedTube(ctx, tube);
+    ctx.shadowBlur = interacting ? 3 : 12;
+    ctx.shadowColor = `rgba(47,82,255,${(0.22 * detail).toFixed(3)})`;
+    ctx.fillStyle = `rgba(25,64,170,${(0.13 * detail).toFixed(3)})`;
     ctx.fill();
     ctx.restore();
+
+    // Layer 2: translucent blue/violet inner tissue.
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    traceClosedTube(ctx, tube);
+    const tissue = ctx.createLinearGradient(curve.p0.x, curve.p0.y, curve.p3.x, curve.p3.y);
+    tissue.addColorStop(0, `rgba(92,78,255,${(0.27 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.42, `rgba(43,119,255,${(0.24 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.72, `rgba(52,160,255,${(0.20 * detail).toFixed(3)})`);
+    tissue.addColorStop(1, `rgba(35,105,224,${(0.14 * detail).toFixed(3)})`);
+    ctx.fillStyle = tissue;
+    ctx.fill();
+    ctx.restore();
+
+    // Layer 3: two independent irregular membranes. These are the root walls, not parallel light rails.
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowBlur = interacting ? 1 : 4;
+    ctx.shadowColor = `rgba(92,151,255,${(0.28 * detail).toFixed(3)})`;
+
+    traceBoundary(ctx, tube.left);
+    ctx.lineWidth = Math.max(1.5, width * 0.16);
+    ctx.strokeStyle = `rgba(96,132,255,${(0.30 * detail).toFixed(3)})`;
+    previousStroke.call(ctx);
+    traceBoundary(ctx, tube.left);
+    ctx.lineWidth = Math.max(0.62, width * 0.055);
+    ctx.strokeStyle = `rgba(170,221,255,${(0.58 * detail).toFixed(3)})`;
+    previousStroke.call(ctx);
+
+    traceBoundary(ctx, tube.right);
+    ctx.lineWidth = Math.max(1.5, width * 0.16);
+    ctx.strokeStyle = `rgba(88,107,245,${(0.28 * detail).toFixed(3)})`;
+    previousStroke.call(ctx);
+    traceBoundary(ctx, tube.right);
+    ctx.lineWidth = Math.max(0.62, width * 0.055);
+    ctx.strokeStyle = `rgba(132,205,255,${(0.54 * detail).toFixed(3)})`;
+    previousStroke.call(ctx);
+    ctx.restore();
+
+    // Layer 4: one narrow internal neural spine with only a restrained glow beneath it.
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    strokeCurve(ctx, curve, Math.max(1.2, width * 0.11), `rgba(63,175,255,${(0.28 * detail).toFixed(3)})`);
+    strokeCurve(ctx, curve, Math.max(0.48, width * 0.038), `rgba(225,249,255,${(0.88 * detail).toFixed(3)})`);
+    ctx.restore();
+  }
+
+  function traceOrganicNexus(ctx, point, radius, seed) {
+    const count = 30;
+    ctx.beginPath();
+    for (let index = 0; index <= count; index += 1) {
+      const angle = (index / count) * Math.PI * 2;
+      const shape = 0.90
+        + Math.sin(angle * 3 + seed * 7.1) * 0.070
+        + Math.sin(angle * 7 + seed * 13.7) * 0.035
+        + Math.sin(angle * 11 + seed * 19.3) * 0.018;
+      const x = point.x + Math.cos(angle) * radius * shape;
+      const y = point.y + Math.sin(angle) * radius * shape;
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
   }
 
   function drawNexus(ctx, point, rootCount, timestamp, interacting) {
-    const pulse = 0.90 + Math.sin(timestamp * 0.0016) * 0.08;
-    const radius = clamp(30 + rootCount * 4, 38, 58);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-    gradient.addColorStop(0, `rgba(248,253,255,${((interacting ? 0.22 : 0.42) * pulse).toFixed(3)})`);
-    gradient.addColorStop(0.16, `rgba(126,219,255,${((interacting ? 0.17 : 0.32) * pulse).toFixed(3)})`);
-    gradient.addColorStop(0.45, `rgba(62,139,255,${((interacting ? 0.10 : 0.20) * pulse).toFixed(3)})`);
-    gradient.addColorStop(0.75, `rgba(88,74,255,${((interacting ? 0.05 : 0.12) * pulse).toFixed(3)})`);
-    gradient.addColorStop(1, 'rgba(24,56,210,0)');
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = gradient;
-    ctx.fill();
+    const pulse = 0.96 + Math.sin(timestamp * 0.00125) * 0.035;
+    const radius = clamp(24 + rootCount * 3.2, 30, 46);
+    const seed = rootCount * 0.173 + point.x * 0.0007 + point.y * 0.0009;
+    const detail = interacting ? 0.65 : 1;
 
-    if (!interacting) {
-      for (let ray = 0; ray < 18; ray += 1) {
-        const angle = (ray / 18) * Math.PI * 2 + hash(ray + 1.9, 1, 2) * 0.22;
-        const reach = radius * (0.58 + hash(ray + 2.7, 3, 4) * 0.78);
-        ctx.beginPath();
-        ctx.moveTo(point.x, point.y);
-        ctx.lineTo(point.x + Math.cos(angle) * reach, point.y + Math.sin(angle) * reach);
-        ctx.lineWidth = ray % 3 === 0 ? 0.9 : 0.45;
-        ctx.strokeStyle = ray % 3 === 0 ? 'rgba(218,249,255,.46)' : 'rgba(100,206,255,.28)';
-        previousStroke.call(ctx);
-      }
-    }
+    // Base soma: a low-contrast irregular body that covers the hard convergence point.
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    traceOrganicNexus(ctx, point, radius * pulse, seed);
+    ctx.shadowBlur = interacting ? 4 : 16;
+    ctx.shadowColor = `rgba(54,83,255,${(0.24 * detail).toFixed(3)})`;
+    const body = ctx.createRadialGradient(point.x, point.y, radius * 0.08, point.x, point.y, radius);
+    body.addColorStop(0, `rgba(96,130,255,${(0.31 * detail).toFixed(3)})`);
+    body.addColorStop(0.45, `rgba(55,99,235,${(0.25 * detail).toFixed(3)})`);
+    body.addColorStop(0.78, `rgba(56,70,205,${(0.17 * detail).toFixed(3)})`);
+    body.addColorStop(1, `rgba(31,54,154,${(0.06 * detail).toFixed(3)})`);
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.restore();
+
+    // Soma membrane and a quiet internal nucleus. No starburst rays in this anatomy pass.
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    traceOrganicNexus(ctx, point, radius * pulse, seed);
+    ctx.lineWidth = 1.25;
+    ctx.strokeStyle = `rgba(126,190,255,${(0.40 * detail).toFixed(3)})`;
+    ctx.shadowBlur = interacting ? 1 : 5;
+    ctx.shadowColor = `rgba(80,154,255,${(0.25 * detail).toFixed(3)})`;
+    previousStroke.call(ctx);
+
+    const nucleusRadius = radius * 0.34;
+    const nucleus = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, nucleusRadius);
+    nucleus.addColorStop(0, `rgba(222,248,255,${(0.46 * detail).toFixed(3)})`);
+    nucleus.addColorStop(0.42, `rgba(94,190,255,${(0.24 * detail).toFixed(3)})`);
+    nucleus.addColorStop(1, 'rgba(64,88,255,0)');
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, nucleusRadius, 0, Math.PI * 2);
+    ctx.fillStyle = nucleus;
+    ctx.fill();
     ctx.restore();
   }
 
   function drawSharedNetwork(ctx, roots, timestamp, interacting) {
     if (roots.length < 2) return;
     const nexus = nexusPoint(roots);
-    drawNexus(ctx, nexus, roots.length, timestamp, interacting);
 
     roots.forEach((root, index) => {
       const seed = Math.abs(Math.sin(root.centre.x * 0.017 + root.centre.y * 0.029 + index * 0.731));
       const curve = controlPoints(nexus, root.centre, seed, 0.78, index + 1);
       const width = clamp(curve.length * 0.055, 10, 20);
-      drawTube(ctx, curve, width, interacting);
-      drawBundle(ctx, curve, width, seed, interacting);
-      drawDendrites(ctx, curve, seed + 0.37, interacting);
-      drawFibreLights(ctx, curve, seed + 0.83, timestamp, interacting);
-      if (!interacting) drawPulse(ctx, curve, seed, timestamp);
+      drawOrganicTube(ctx, curve, width, seed, interacting);
     });
+
+    // Paint the soma last so the trunks visually fuse into one body instead of meeting at a sharp star point.
+    drawNexus(ctx, nexus, roots.length, timestamp, interacting);
   }
 
   function drawFrame(timestamp) {
