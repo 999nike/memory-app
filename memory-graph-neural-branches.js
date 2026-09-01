@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 2;
+  const VERSION = 3;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralBranchesInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralBranchesInstalled', { value: true });
@@ -131,18 +131,23 @@
   }
 
   function controlPoints(from, to, seed, bendScale = 1, lane = 0) {
+    // Reconstruct Nexus's trunk exactly; keep the branch-detail hash separate.
+    const trunkHash = (a, b) => {
+      const value = Math.sin(seed * 7127.913 + a * 79.117 + b * 193.731) * 43758.5453;
+      return value - Math.floor(value);
+    };
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const length = Math.max(1, Math.hypot(dx, dy));
     const px = -dy / length;
     const py = dx / length;
-    const side = hash(seed, lane, 1) > 0.5 ? 1 : -1;
-    const bend = side * clamp(length * (0.09 + hash(seed, lane, 2) * 0.10), 10, 86) * bendScale;
-    const skew = (hash(seed, lane, 3) - 0.5) * 0.16;
+    const side = trunkHash(lane, 1) > 0.5 ? 1 : -1;
+    const bend = side * clamp(length * (0.10 + trunkHash(lane, 2) * 0.11), 12, 94) * bendScale;
+    const skew = (trunkHash(lane, 3) - 0.5) * 0.18;
     return {
       p0: from,
-      p1: { x: from.x + dx * (0.28 + skew) + px * bend * 0.72, y: from.y + dy * (0.28 + skew) + py * bend * 0.72 },
-      p2: { x: from.x + dx * (0.70 - skew) + px * bend, y: from.y + dy * (0.70 - skew) + py * bend },
+      p1: { x: from.x + dx * (0.27 + skew) + px * bend * 0.76, y: from.y + dy * (0.27 + skew) + py * bend * 0.76 },
+      p2: { x: from.x + dx * (0.71 - skew) + px * bend, y: from.y + dy * (0.71 - skew) + py * bend },
       p3: to,
       length
     };

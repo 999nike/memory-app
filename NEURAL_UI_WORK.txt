@@ -186,8 +186,38 @@ LAYER CHECKLIST
     - Fixture replay is not the HP browser; equivalent draw counts do not prove equivalent GPU time.
     Next gate:
     [ ] Apply Nexus/Width/index/tracker and verify Nexus.version === 5, Width.version === 14.
-    [ ] Compare the middle connector with the reference and check dragging on HP.
+    [x] HP screenshot 28fe7e82-8ec4-4608-964d-9e5f20ba863f.png shows the brighter compact central mesh and clearer internal fibres.
+    [ ] HP drag/FPS after Nexus V5 remains unreported; screenshot alone cannot establish performance or VERSION globals.
     [ ] Dark app-root petals and remaining medium-branch artifacts are separate existing renderer problems; do not add overlays.
+
+[x] 33 — MATCH BRANCH ATTACHMENTS TO THE VISIBLE TRUNK (Branches V3)
+    Latest visual review:
+    - The Nexus centre change is visible; the reference is not yet fully matched.
+    - Remaining purple branches prompted a check of their attachment geometry.
+    Proven source defect:
+    - Branches reconstructed the major trunk using different hash constants, bend limits, skew and control-point fractions from Nexus.
+    - Across 10 fixture trunks / 50 sampled branch positions, old curves differed by mean 36.84 CSS pixels, maximum 91.70.
+    - These are controlled fixture distances, not recovered HP node coordinates.
+    Smallest correction:
+    - Branches controlPoints() now uses the exact Nexus trunk noise and curve formula.
+    - Branch-detail hash, root widths, fork count, materials and free-root drawing remain unchanged.
+    - Existing branches move onto their intended trunk; graph nodes, topology, physics and drag code are unchanged.
+    - No renderer, mask, canvas or drawing pass added.
+    Integration:
+    - Width V15 changes only VERSION and the existing Branches loader URL from v2 to v3.
+    - index.html requests Width v15; Nexus remains V5 and script ordering is unchanged.
+    Validation:
+    - Branches/Width JavaScript syntax checks pass.
+    - All sampled corrected trunk positions and tangents match Nexus exactly, as do all control points.
+    - Native Canvas replay at DPR 1.5: Branches stays at 1,177 strokes/214 fills idle and 9 strokes/6 fills interacting in this fixture.
+    - Other layer stroke output and all operation counts unchanged; branch stroke styling unchanged; empty scene safe.
+    - Before/after fixture images reviewed. HP visual/drag verification pending; draw counts are not a GPU timing guarantee.
+    Maintenance rule:
+    - Keep this trunk reconstruction synchronized with Nexus controlPoints(). Do not conceal future attachment mismatches with overlays.
+    Next gate:
+    [ ] Apply Branches/Width/index/tracker; verify Branches.version === 3 and Width.version === 15.
+    [ ] Check purple branch bases against the main trunk, then test dragging.
+    [ ] Dark app-root petals and broad branch materials remain separate visual issues; do not call the full target complete.
 
 CURRENT FILE ROLES
 - memory-graph-neural-scaffold.js VERSION 7
@@ -205,8 +235,8 @@ CURRENT FILE ROLES
 - memory-graph-neural-arms.js VERSION 4
   Mantle, internal mesh, medium roots, micro-roots, soma lace.
 
-- memory-graph-neural-branches.js VERSION 2
-  Second-order roots, tissue forks, tertiary roots, hair fibres.
+- memory-graph-neural-branches.js VERSION 3
+  Second-order roots, tissue forks and fibres; major-trunk reconstruction now matches Nexus.
 
 - memory-graph-neural-lattice.js VERSION 2
   Fine outer lattice, cross-links, embedded axon lights, dense soma mesh.
@@ -223,8 +253,8 @@ CURRENT FILE ROLES
 - memory-graph-neural-spoke-bundle.js VERSION 2
   App-root shared stem/bundle plus final global neural web convergence layer.
 
-- memory-graph-neural-width.js VERSION 14
-  Loader/integration and startup responsibilities; Nexus v5 loader URL only, startup behaviour unchanged.
+- memory-graph-neural-width.js VERSION 15
+  Loader/integration and startup responsibilities; Nexus v5 and Branches v3 URLs, startup behaviour unchanged.
 
 LATEST IMPORTANT COMMITS
 - Main trunk renderer V4: 11d2a43e3f270e2367fa6dfc392472a34eb60db0

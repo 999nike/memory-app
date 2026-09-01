@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 14;
+  const VERSION = 15;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
@@ -310,7 +310,7 @@
     }
     const script = document.createElement('script');
     script.id = 'memoryGraphNeuralBranchesLoader';
-    script.src = './memory-graph-neural-branches.js?v=2';
+    script.src = './memory-graph-neural-branches.js?v=3';
     script.async = false;
     script.addEventListener('load', () => {
       loadNeuralLattice();
