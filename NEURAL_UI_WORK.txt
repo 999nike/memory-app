@@ -3,8 +3,8 @@ Date: 2026-09-01
 Branch: molecular-v2
 
 REFERENCE
-- Primary target: the neural-network reference image supplied in this work chat.
-- Always compare the latest browser screenshot against that image before changing style.
+- Primary target: neural/brain reference image from this work chat.
+- Compare every new browser screenshot to that reference before changing style.
 
 SAFETY RULES
 [x] Do not change graph topology.
@@ -12,112 +12,97 @@ SAFETY RULES
 [x] Do not change drag/drop.
 [x] Do not change persistence.
 [x] Do not change app behaviour.
-[x] Keep new work synthetic/render-only.
+[x] Keep visual work synthetic/render-only.
 [x] Work from this checklist, not memory alone.
 
 TARGET ANATOMY
 - one connected neural organism
-- thick organic trunks, not clean cables
+- thick irregular organic trunks
 - blue/violet translucent tissue
-- thin internal bright spine
-- swollen irregular central soma
-- tiny travelling fibre lights
-- dense fine roots/webbing
-- medium, second-order and tertiary organic root branches
-- grown transitions into app clusters
-- internal vascular mesh
-- app-child spokes must also read as roots, not bright electric fans
-- small luminous axon knots distributed through the tissue like the reference
+- thin bright internal spine
+- swollen irregular soma/nexus
+- tiny fibre lights inside tissue
+- trunk -> thick root -> smaller fork -> fine web hierarchy
+- dense fine webbing around the large anatomy
+- app-child connections must also look biological, not like electric starbursts
+- root terminals must taper into living points/forks, not finish as blunt purple stubs
 
 LAYER CHECKLIST
-[x] Layer 1 — Shared structural nexus
-[x] Layer 2 — Trunk anatomy base
-[x] Layer 3 — Junction / soma refinement
-[x] Layer 4 — Fibre lights along spine
-[x] Layer 5 — Fine side fibres / webbing
-[x] Layer 6 — Initial density / glow tuning
-[x] Layer 7 — Branch crowns + internal trunk weave
-[x] Layer 8 — Medium branch silhouette
-[x] Layer 9 — Screenshot-driven branch repair
-[x] Layer 10 — Dense root-field convergence
-[x] Layer 11 — Trunk bark / soma mantle
-[x] Layer 12 — Main trunk renderer convergence
-[x] Layer 13 — Second-order root anatomy
-[x] Layer 14 — Branch hierarchy refinement
-[x] Layer 15 — Fine neural lattice convergence
-[x] Layer 16 — App-spoke root convergence
+[x] 1 — Shared structural nexus
+[x] 2 — Trunk anatomy base
+[x] 3 — Soma/junction refinement
+[x] 4 — Fibre lights along spine
+[x] 5 — Fine side fibres/webbing
+[x] 6 — Density/glow tuning
+[x] 7 — Branch crowns/internal weave
+[x] 8 — Medium branch silhouette
+[x] 9 — Branch attachment repair
+[x] 10 — Dense root-field convergence
+[x] 11 — Trunk bark/soma mantle
+[x] 12 — Main trunk renderer convergence
+[x] 13 — Second-order root anatomy
+[x] 14 — Branch hierarchy refinement
+[x] 15 — Fine neural lattice
+[x] 16 — Organic app-spoke roots
+[x] 17 — Vascular light / soma lattice tuning
 
-[x] Layer 17 — Lumen / neural-knot convergence  < CODE APPLIED — VISUAL REVIEW PENDING
-    Latest screenshot diagnosis:
-    - app-child spokes are now much less electric and the full network reads as one organism.
-    - the remaining gap versus the target is not more thick anatomy; it is the target's luminous vascular detail.
-    - current tissue is still slightly too dark/skeletal between the large roots, while the reference carries many tiny bright points and more visible connective lace.
+[x] 18 — Terminal + app-spoke convergence  < CODE APPLIED — VISUAL REVIEW PENDING
+    Screenshot diagnosis:
+    - overall network is now recognisably biological and much closer to target.
+    - the biggest remaining shape defect is blunt-ended medium roots: several side branches stop as flat purple stubs.
+    - Code Space / Email child connections are still visually too radial/bright in places and can read as a starburst.
+    - central soma and main trunks are now good enough that adding more mass would be counterproductive.
 
-    Applied memory-graph-neural-lattice.js VERSION 2:
-    - increased trunk lattice sample density from 20 to 26 while preserving the same synthetic major-trunk geometry.
-    - modestly raised outer-lattice and cross-link alpha so fine webbing survives normal zoom.
-    - increased small junction-knot frequency without adding random free-floating particles.
-    - added twelve tiny axon/lumen beads along each existing major trunk curve.
-    - beads sit close to the centreline, use very small cyan/violet halos and bright cores, and therefore read as internal neural activity rather than sparks outside the tissue.
-    - expanded the central soma mesh from 36 to 48 points and strengthened neighbour/cross links slightly.
-    - added fourteen restrained inner soma light knots so the centre reads more like the dense living body in the reference.
-    - interaction mode still removes the new lumen beads and keeps lattice density heavily reduced.
-    - lattice canvas opacity increased from .76 to .88; thick branches/trunks remain on higher visual layers and therefore stay dominant.
+    Applied memory-graph-neural-spokes.js VERSION 2:
+    - stronger narrow masking of the original straight child beams, leaving node ends clear.
+    - organic child roots now bend more strongly and taper almost to a point at their nodes.
+    - darker outer tissue + restrained blue/violet body + thinner centre spine so child spokes stop overpowering the app node.
+    - app-root collar changed toward a soft irregular soma-like cuff instead of a dark radial star.
+    - extra fine side fibres remain restrained around child roots.
+    - same synthetic layer now performs TERMINAL FINISHING for existing medium second-order branches.
+    - terminal finish starts before the old blunt cap, overlaps it, continues beyond it as a tapered tissue root and forks into two smaller biological tips.
+    - terminal geometry is derived from the same deterministic root/nexus positions as the existing branch renderer, so it remains visually attached without changing real graph data.
+    - interaction mode remains heavily reduced.
+    - no graph nodes, edges, topology, physics, persistence, dragging or app behaviour changed.
 
-    Loader integration:
-    - memory-graph-neural-width.js VERSION 12 now requests memory-graph-neural-lattice.js?v=2.
-    - all other neural renderer versions remain pinned to the last visually accepted values.
-
-[ ] Layer 18 — Final screenshot balance only
-    Check:
-    - are the new axon knots visible but still embedded in the organism rather than reading as particle clutter?
-    - is the fine lattice now visible enough around all three main trunks?
-    - does the central soma have enough luminous density without becoming a white starburst?
-    - are Code Space / Email / Memory child roots still visually subordinate to the main anatomy?
-    - next changes should be opacity/count/brightness tuning only unless one specific anatomy mismatch is obvious.
+[ ] 19 — Final reference balance
+    Inspect next screenshot for only these questions:
+    - are the blunt branch caps gone?
+    - are app-child roots now curved/tapered instead of bright radial spokes?
+    - does the central soma need more fine web density, or is it already enough?
+    - do not add another major anatomy system unless a specific remaining defect is obvious.
 
 CURRENT FILE ROLES
-- memory-graph-neural-nexus.js
-  VERSION 4: primary organic trunk bodies, irregular walls, tissue, vascular lanes, centre spine and enlarged living soma.
+- memory-graph-neural-nexus.js VERSION 4
+  Main trunk bodies, tissue, irregular walls, centre spine, living soma.
 
-- memory-graph-neural-detail.js
-  Moving fibre lights, fine tendrils, distal flares, local webbing, soma weave.
+- memory-graph-neural-detail.js VERSION 1
+  Fibre lights, fine tendrils, distal flares, local webbing.
 
-- memory-graph-neural-crowns.js
-  App-root crowns, crown webbing, static knots, secondary vascular detail.
+- memory-graph-neural-crowns.js VERSION 1
+  App-root crowns, local crown webbing, vascular detail.
 
-- memory-graph-neural-arms.js
-  VERSION 4: trunk bark/mantle, internal mesh, medium branches, micro-roots, enlarged soma mantle and nexus lace.
+- memory-graph-neural-arms.js VERSION 4
+  Mantle, internal mesh, medium roots, micro-roots, soma lace.
 
-- memory-graph-neural-branches.js
-  VERSION 2: second-order roots plus tissue forks, tertiary child roots, hair fibres and free soma processes.
+- memory-graph-neural-branches.js VERSION 2
+  Second-order roots, tissue forks, tertiary roots, hair fibres.
 
-- memory-graph-neural-lattice.js
-  VERSION 2: brighter fine outer trunk lattice, cross-links, embedded axon beads and denser central soma mesh.
+- memory-graph-neural-lattice.js VERSION 2
+  Fine outer lattice, cross-links, embedded axon lights, dense soma mesh.
 
-- memory-graph-neural-spokes.js
-  VERSION 1: organic app-child roots plus visual suppression of the old straight electric spokes.
+- memory-graph-neural-spokes.js VERSION 2
+  Organic app-child roots + suppression of old electric spokes + tapered terminal finishing for blunt medium roots.
 
-- memory-graph-neural-width.js
-  VERSION 12: loader/integration plus existing width/startup responsibilities.
-
-CURRENT CODE STATE
-- memory-graph-neural-nexus.js VERSION = 4
-- memory-graph-neural-detail.js VERSION = 1
-- memory-graph-neural-crowns.js VERSION = 1
-- memory-graph-neural-arms.js VERSION = 4
-- memory-graph-neural-branches.js VERSION = 2
-- memory-graph-neural-lattice.js VERSION = 2
-- memory-graph-neural-spokes.js VERSION = 1
-- memory-graph-neural-width.js VERSION = 12
+- memory-graph-neural-width.js VERSION 12
+  Loader/integration and existing startup responsibilities.
 
 LATEST IMPORTANT COMMITS
-- Main trunk renderer VERSION 4: 11d2a43e3f270e2367fa6dfc392472a34eb60db0
-- Branch hierarchy VERSION 2: ac801622aa304c985cbddbbeb896a9c5de0a35b0
-- Organic app-spoke roots VERSION 1: 61cb6b5222ff6f0665cb397bdb851ffad93d96f2
-- Direct spoke-script integration: ae903f0e841e9917e1ea8efd23ad0f73bc71a3e3
-- Lumen lattice VERSION 2: 3c174cfafb0a6cce869ab7d0812bac6020e93ae3
-- Lattice loader VERSION 12: ee21a642db1b8a1f506eadbb7bd4b4587b1422ad
+- Main trunk renderer V4: 11d2a43e3f270e2367fa6dfc392472a34eb60db0
+- Branch hierarchy V2: ac801622aa304c985cbddbbeb896a9c5de0a35b0
+- Lattice V2: 3c174cfafb0a6cce869ab7d0812bac6020e93ae3
+- Lattice loader V12: ee21a642db1b8a1f506eadbb7bd4b4587b1422ad
+- Spoke + terminal convergence V2: 0a0fc757b0967e74bcf024603b27253669ee0dc1
 
 WORKING RULE
-Use the newest browser screenshot and original reference side by side. Fix visible anatomy only. Do not alter graph/data/physics behaviour.
+Use the newest screenshot and original reference side by side. Fix visible anatomy only. Stop expanding the system once the remaining differences are tuning-level rather than structural.
