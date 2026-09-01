@@ -24,6 +24,7 @@ One connected organic neural organism:
 - swollen living nexus/soma
 - tiny travelling fibre lights
 - dense fine neural tendrils/webbing around trunks and nexus
+- medium organic branch forks breaking up long clean trunk silhouettes
 - grown transitions into app clusters
 - visible internal neural/vascular mesh inside large trunks
 - no return to straight electric-cable styling
@@ -80,9 +81,16 @@ LAYER CHECKLIST
     Added four low-opacity wandering vascular fibres inside each major trunk plus irregular cross-ribs so the trunk body has an internal mesh rather than an empty tube.
     All geometry remains synthetic and derived from already-rendered edge positions only.
 
-[ ] Layer 8 — Final visual convergence after browser screenshot
+[x] Layer 8 — Medium branch silhouette
+    Added memory-graph-neural-arms.js as another synthetic render-only layer.
+    Each major trunk now grows three medium translucent side branches at staggered positions rather than remaining one uninterrupted smooth pipe.
+    These branches use blue/violet tissue, a subdued cyan inner membrane and fine forked tips.
+    Branch arms are intentionally much quieter than the main trunk so they read as biological offshoots instead of competing neon beams.
+    Interaction mode reduces this layer to one faint branch per trunk.
+
+[ ] Layer 9 — Final visual convergence after browser screenshot
     Compare directly with reference.
-    Tune only what is visibly wrong: trunk thickness, soma scale, crown density, web opacity, fibre-light brightness, and whether old underlying electric strokes still dominate.
+    Tune only what is visibly wrong: trunk thickness, soma scale, branch-arm reach, crown density, web opacity, fibre-light brightness, and whether old underlying electric strokes still dominate.
     Do not add another visual system unless the screenshot proves a specific missing anatomy.
 
 CURRENT FILE ROLES
@@ -95,6 +103,9 @@ CURRENT FILE ROLES
 - memory-graph-neural-crowns.js
   App-root integration and internal anatomy: secondary root crowns, crown cross-webbing, static light knots, major-trunk vascular weave/cross-ribs.
 
+- memory-graph-neural-arms.js
+  Medium biological offshoots from major trunks to break the clean three-cable silhouette and approach the branching anatomy in the reference.
+
 - memory-graph-neural-width.js
   Loader/integration only for these visual layers plus its existing width/startup responsibilities.
 
@@ -102,22 +113,26 @@ CURRENT CODE STATE
 - memory-graph-neural-nexus.js VERSION = 3
 - memory-graph-neural-detail.js VERSION = 1
 - memory-graph-neural-crowns.js VERSION = 1
-- memory-graph-neural-width.js VERSION = 8
+- memory-graph-neural-arms.js VERSION = 1
+- memory-graph-neural-width.js VERSION = 9
 - Layer 3 commit: 81c711e992d989c60b8c9056fdf1a464e907b074
 - Detail-layer commit: 9cf0cc146dca5b673d768674067dc895ca09c3eb
 - Detail-loader commit: f09828b08baf419178a928c07ccea4601c60e12f
 - Crown-layer commit: 7897ee07a56268c8e0332e98f73cf5451a8da2ca
 - Crown-loader commit: d28b245277aacf22d3b535d6e998d7f1ea015403
+- Branch-arm commit: 61b97829e44f3ce5307462660b1db27ad4bbf7d7
+- Branch-arm loader commit: e42d4d8b6ddabbfd0bb2a86f566836865148630d
 
 NEXT REVIEW
-Pull the four visual renderer/loader files and hard-refresh.
+Pull the five visual renderer/loader files and hard-refresh.
 Judge directly against the primary reference image on:
 1. Does the centre read as a swollen neural body rather than a Y pipe?
 2. Do main trunks read as living translucent roots rather than neon cable?
 3. Can you see a subtle internal mesh/vascular structure inside those trunks?
-4. Do app clusters now look grown out of secondary root crowns rather than separate starbursts?
-5. Are fibre lights subtle enough to feel internal rather than spark effects?
-6. Does the fine webbing connect the organism without hiding nodes?
-7. Is the full graph still readable and smooth while interacting?
+4. Do medium side branches break the long clean trunk silhouette in a biological way?
+5. Do app clusters now look grown out of secondary root crowns rather than separate starbursts?
+6. Are fibre lights subtle enough to feel internal rather than spark effects?
+7. Does the fine webbing connect the organism without hiding nodes?
+8. Is the full graph still readable and smooth while interacting?
 
-After that screenshot, Layer 8 is tuning only unless a specific anatomy gap is obvious.
+After that screenshot, Layer 9 is tuning only unless a specific anatomy gap is obvious.
