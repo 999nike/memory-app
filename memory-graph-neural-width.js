@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 5;
+  const VERSION = 6;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
@@ -277,10 +277,21 @@
     document.head.appendChild(script);
   }
 
+  function loadNeuralNexus() {
+    if (document.getElementById('memoryGraphNeuralNexusLoader') || globalThis.MemoryGraphNeuralNexus) return;
+    const script = document.createElement('script');
+    script.id = 'memoryGraphNeuralNexusLoader';
+    script.src = './memory-graph-neural-nexus.js?v=1';
+    script.async = false;
+    script.addEventListener('load', () => globalThis.MemoryGraph?.redraw?.());
+    document.head.appendChild(script);
+  }
+
   function mount() {
     nativeRequestAnimationFrame(watchGroupAddControl);
     loadGroupUx();
     loadMemoryDive();
+    loadNeuralNexus();
     watchStartupGeometry();
   }
 
