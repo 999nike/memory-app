@@ -3,8 +3,9 @@ Date: 2026-09-01
 Branch: molecular-v2
 
 REFERENCE
-- Visual target: use the neural-network reference image supplied in this work chat if direction is uncertain.
-- Latest verified screenshot: trunk-anatomy pass moved the main connectors away from electric ribbons toward organic root tubes.
+- Primary visual target: the neural-network reference image supplied in this work chat.
+- If visual direction is uncertain, return to that image before changing rendering style.
+- Last user-approved direction: the trunk-anatomy screenshot was closer to target; continue stacking layers until the result is near enough to justify another browser test.
 
 SAFETY RULES
 [x] Do not change graph topology.
@@ -12,7 +13,8 @@ SAFETY RULES
 [x] Do not change drag/drop.
 [x] Do not change persistence.
 [x] Do not change app behaviour.
-[x] Work one meaningful visual layer at a time and stop for screenshot review.
+[x] Keep all new work in synthetic visual layers.
+[x] Track each layer here before moving on.
 
 OVERALL TARGET
 One connected organic neural organism:
@@ -20,7 +22,10 @@ One connected organic neural organism:
 - blue/violet translucent tissue
 - thin bright internal spine
 - swollen living nexus/soma
-- later: tiny fibre lights and fine neural webbing
+- tiny travelling fibre lights
+- dense fine neural tendrils/webbing around trunks and nexus
+- grown transitions into app clusters
+- no return to straight electric-cable styling
 
 LAYER CHECKLIST
 [x] Layer 1 — Shared structural nexus
@@ -33,32 +38,63 @@ LAYER CHECKLIST
     Basic swollen nexus/soma.
     Parallel electric bundle look removed from the main nexus trunks.
 
-[x] Layer 3 — Junction / soma refinement  < CODE PATCH APPLIED — VISUAL REVIEW PENDING
-    - Central soma enlarged and softened.
-    - Soma shape now grows broad lobes toward each real root direction.
-    - Trunk shoulders swell much more strongly near the soma.
-    - Left/right walls now use stronger independent low/high-frequency variation.
-    - The tissue centreline wanders subtly so the body no longer describes a clean pipe.
-    - A small distal collar swells into each app root.
-    - Membrane outlines are dimmer and thinner.
-    - Tube walls and centre spine use smoothed organic paths rather than angular point-to-point lines.
+[x] Layer 3 — Junction / soma refinement
+    Central soma enlarged and softened.
+    Soma grows broad lobes toward each real root direction.
+    Trunk shoulders swell more strongly near the soma.
+    Left/right walls use stronger independent low/high-frequency variation.
+    Tissue centreline wanders subtly so the body no longer describes a clean pipe.
+    Small distal collars swell into each app root.
+    Membrane outlines are dimmer and thinner.
+    Tube walls and centre spine use smoothed organic paths.
 
-[ ] Layer 4 — Fibre lights along spine
-    Tiny restrained travelling lights, mostly following the internal spine.
+[x] Layer 4 — Fibre lights along spine
+    Added restrained moving micro-lights following the same major nexus curves.
+    Lights are sparse and tiny with cyan/white cores and soft blue/violet halos.
+    Motion is disabled while interacting to protect drag/rotate performance.
 
-[ ] Layer 5 — Fine side fibres / webbing
-    Delicate neural tendrils and cross-webbing around trunks and nexus.
+[x] Layer 5 — Fine side fibres / webbing
+    Added a separate synthetic detail canvas: memory-graph-neural-detail.js.
+    Added curved side tendrils from major trunks.
+    Added small secondary forks.
+    Added low-opacity local cross-links between nearby tendril ends.
+    Added distal fibre flares where major trunks grow into app roots.
+    Added irregular web/ring/chord tissue inside and around the central soma.
+    No real graph edges or nodes were created.
 
-[ ] Layer 6 — Density / glow tuning
-    Balance softness, brightness, translucency and clutter without reverting to neon cable styling.
+[x] Layer 6 — Initial density / glow tuning
+    Detail layer uses screen blending and deliberately low alpha.
+    Main tissue remains visually dominant over micro-fibres.
+    Fine detail canvas is reduced/quiet during interaction.
+    Fibre-light count is bounded by trunk length.
+    Web/tendril density is bounded for desktop/mobile separately.
+    This is the first tuning pass; final brightness/density still depends on screenshot review.
 
-CURRENT PATCH BOUNDARY
-- memory-graph-neural-nexus.js only for visual renderer code.
-- No fibre-light motion added.
-- No dense webbing added.
-- No extra particle clutter added.
-- Stop now for screenshot review before Layer 4.
+CURRENT FILE ROLES
+- memory-graph-neural-nexus.js
+  Main organic body: soma, trunk tissue, irregular membranes, centre spine.
 
-LATEST CODE STATE
+- memory-graph-neural-detail.js
+  Secondary neural detail only: moving fibre lights, side tendrils, small forks, local webbing, distal flares, soma weave.
+
+- memory-graph-neural-width.js
+  Loader/integration only for these visual layers plus its existing width/startup responsibilities.
+
+CURRENT CODE STATE
 - memory-graph-neural-nexus.js VERSION = 3
+- memory-graph-neural-detail.js VERSION = 1
+- memory-graph-neural-width.js VERSION = 7
 - Layer 3 commit: 81c711e992d989c60b8c9056fdf1a464e907b074
+- Detail-layer commit: 9cf0cc146dca5b673d768674067dc895ca09c3eb
+- Detail-loader commit: f09828b08baf419178a928c07ccea4601c60e12f
+
+NEXT REVIEW
+Pull the three renderer/loader files and hard-refresh.
+Judge against the primary reference image on:
+1. Does the centre now read as a swollen neural body rather than a Y pipe?
+2. Do main trunks read as living translucent roots rather than neon cable?
+3. Are fibre lights subtle enough to feel internal rather than spark effects?
+4. Does fine webbing make the apps feel part of one organism without hiding nodes?
+5. Is the density still readable at full graph scale?
+
+Only after that screenshot should final density/glow values be tightened.
