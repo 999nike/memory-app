@@ -158,15 +158,43 @@ LAYER CHECKLIST
     - These are fixture operation counts, not HP GPU timings or a promise of 60 FPS.
     Next gate:
     [ ] Apply only Scaffold/index/tracker; verify MemoryGraphNeuralScaffold.version === 7.
-    [ ] Short HP visual/drag comparison; if needed record 5-10 seconds, then STOP recording.
+    [x] HP user reports dragging is slightly smoother after the Scaffold patch; no FPS measurement supplied.
     [ ] Do not stack another renderer. Reassess remaining Branches/GPU work using the next trace.
+
+[x] 32 — REFERENCE CENTRAL CONNECTOR (Nexus V5)
+    User feedback/gate:
+    - Scaffold improvement is slight; HP has no discrete graphics card. User authorizes continued testing.
+    - Target: first supplied image, ChatGPT Image Aug 30, 2026, 02_05_55 AM(5).png.
+    - Middle connector should read as a compact luminous fibre mesh with translucent blue/violet trunks.
+    - Latest screenshot shows broad flat purple tissue and a diffuse central knot.
+    One renderer changed:
+    - Nexus trunk fills are more transparent; existing internal lanes, boundaries and thin central spine are clearer.
+    - Existing 26 centre-web strokes now join 13 shared junctions into one connected mesh.
+    - Smaller soma with a concentrated blue nucleus; trunk centre paths/widths are retained to avoid disturbing branch attachments.
+    - Trunk shadow blur reduced from 18 to 8 at rest (4 to 2 interacting); soma blur from 26 to 12 (7 to 3 interacting).
+    - No new overlay, canvas, animation loop, node, physics or input change.
+    Integration:
+    - Width V14 changes only VERSION and its existing Nexus loader URL to v=5.
+    - index.html loads Width v=14; existing static/dynamic script order is preserved.
+    Validation:
+    - Both changed JavaScript files pass syntax checks.
+    - Native Canvas replay with the recorded neural stack, Scaffold V7 and fixed main/manual groups at DPR 1.5.
+    - Nexus budget unchanged: 48 strokes/9 fills at rest; 13 strokes/9 fills interacting.
+    - Path operation counts unchanged; existing trunk paths identical; other renderers' recorded strokes/counts identical.
+    - Mesh connectivity verified: all 13 junctions connected by 26 links; empty graph safe.
+    - Before/after fixture images reviewed with source CSS blend modes, opacity and z-order.
+    - Fixture replay is not the HP browser; equivalent draw counts do not prove equivalent GPU time.
+    Next gate:
+    [ ] Apply Nexus/Width/index/tracker and verify Nexus.version === 5, Width.version === 14.
+    [ ] Compare the middle connector with the reference and check dragging on HP.
+    [ ] Dark app-root petals and remaining medium-branch artifacts are separate existing renderer problems; do not add overlays.
 
 CURRENT FILE ROLES
 - memory-graph-neural-scaffold.js VERSION 7
   Underlying main/manual connections and dendrites; redundant spine/strand/particle passes removed after timing audit.
 
-- memory-graph-neural-nexus.js VERSION 4
-  Main trunk bodies, tissue, irregular walls, centre spine, living soma.
+- memory-graph-neural-nexus.js VERSION 5
+  Translucent trunk tissue, visible internal fibres/spine, compact connected soma mesh; existing drawing budget.
 
 - memory-graph-neural-detail.js VERSION 1
   Fibre lights, fine tendrils, distal flares, local webbing.
@@ -195,8 +223,8 @@ CURRENT FILE ROLES
 - memory-graph-neural-spoke-bundle.js VERSION 2
   App-root shared stem/bundle plus final global neural web convergence layer.
 
-- memory-graph-neural-width.js VERSION 13
-  Loader/integration and startup responsibilities.
+- memory-graph-neural-width.js VERSION 14
+  Loader/integration and startup responsibilities; Nexus v5 loader URL only, startup behaviour unchanged.
 
 LATEST IMPORTANT COMMITS
 - Main trunk renderer V4: 11d2a43e3f270e2367fa6dfc392472a34eb60db0

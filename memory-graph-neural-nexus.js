@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 4;
+  const VERSION = 5;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralNexusInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralNexusInstalled', { value: true });
@@ -293,9 +293,9 @@
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     traceClosedTube(ctx, tube);
-    ctx.shadowBlur = interacting ? 4 : 18;
+    ctx.shadowBlur = interacting ? 2 : 8;
     ctx.shadowColor = `rgba(46,67,228,${(0.26 * detail).toFixed(3)})`;
-    ctx.fillStyle = `rgba(20,43,128,${(0.22 * detail).toFixed(3)})`;
+    ctx.fillStyle = `rgba(20,43,128,${(0.08 * detail).toFixed(3)})`;
     ctx.fill();
     ctx.restore();
 
@@ -303,19 +303,19 @@
     ctx.globalCompositeOperation = 'screen';
     traceClosedTube(ctx, tube);
     const tissue = ctx.createLinearGradient(curve.p0.x, curve.p0.y, curve.p3.x, curve.p3.y);
-    tissue.addColorStop(0, `rgba(113,73,255,${(0.37 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.23, `rgba(74,85,249,${(0.32 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.54, `rgba(42,112,235,${(0.28 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.80, `rgba(38,138,236,${(0.24 * detail).toFixed(3)})`);
-    tissue.addColorStop(1, `rgba(44,106,207,${(0.17 * detail).toFixed(3)})`);
+    tissue.addColorStop(0, `rgba(113,73,255,${(0.14 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.23, `rgba(74,85,249,${(0.12 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.54, `rgba(42,112,235,${(0.10 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.80, `rgba(38,138,236,${(0.085 * detail).toFixed(3)})`);
+    tissue.addColorStop(1, `rgba(44,106,207,${(0.06 * detail).toFixed(3)})`);
     ctx.fillStyle = tissue;
     ctx.fill();
 
     if (!interacting) {
       const lanes = [
-        { ratio: 0.32, alpha: 0.13, width: Math.max(0.42, width * 0.035) },
-        { ratio: 0.50, alpha: 0.16, width: Math.max(0.45, width * 0.040) },
-        { ratio: 0.68, alpha: 0.11, width: Math.max(0.38, width * 0.030) }
+        { ratio: 0.32, alpha: 0.42, width: Math.max(0.42, width * 0.035) },
+        { ratio: 0.50, alpha: 0.60, width: Math.max(0.45, width * 0.040) },
+        { ratio: 0.68, alpha: 0.40, width: Math.max(0.38, width * 0.030) }
       ];
       lanes.forEach((lane, laneIndex) => {
         traceSmoothOpen(ctx, interiorLane(tube, lane.ratio, seed + laneIndex * 0.73));
@@ -332,21 +332,21 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(0.48, width * 0.038);
-    ctx.strokeStyle = `rgba(126,173,255,${(0.13 * detail).toFixed(3)})`;
+    ctx.strokeStyle = `rgba(126,173,255,${(0.26 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
 
     traceSmoothOpen(ctx, tube.right);
     ctx.lineWidth = Math.max(0.48, width * 0.038);
-    ctx.strokeStyle = `rgba(111,158,249,${(0.12 * detail).toFixed(3)})`;
+    ctx.strokeStyle = `rgba(111,158,249,${(0.22 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
 
     traceSmoothOpen(ctx, tube.centre);
     ctx.lineWidth = Math.max(0.75, width * 0.050);
-    ctx.strokeStyle = `rgba(64,166,255,${(0.20 * detail).toFixed(3)})`;
+    ctx.strokeStyle = `rgba(64,166,255,${(0.50 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
     traceSmoothOpen(ctx, tube.centre);
-    ctx.lineWidth = Math.max(0.34, width * 0.018);
-    ctx.strokeStyle = `rgba(226,248,255,${(0.72 * detail).toFixed(3)})`;
+    ctx.lineWidth = Math.max(0.55, width * 0.026);
+    ctx.strokeStyle = `rgba(226,248,255,${(0.95 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
     ctx.restore();
   }
@@ -387,47 +387,56 @@
 
   function drawNexusWeb(ctx, point, radius, seed, interacting) {
     if (interacting) return;
+    // Shared junctions form a connected mesh using the existing 26 strokes.
+    const ring = (count, reach, phase) => Array.from({ length: count }, (_, index) => {
+      const angle = index / count * Math.PI * 2 + phase + (hash(seed, index, count) - 0.5) * 0.18;
+      const r = radius * (reach + hash(seed, index, count + 1) * 0.12);
+      return { x: point.x + Math.cos(angle) * r, y: point.y + Math.sin(angle) * r };
+    });
+    const outer = ring(7, 0.76, seed);
+    const inner = ring(6, 0.28, seed + 0.28);
+    const links = [];
+    outer.forEach((p, i) => links.push([p, outer[(i + 1) % outer.length]]));
+    inner.forEach((p, i) => links.push([p, inner[(i + 1) % inner.length]]));
+    outer.forEach((p, i) => links.push([p, inner[Math.floor(i * inner.length / outer.length)]]));
+    inner.forEach((p, i) => links.push([p, outer[Math.ceil((i + 1) * outer.length / inner.length) % outer.length]]));
+
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     ctx.lineCap = 'round';
-    for (let index = 0; index < 26; index += 1) {
-      const local = seed + index * 0.437;
-      const a0 = hash(local, 1, 2) * Math.PI * 2;
-      const a1 = a0 + (0.5 + hash(local, 3, 4) * 1.6) * (hash(local, 5, 6) > 0.5 ? 1 : -1);
-      const r0 = radius * (0.14 + hash(local, 7, 8) * 0.28);
-      const r1 = radius * (0.48 + hash(local, 9, 10) * 0.48);
-      const p0 = { x: point.x + Math.cos(a0) * r0, y: point.y + Math.sin(a0) * r0 };
-      const p1 = { x: point.x + Math.cos(a1) * r1, y: point.y + Math.sin(a1) * r1 };
-      const midAngle = (a0 + a1) * 0.5 + (hash(local, 11, 12) - 0.5) * 0.75;
-      const midRadius = (r0 + r1) * 0.52;
-      const mid = { x: point.x + Math.cos(midAngle) * midRadius, y: point.y + Math.sin(midAngle) * midRadius };
+    links.forEach(([p0, p1], index) => {
+      const bend = (hash(seed, index, 23) - 0.5) * 0.12;
       ctx.beginPath();
       ctx.moveTo(p0.x, p0.y);
-      ctx.quadraticCurveTo(mid.x, mid.y, p1.x, p1.y);
-      ctx.lineWidth = index % 6 === 0 ? 0.42 : 0.24;
-      ctx.strokeStyle = index % 6 === 0 ? 'rgba(186,229,255,.18)' : 'rgba(111,192,255,.10)';
+      ctx.quadraticCurveTo(
+        (p0.x + p1.x) * 0.5 - (p1.y - p0.y) * bend,
+        (p0.y + p1.y) * 0.5 + (p1.x - p0.x) * bend,
+        p1.x, p1.y
+      );
+      ctx.lineWidth = index % 6 === 0 ? 1.10 : 0.75;
+      ctx.strokeStyle = index % 6 === 0 ? 'rgba(211,243,255,.92)' : 'rgba(139,204,255,.68)';
       previousStroke.call(ctx);
-    }
+    });
     ctx.restore();
   }
 
   function drawNexus(ctx, point, roots, timestamp, interacting) {
     const rootCount = roots.length;
     const pulse = 0.986 + Math.sin(timestamp * 0.00115) * 0.018;
-    const radius = clamp(43 + rootCount * 6.0, 58, 84);
+    const radius = clamp(32 + rootCount * 4.0, 44, 64);
     const seed = rootCount * 0.173 + point.x * 0.0007 + point.y * 0.0009;
     const detail = interacting ? 0.62 : 1;
 
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     traceOrganicNexus(ctx, point, radius * pulse, seed, roots);
-    ctx.shadowBlur = interacting ? 7 : 26;
+    ctx.shadowBlur = interacting ? 3 : 12;
     ctx.shadowColor = `rgba(48,66,220,${(0.32 * detail).toFixed(3)})`;
     const body = ctx.createRadialGradient(point.x, point.y, radius * 0.04, point.x, point.y, radius * 1.18);
-    body.addColorStop(0, `rgba(91,103,229,${(0.36 * detail).toFixed(3)})`);
-    body.addColorStop(0.32, `rgba(67,77,212,${(0.33 * detail).toFixed(3)})`);
-    body.addColorStop(0.66, `rgba(51,59,178,${(0.27 * detail).toFixed(3)})`);
-    body.addColorStop(1, `rgba(24,38,112,${(0.10 * detail).toFixed(3)})`);
+    body.addColorStop(0, `rgba(91,103,229,${(0.20 * detail).toFixed(3)})`);
+    body.addColorStop(0.32, `rgba(67,77,212,${(0.18 * detail).toFixed(3)})`);
+    body.addColorStop(0.66, `rgba(51,59,178,${(0.13 * detail).toFixed(3)})`);
+    body.addColorStop(1, `rgba(24,38,112,${(0.05 * detail).toFixed(3)})`);
     ctx.fillStyle = body;
     ctx.fill();
     ctx.restore();
@@ -436,22 +445,22 @@
     ctx.globalCompositeOperation = 'screen';
     traceOrganicNexus(ctx, point, radius * pulse, seed + 0.371, roots, 0.79);
     const tissue = ctx.createRadialGradient(point.x - radius * 0.12, point.y - radius * 0.10, 0, point.x, point.y, radius * 0.88);
-    tissue.addColorStop(0, `rgba(126,101,255,${(0.32 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.42, `rgba(56,130,249,${(0.26 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.78, `rgba(42,92,214,${(0.20 * detail).toFixed(3)})`);
+    tissue.addColorStop(0, `rgba(112,145,255,${(0.46 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.42, `rgba(65,160,255,${(0.32 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.78, `rgba(42,92,214,${(0.10 * detail).toFixed(3)})`);
     tissue.addColorStop(1, 'rgba(55,70,214,0)');
     ctx.fillStyle = tissue;
     ctx.fill();
 
     traceOrganicNexus(ctx, point, radius * pulse, seed, roots);
-    ctx.lineWidth = 0.52;
-    ctx.strokeStyle = `rgba(127,179,255,${(0.13 * detail).toFixed(3)})`;
+    ctx.lineWidth = 0.75;
+    ctx.strokeStyle = `rgba(127,179,255,${(0.48 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
 
-    const nucleusRadius = radius * 0.22;
+    const nucleusRadius = radius * 0.18;
     const nucleus = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, nucleusRadius);
-    nucleus.addColorStop(0, `rgba(220,245,255,${(0.32 * detail).toFixed(3)})`);
-    nucleus.addColorStop(0.42, `rgba(99,180,255,${(0.18 * detail).toFixed(3)})`);
+    nucleus.addColorStop(0, `rgba(220,245,255,${(0.90 * detail).toFixed(3)})`);
+    nucleus.addColorStop(0.42, `rgba(99,180,255,${(0.44 * detail).toFixed(3)})`);
     nucleus.addColorStop(1, 'rgba(65,83,244,0)');
     ctx.beginPath();
     ctx.arc(point.x, point.y, nucleusRadius, 0, Math.PI * 2);
