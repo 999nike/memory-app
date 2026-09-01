@@ -1,0 +1,64 @@
+UNIVERSAL SPACE — NEURAL UI WORK TRACKER
+Date: 2026-09-01
+Branch: molecular-v2
+
+REFERENCE
+- Visual target: use the neural-network reference image supplied in this work chat if direction is uncertain.
+- Latest verified screenshot: trunk-anatomy pass moved the main connectors away from electric ribbons toward organic root tubes.
+
+SAFETY RULES
+[ ] Do not change graph topology.
+[ ] Do not change physics.
+[ ] Do not change drag/drop.
+[ ] Do not change persistence.
+[ ] Do not change app behaviour.
+[ ] Work one meaningful visual layer at a time and stop for screenshot review.
+
+OVERALL TARGET
+One connected organic neural organism:
+- thick root-like trunks
+- blue/violet translucent tissue
+- thin bright internal spine
+- swollen living nexus/soma
+- later: tiny fibre lights and fine neural webbing
+
+LAYER CHECKLIST
+[x] Layer 1 — Shared structural nexus
+    Synthetic visual nexus joins the top-level app clusters without changing real graph semantics.
+
+[x] Layer 2 — Trunk anatomy base
+    Organic double-edged trunk body.
+    Translucent blue/violet inner tissue.
+    Thin bright centre spine.
+    Basic swollen nexus/soma.
+    Parallel electric bundle look removed from the main nexus trunks.
+
+[ ] Layer 3 — Junction / soma refinement  < CURRENT PATCH
+    - Remove remaining clean Y-junction / pipe feel.
+    - Enlarge and soften central soma.
+    - Blend trunk shoulders deeper into soma.
+    - Increase independent left/right wall irregularity.
+    - Add stronger swelling near the nexus and less uniform taper rhythm.
+    - Reduce crisp outline feel.
+    - Make trunk-to-cluster joins feel grown rather than attached.
+
+[ ] Layer 4 — Fibre lights along spine
+    Tiny restrained travelling lights, mostly following the internal spine.
+
+[ ] Layer 5 — Fine side fibres / webbing
+    Delicate neural tendrils and cross-webbing around trunks and nexus.
+
+[ ] Layer 6 — Density / glow tuning
+    Balance softness, brightness, translucency and clutter without reverting to neon cable styling.
+
+CURRENT VISUAL ASSESSMENT
+- Better: trunk body now reads as contained tissue rather than stacked electric lines.
+- Better: centre spine is visible.
+- Better: major apps visually belong to one shared network.
+- Still wrong: central convergence is too geometric and Y-shaped.
+- Still wrong: trunk walls are slightly too tidy and uniform.
+- Still wrong: near-nexus swelling is too weak.
+- Still wrong: the final transition into app clusters is still abrupt.
+
+CURRENT PATCH RULE
+Layer 3 only. No fibre-light motion, no dense webbing, no extra particle clutter. Stop after anatomy/junction refinement for screenshot review.
