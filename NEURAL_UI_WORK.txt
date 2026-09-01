@@ -5,7 +5,7 @@ Branch: molecular-v2
 REFERENCE
 - Primary visual target: the neural-network reference image supplied in this work chat.
 - If visual direction is uncertain, return to that image before changing rendering style.
-- Latest screenshot reviewed: 2026-09-01 after Layers 1–8.
+- Latest screenshot reviewed: branch-arm VERSION 2 browser result.
 
 SAFETY RULES
 [x] Do not change graph topology.
@@ -31,94 +31,54 @@ One connected organic neural organism:
 
 LAYER CHECKLIST
 [x] Layer 1 — Shared structural nexus
-    Synthetic visual nexus joins the top-level app clusters without changing real graph semantics.
-
 [x] Layer 2 — Trunk anatomy base
-    Organic double-edged trunk body.
-    Translucent blue/violet inner tissue.
-    Thin bright centre spine.
-    Basic swollen nexus/soma.
-    Parallel electric bundle look removed from the main nexus trunks.
-
 [x] Layer 3 — Junction / soma refinement
-    Central soma enlarged and softened.
-    Soma grows broad lobes toward each real root direction.
-    Trunk shoulders swell more strongly near the soma.
-    Left/right walls use stronger independent low/high-frequency variation.
-    Tissue centreline wanders subtly so the body no longer describes a clean pipe.
-    Small distal collars swell into each app root.
-    Membrane outlines are dimmer and thinner.
-    Tube walls and centre spine use smoothed organic paths.
-
 [x] Layer 4 — Fibre lights along spine
-    Added restrained moving micro-lights following the same major nexus curves.
-    Lights are sparse and tiny with cyan/white cores and soft blue/violet halos.
-    Motion is disabled while interacting to protect drag/rotate performance.
-
 [x] Layer 5 — Fine side fibres / webbing
-    Added memory-graph-neural-detail.js.
-    Added curved side tendrils from major trunks.
-    Added small secondary forks.
-    Added low-opacity local cross-links between nearby tendril ends.
-    Added distal fibre flares where major trunks grow into app roots.
-    Added irregular web/ring/chord tissue inside and around the central soma.
-    No real graph edges or nodes were created.
-
 [x] Layer 6 — Initial density / glow tuning
-    Detail layer uses screen blending and deliberately low alpha.
-    Main tissue remains visually dominant over micro-fibres.
-    Fine detail canvas is reduced/quiet during interaction.
-    Fibre-light count is bounded by trunk length.
-    Web/tendril density is bounded for desktop/mobile separately.
-
 [x] Layer 7 — Branch crowns + internal trunk weave
-    Added memory-graph-neural-crowns.js.
-    Each top-level app root grows narrow secondary organic rootlets along existing real child-edge directions.
-    Added faint cross-webs and irregular rings between nearby secondary rootlets around each app root.
-    Added small static synaptic light knots along selected secondary roots.
-    Added low-opacity wandering vascular fibres and cross-ribs inside each major trunk.
-
 [x] Layer 8 — Medium branch silhouette
-    Added memory-graph-neural-arms.js as a synthetic render-only layer.
-    Initial version added three medium side branches per major trunk.
-
 [x] Layer 9 — Screenshot-driven branch repair
-    Screenshot diagnosis:
-    - main trunks are moving toward translucent neural roots but remain too clean and cable-like at full scale.
-    - centre is more organic but still reads as a clear three-way junction rather than the dense neural body in the reference.
-    - biggest failure: Layer 8 side branches read as detached curved bars instead of living branches growing out of the trunk.
-    - fine web exists but is visually too weak compared with the reference.
 
-    Applied branch-arm VERSION 2:
-    - replace simple constant-width branch strokes with filled tapered organic branch bodies.
-    - branch roots now start inside/overlap the main trunk and leave at shallow forward-growing angles.
-    - add broad root shoulders at each branch attachment to remove the detached-bar look.
-    - increase to five staggered branches per major trunk when idle.
-    - independently irregular branch walls plus blue/violet translucent tissue.
-    - one fine internal spine inside each medium branch.
-    - branch ends split into three finer tips.
-    - still synthetic/render-only; no graph edges or nodes added.
+[x] Layer 10 — Dense root-field convergence
+    Latest screenshot diagnosis:
+    - medium branches are now attached, but the organism is still too skeletal at full scale.
+    - major trunks remain the dominant clean shape and still read partly as smooth translucent cable.
+    - branch spacing is too regular and the side-root field is too sparse compared with the reference.
+    - centre needs denser lace around the soma instead of another large geometric body.
 
-[ ] Layer 10 — Final convergence from next screenshot
-    Primary questions after branch repair:
-    - are medium roots now physically attached and organic?
-    - do long trunks still look too parallel/outlined?
-    - does the centre need further mass/web density rather than more branches?
-    - does fine webbing need stronger opacity/density?
-    - are app crowns dense enough to merge visually with the large organism?
+    Applied memory-graph-neural-arms.js VERSION 3:
+    - increased medium branch count to eight staggered attachment zones per major trunk while idle.
+    - changed branch direction to shallower forward-growing angles so they read as roots growing with the trunk rather than horns.
+    - reduced medium-branch width and reach so they sit inside a denser biological hierarchy.
+    - branch starts overlap deeply into the main trunk to remove attachment gaps.
+    - added 24 desktop / 14 mobile micro-roots per major trunk, each with occasional forks.
+    - added restrained cross-links between nearby micro-root tips.
+    - added five internal wandering trunk fibres plus irregular cross-ribs to make the main trunk visibly vascular rather than hollow.
+    - added 34 fine curved nexus-lace strands around the central soma.
+    - interaction mode sharply reduces branch and micro-root density.
+    - all geometry remains synthetic/render-only.
+
+[ ] Layer 11 — Main trunk body convergence after next screenshot
+    Only if still visibly needed:
+    - reduce any remaining bright parallel edge/rail appearance in memory-graph-neural-nexus.js.
+    - increase tissue depth / irregular silhouette without making trunks visually heavier than the reference.
+    - tune soma mass vs surrounding lace.
+    - tune micro-root opacity and crown density.
+    - no new renderer unless a specific missing anatomy is obvious.
 
 CURRENT FILE ROLES
 - memory-graph-neural-nexus.js
   Main organic body: soma, trunk tissue, irregular membranes, centre spine.
 
 - memory-graph-neural-detail.js
-  Secondary neural detail: moving fibre lights, side tendrils, small forks, local webbing, distal flares, soma weave.
+  Secondary detail: moving fibre lights, side tendrils, local webbing, distal flares, soma weave.
 
 - memory-graph-neural-crowns.js
-  App-root integration and internal anatomy: secondary root crowns, crown cross-webbing, static light knots, major-trunk vascular weave/cross-ribs.
+  App-root integration and internal anatomy: secondary root crowns, crown cross-webbing, static light knots, trunk vascular weave.
 
 - memory-graph-neural-arms.js
-  Medium biological offshoots. VERSION 2 now uses attached tapered tissue branches rather than simple stroke bars.
+  Medium + micro biological offshoot system. VERSION 3 now also carries dense root-field webbing, trunk mesh and nexus lace.
 
 - memory-graph-neural-width.js
   Loader/integration only for visual layers plus existing width/startup responsibilities.
@@ -127,13 +87,10 @@ CURRENT CODE STATE
 - memory-graph-neural-nexus.js VERSION = 3
 - memory-graph-neural-detail.js VERSION = 1
 - memory-graph-neural-crowns.js VERSION = 1
-- memory-graph-neural-arms.js VERSION = 2
+- memory-graph-neural-arms.js VERSION = 3
 - memory-graph-neural-width.js VERSION = 9
-- Layer 3 commit: 81c711e992d989c60b8c9056fdf1a464e907b074
-- Detail-layer commit: 9cf0cc146dca5b673d768674067dc895ca09c3eb
-- Crown-layer commit: 7897ee07a56268c8e0332e98f73cf5451a8da2ca
-- Branch-arm initial commit: 61b97829e44f3ce5307462660b1db27ad4bbf7d7
 - Branch-arm VERSION 2 repair: a328eef545485c8866bfdcdc622640ab3eb6fb75
+- Dense root-field VERSION 3: a8ff14363049add508fa02bb4fe328264894ad45
 
 WORKING RULE
 Use the latest browser screenshot and the original neural reference side by side. Correct visible anatomy failures before adding any new renderer. Keep changes synthetic and visual only.
