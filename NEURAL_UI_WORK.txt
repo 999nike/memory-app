@@ -97,6 +97,30 @@ LAYER CHECKLIST
     - mask VERSION 2 and spokes VERSION 5 are definitely current.
     If it still looks identical after the version-correct load, inspect runtime canvas/script state instead of adding more graphics.
 
+[x] 30 — REMOVE MISMATCHED BRANCH-TIP REPAIR (Spokes V6)
+    Source audit reproduced a geometry mismatch:
+    - Branches and Spokes use different hash functions to reconstruct supposedly identical branches.
+    - On 15 fixture branches, reconstructed endpoints missed by 13–278 CSS pixels.
+    Smallest patch:
+    - drawShared() no longer invokes drawBranchTipFinish().
+    - Existing app-child spoke drawing is retained; no replacement overlay added.
+    - index.html requests Spokes V6 without changing script order.
+    - Topology, physics, drag/drop, persistence and node positions are untouched.
+    Validation:
+    - JavaScript syntax and isolated before/after renderer checks pass.
+    - 0/1/3-root fixtures tested at idle and while interacting; app-child drawing calls remain identical.
+    - Three-root idle Spokes path operations fall from 11,808 to 3,528 (70%); this is a layer count, not whole-app timing.
+    - HP browser visual/performance verification remains pending; fixture counts are not HP FPS.
+    Remaining audit findings (not changed in this patch):
+    - Scaffold suppresses native blue edges and blocks the earlier-installed Arms hook.
+    - Terminal's interception is bypassed by Arms' saved stroke function.
+    - Multiple overlays continue rebuilding overlapping anatomy.
+    Correction to item 28:
+    - Cache was a hypothesis, not the proven complete cause; the direct Arms load changed hook order.
+    Next gate:
+    [ ] Pull this patch, verify MemoryGraphNeuralSpokes.version === 6, then compare the detached purple tips and lag.
+    [ ] Complete the HP runtime audit before another renderer change.
+
 CURRENT FILE ROLES
 - memory-graph-neural-nexus.js VERSION 4
   Main trunk bodies, tissue, irregular walls, centre spine, living soma.
@@ -122,8 +146,8 @@ CURRENT FILE ROLES
 - memory-graph-neural-spoke-mask.js VERSION 2
   Straight-beam suppression and bundle loader.
 
-- memory-graph-neural-spokes.js VERSION 5
-  Organic app-child roots.
+- memory-graph-neural-spokes.js VERSION 6
+  Organic app-child roots; mismatched branch-tip repair invocation removed.
 
 - memory-graph-neural-spoke-bundle.js VERSION 2
   App-root shared stem/bundle plus final global neural web convergence layer.

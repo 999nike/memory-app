@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 5;
+  const VERSION = 6;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralSpokesInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralSpokesInstalled', { value: true });
@@ -477,7 +477,8 @@
 
   function drawShared(ctx, roots, interacting) {
     roots.forEach((root, index) => drawRootSpokes(ctx, root, index, interacting));
-    drawBranchTipFinish(ctx, roots, interacting);
+    // Branch tips belong to the Branches renderer; reconstructing them here
+    // uses a different hash and draws detached tissue over unrelated geometry.
   }
 
   function drawFrame(timestamp) {
