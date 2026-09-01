@@ -26,6 +26,7 @@ TARGET ANATOMY
 - medium, second-order and tertiary organic root branches
 - grown transitions into app clusters
 - internal vascular mesh
+- app-child spokes must also read as roots, not bright electric fans
 
 LAYER CHECKLIST
 [x] Layer 1 — Shared structural nexus
@@ -42,34 +43,35 @@ LAYER CHECKLIST
 [x] Layer 12 — Main trunk renderer convergence
 [x] Layer 13 — Second-order root anatomy
 [x] Layer 14 — Branch hierarchy refinement
+[x] Layer 15 — Fine neural lattice convergence
 
-[x] Layer 15 — Fine neural lattice convergence  < CODE APPLIED — VISUAL REVIEW PENDING
-    Latest result before this pass:
-    - branch hierarchy is now reading well and the user confirmed the direction looks great.
-    - remaining visual gap to the reference is the dense fine connective mesh around the larger root anatomy.
-    - the target is not more thick branches; it is delicate webbing wrapping and cross-linking the existing structure.
+[x] Layer 16 — App-spoke root convergence  < CODE APPLIED — VISUAL REVIEW PENDING
+    Latest screenshot diagnosis:
+    - the main network silhouette is now much closer to the reference and the fine lattice is visible.
+    - the standout mismatch is now inside the app clusters, especially Code Space: child connections still read as a bright clean electric fan.
+    - that electric fan breaks the organic continuity even though the inter-app trunks are now biological.
 
-    Added memory-graph-neural-lattice.js VERSION 1:
-    - synthetic fine web field runs around each existing major trunk without changing real graph edges.
-    - left/right outer fibres wander independently around the trunk and cross-link into irregular mesh cells.
-    - restrained transverse strands bridge across the root body at selected intervals.
-    - tiny low-alpha light knots appear at selected lattice intersections.
-    - a separate irregular nexus mesh wraps the central soma with curved neighbour-links and cross-links.
-    - this layer sits visually behind the thicker branch layers so anatomy remains readable.
-    - interaction mode sharply reduces density and alpha.
+    Added memory-graph-neural-spokes.js VERSION 1:
+    - captures only the existing semantic blue app-child spokes; creates no new real edges or nodes.
+    - overlays each original straight bright spoke with a dark narrow cover so the old electric beam is visually suppressed without changing graph drawing semantics.
+    - redraws each child connection as a curved irregular tapered tissue root.
+    - root bodies use dark blue outer tissue, blue/violet translucent inner tissue and one thin bright centre spine.
+    - each app-spoke root gets restrained side fibres and a small irregular root collar at the app centre.
+    - width scales gently with spoke length so long Code Space spokes no longer dominate as white beams.
+    - interaction mode reduces cover/body intensity and disables fine side fibres.
+    - overlay uses a normal-composite canvas only along the path geometry so nodes remain untouched.
 
-    Loader integration:
-    - memory-graph-neural-width.js VERSION 11 now loads the lattice after the second-order branch layer.
-    - branch cache tag moved to v=2 so the confirmed good branch-hierarchy renderer is fetched consistently.
-    - nexus remains pinned to v=4.
+    Integration:
+    - index.html loads memory-graph-neural-spokes.js?v=1 before memory-graph.js so it can intercept the existing rendered spokes.
+    - no changes to memory-graph-neural-width.js, topology, physics, persistence, drag/drop or application behaviour.
 
-[ ] Layer 16 — Screenshot tuning only
+[ ] Layer 17 — Final screenshot balance / convergence
     Check:
-    - is the fine mesh visible enough at normal zoom?
-    - does it now feel like one neural organism instead of several roots laid over empty space?
-    - does the soma web approach the dense living centre in the reference?
-    - if too busy, reduce lattice opacity/count only.
-    - if too faint, raise lattice alpha modestly before changing branch anatomy.
+    - are Code Space / Email / Memory child spokes now organic rather than electric fans?
+    - do app clusters visually grow out of the same neural tissue as the main trunks?
+    - is the dark cover too strong around any child spoke?
+    - if needed, tune only spoke width/cover alpha/tissue alpha/curve bend.
+    - do not add another renderer unless a clearly different missing anatomy remains.
 
 CURRENT FILE ROLES
 - memory-graph-neural-nexus.js
@@ -90,6 +92,9 @@ CURRENT FILE ROLES
 - memory-graph-neural-lattice.js
   VERSION 1: fine outer trunk lattice, cross-links, tiny light knots and central soma mesh.
 
+- memory-graph-neural-spokes.js
+  VERSION 1: organic app-child roots plus visual suppression of the old straight electric spokes.
+
 - memory-graph-neural-width.js
   VERSION 11: loader/integration plus existing width/startup responsibilities.
 
@@ -100,6 +105,7 @@ CURRENT CODE STATE
 - memory-graph-neural-arms.js VERSION = 4
 - memory-graph-neural-branches.js VERSION = 2
 - memory-graph-neural-lattice.js VERSION = 1
+- memory-graph-neural-spokes.js VERSION = 1
 - memory-graph-neural-width.js VERSION = 11
 
 LATEST IMPORTANT COMMITS
@@ -107,6 +113,8 @@ LATEST IMPORTANT COMMITS
 - Branch hierarchy VERSION 2: ac801622aa304c985cbddbbeb896a9c5de0a35b0
 - Fine lattice VERSION 1: 2f961720b9eb0fcc0157d357447e8d252b6907db
 - Lattice loader VERSION 11: 297d3d15d7da4b837d38836d9f5af50e54956ea6
+- Organic app-spoke roots VERSION 1: 61cb6b5222ff6f0665cb397bdb851ffad93d96f2
+- Direct spoke-script integration: ae903f0e841e9917e1ea8efd23ad0f73bc71a3e3
 
 WORKING RULE
 Use the newest browser screenshot and original reference side by side. Fix visible anatomy only. Do not alter graph/data/physics behaviour.
