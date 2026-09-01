@@ -2,6 +2,16 @@ UNIVERSAL SPACE — NEURAL UI WORK TRACKER
 Date: 2026-09-01
 Branch: molecular-v2
 
+HISTORICAL FAILED EXPERIMENT — 1 September 2026 restoration update
+The user restored a working LOCAL version and paused this patch sequence.
+The version lists and unchecked next steps below describe the older GitHub
+experiment, not the restored HP runtime. Do not apply them automatically.
+Read UNIVERSAL_SPACE_RULES.txt and AGENTS.md first; current location/status is
+in docs/operations/UNIVERSAL_SPACE_LOCATIONS_AND_BASELINE_2026-09-01.md.
+The proposed replacement approach is documented in
+ docs/research/NEURAL_CONNECTOR_RESEARCH_PLAN.md.
+No application code is restored or changed by this documentation update.
+
 REFERENCE
 - Primary target: neural/brain reference image from this work chat.
 - Compare every new browser screenshot to that reference before changing style.

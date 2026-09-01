@@ -1,0 +1,98 @@
+UNIVERSAL SPACE - PROJECT RULES
+Recorded: 1 September 2026
+Owner: devmaster / 999nike
+
+READ THIS FIRST. Maintain this file in place; do not create competing copies.
+Canonical repository path: UNIVERSAL_SPACE_RULES.txt on molecular-v2.
+GitHub publication does not establish installation or branch repair on the HP.
+
+THE REQUIRED SETUP
+
+Repository: https://github.com/999nike/memory-app
+
+main
+  The conventional, normal interface. Preserve it.
+  Do not put spatial experiments, cleanup commits or restored spatial snapshots
+  on this branch. Do not merge the spatial version into main without the user
+  explicitly requesting it.
+
+molecular-v2
+  The ONE active development/testing branch for the new spatial interface.
+  This is the intended branch for the working folder below.
+
+Working folder: E:\WIZZ-Server\new-version\universal-space
+Test address: http://127.0.0.1:4173
+
+When the user says "main folder" or "root", they mean this working directory,
+NOT the Git branch main. Do not switch to main because of that wording.
+
+CURRENT REPORTED STATE - NOT THE DESIRED SETUP
+
+Latest local Codex audit, 1 September 2026:
+- The working folder serves 4173 and contains the restored, working spatial app.
+- Its HEAD points to main; the working tree is dirty.
+- The audit initially found no configured remotes; old origin refs remained.
+- Latest local Codex report: origin was restored to the repository above and
+  molecular-v2 fetched. The comparison then failed: unknown switch 'n' in
+  git cat-file. No new commit or push followed that failure.
+- Local molecular-v2 is attached to the linked worktree:
+  E:\WIZZ-Server\new-version\universal-space-molecular-v2-bank
+- Snapshot c41c2dbe1bf0b799dc5548836b733ae2de17709a exists without a reachable
+  reference. Its contents have not been verified against the current app here.
+- No successful push of that snapshot has been reported.
+- Port 8090 belongs to E:\WIZZ-Server\workspaces\code-space\server.js;
+  it is not a duplicate Universal Space server.
+
+Required reconciliation: preserve the restored working files and conventional
+main, then establish molecular-v2 in the ONE working folder above and verify
+the intended remote. A snapshot push alone does not fix the local branch or
+worktree mismatch. Do not call reconciliation complete until both are checked.
+Do not switch/reset/copy files blindly to achieve that result.
+The documentation commit on GitHub does not bank the restored application.
+Before banking it later, read the latest remote head and retain these current
+rules and documentation; do not overwrite them with the older snapshot tree.
+Replace this current-state section with dated evidence after a verified change.
+
+STRICT WORKSPACE RULES
+
+1. No new project copies, sibling development folders, branches or worktrees
+   unless the user explicitly requests them. Audit existing extras and unique
+   work before proposing retirement; do not delete them by name alone.
+2. E:\junkz backup is the user's private backup. Do not read, scan, write,
+   move or delete anything there unless the user explicitly requests it.
+3. No automatic backups anywhere. Existing backup folders are not automatic
+   destinations or permission to create more snapshots.
+4. Required runtime/configuration files stay where the working app needs them.
+   Do not reorganize live JavaScript as part of documentation cleanup.
+5. This rules file and a small AGENTS.md entry point may live in the root.
+   AGENTS.md must instruct agents to read this file and the actual handoff;
+   do not duplicate the branch policy across multiple conflicting documents.
+6. Use docs/research/NEURAL_CONNECTOR_RESEARCH_PLAN.md and
+   docs/operations/UNIVERSAL_SPACE_LOCATIONS_AND_BASELINE_2026-09-01.md.
+   Put other maintained documentation in docs/ after an explicit move list
+   and reference updates. Preserve existing filenames. Until those moves are
+   completed, read the existing root UNIVERSAL_SPACE_HANDOFF.md and
+   UNIVERSAL_SPACE_LEDGER.md; do not assume proposed docs paths exist.
+7. Use the system temporary directory for disposable output. No root-level
+   audit dumps, screenshots, patch scripts, spare renderers or backup files.
+8. Trace static and dynamic loading, imports, server routes and external use
+   before removing a candidate. Untracked does not mean unused. HTTP 200 from
+   a static server does not mean the browser executes the file.
+9. No additional renderer overlays without explicit approval. Preserve graph
+   topology, physics, drag/drop, positions, persistence and app behavior during
+   visual work. One coherent patch, followed by an actual visual check.
+10. Before editing, verify the actual working directory and branch against
+    this file. Report a mismatch and resolve it within the user's authorized
+    scope before ordinary development. Do not hide it behind another copy.
+11. If a Git command fails, state the exact error in one sentence and stop.
+    No speculative resets, force pushes, merges or rebases to bypass it.
+
+COMPLETION EVIDENCE
+
+For banking/reconciliation, report: working path, checked-out branch, commit,
+verified remote target, remaining dirty/untracked files, and whether main's
+reference changed. Do not describe intended state as verified state.
+
+For cleanup, report exact moves/removals, updated references and the local
+browser check. Do not claim an audit, a push or a rules file alone cleaned up
+the folders or established the correct branch.
