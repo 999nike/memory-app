@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 12;
+  const VERSION = 13;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
@@ -277,13 +277,29 @@
     document.head.appendChild(script);
   }
 
+  function loadNeuralTerminal() {
+    if (document.getElementById('memoryGraphNeuralTerminalLoader') || globalThis.MemoryGraphNeuralTerminal) return;
+    const script = document.createElement('script');
+    script.id = 'memoryGraphNeuralTerminalLoader';
+    script.src = './memory-graph-neural-terminal.js?v=1';
+    script.async = false;
+    script.addEventListener('load', () => globalThis.MemoryGraph?.redraw?.());
+    document.head.appendChild(script);
+  }
+
   function loadNeuralLattice() {
-    if (document.getElementById('memoryGraphNeuralLatticeLoader') || globalThis.MemoryGraphNeuralLattice) return;
+    if (document.getElementById('memoryGraphNeuralLatticeLoader') || globalThis.MemoryGraphNeuralLattice) {
+      loadNeuralTerminal();
+      return;
+    }
     const script = document.createElement('script');
     script.id = 'memoryGraphNeuralLatticeLoader';
     script.src = './memory-graph-neural-lattice.js?v=2';
     script.async = false;
-    script.addEventListener('load', () => globalThis.MemoryGraph?.redraw?.());
+    script.addEventListener('load', () => {
+      loadNeuralTerminal();
+      globalThis.MemoryGraph?.redraw?.();
+    });
     document.head.appendChild(script);
   }
 
