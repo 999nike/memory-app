@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralSpokeMaskInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralSpokeMaskInstalled', { value: true });
@@ -214,6 +214,16 @@
     return previousStroke.apply(this, args);
   };
 
+  function loadSpokeBundle() {
+    if (document.getElementById('memoryGraphNeuralSpokeBundleLoader') || globalThis.MemoryGraphNeuralSpokeBundle) return;
+    const script = document.createElement('script');
+    script.id = 'memoryGraphNeuralSpokeBundleLoader';
+    script.src = './memory-graph-neural-spoke-bundle.js?v=1';
+    script.async = false;
+    script.addEventListener('load', () => globalThis.MemoryGraph?.redraw?.());
+    document.head.appendChild(script);
+  }
+
   if (!document.getElementById('memoryGraphNeuralSpokeMaskStyles')) {
     const style = document.createElement('style');
     style.id = 'memoryGraphNeuralSpokeMaskStyles';
@@ -233,5 +243,6 @@
     document.head.appendChild(style);
   }
 
+  loadSpokeBundle();
   globalThis.MemoryGraphNeuralSpokeMask = Object.freeze({ version: VERSION, redraw() { lastPaint = 0; } });
 })();
