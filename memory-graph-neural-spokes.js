@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 3;
+  const VERSION = 4;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralSpokesInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralSpokesInstalled', { value: true });
@@ -209,9 +209,9 @@
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     traceSmooth(ctx, body, true);
-    ctx.fillStyle = `rgba(8,28,80,${(0.52 * detail).toFixed(3)})`;
-    ctx.shadowBlur = interacting ? 2 : 10;
-    ctx.shadowColor = `rgba(46,82,235,${(0.20 * detail).toFixed(3)})`;
+    ctx.fillStyle = `rgba(9,33,92,${(0.42 * detail).toFixed(3)})`;
+    ctx.shadowBlur = interacting ? 2 : 11;
+    ctx.shadowColor = `rgba(52,96,244,${(0.24 * detail).toFixed(3)})`;
     ctx.fill();
     ctx.restore();
 
@@ -219,21 +219,21 @@
     ctx.globalCompositeOperation = 'screen';
     traceSmooth(ctx, body, true);
     const tissue = ctx.createLinearGradient(curve.p0.x, curve.p0.y, curve.p3.x, curve.p3.y);
-    tissue.addColorStop(0, `rgba(120,91,255,${(0.40 * detail * brightness).toFixed(3)})`);
-    tissue.addColorStop(0.42, `rgba(73,113,245,${(0.34 * detail * brightness).toFixed(3)})`);
-    tissue.addColorStop(0.78, `rgba(43,145,240,${(0.24 * detail * brightness).toFixed(3)})`);
-    tissue.addColorStop(1, `rgba(38,112,211,${(0.08 * detail * brightness).toFixed(3)})`);
+    tissue.addColorStop(0, `rgba(126,98,255,${(0.46 * detail * brightness).toFixed(3)})`);
+    tissue.addColorStop(0.42, `rgba(79,124,249,${(0.40 * detail * brightness).toFixed(3)})`);
+    tissue.addColorStop(0.78, `rgba(48,157,245,${(0.30 * detail * brightness).toFixed(3)})`);
+    tissue.addColorStop(1, `rgba(41,125,220,${(0.11 * detail * brightness).toFixed(3)})`);
     ctx.fillStyle = tissue;
     ctx.fill();
     traceSmooth(ctx, tube.centre);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.lineWidth = Math.max(0.27, width * 0.045);
-    ctx.strokeStyle = `rgba(111,203,255,${(0.34 * detail * brightness).toFixed(3)})`;
+    ctx.lineWidth = Math.max(0.28, width * 0.048);
+    ctx.strokeStyle = `rgba(116,211,255,${(0.40 * detail * brightness).toFixed(3)})`;
     previousStroke.call(ctx);
     traceSmooth(ctx, tube.centre);
-    ctx.lineWidth = Math.max(0.18, width * 0.020);
-    ctx.strokeStyle = `rgba(233,250,255,${(0.70 * detail * brightness).toFixed(3)})`;
+    ctx.lineWidth = Math.max(0.19, width * 0.021);
+    ctx.strokeStyle = `rgba(239,252,255,${(0.80 * detail * brightness).toFixed(3)})`;
     previousStroke.call(ctx);
     ctx.restore();
   }
@@ -248,11 +248,11 @@
     const ny = dx / length;
     const seed = segment.seed + index * 0.613;
     const side = hash(seed, 1, 2) > 0.5 ? 1 : -1;
-    const bend = side * clamp(length * (0.11 + hash(seed, 3, 4) * 0.11), 8, 36);
+    const bend = side * clamp(length * (0.12 + hash(seed, 3, 4) * 0.12), 9, 38);
     const skew = (hash(seed, 5, 6) - 0.5) * 0.12;
     return {
       p0: from,
-      p1: { x: from.x + dx * (0.28 + skew) + nx * bend * 0.76, y: from.y + dy * (0.28 + skew) + ny * bend * 0.76 },
+      p1: { x: from.x + dx * (0.28 + skew) + nx * bend * 0.78, y: from.y + dy * (0.28 + skew) + ny * bend * 0.78 },
       p2: { x: from.x + dx * (0.70 - skew) + nx * bend, y: from.y + dy * (0.70 - skew) + ny * bend },
       p3: to,
       length,
@@ -263,16 +263,16 @@
   function coverOriginalSpoke(ctx, segment, width, interacting) {
     const dx = segment.to.x - segment.from.x;
     const dy = segment.to.y - segment.from.y;
-    const start = { x: segment.from.x + dx * 0.07, y: segment.from.y + dy * 0.07 };
-    const end = { x: segment.from.x + dx * 0.93, y: segment.from.y + dy * 0.93 };
+    const start = { x: segment.from.x + dx * 0.09, y: segment.from.y + dy * 0.09 };
+    const end = { x: segment.from.x + dx * 0.91, y: segment.from.y + dy * 0.91 };
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
     ctx.lineTo(end.x, end.y);
     ctx.lineCap = 'round';
-    ctx.lineWidth = Math.max(3.2, width * 1.55);
-    ctx.strokeStyle = interacting ? 'rgba(5,16,38,.46)' : 'rgba(5,16,38,.72)';
+    ctx.lineWidth = Math.max(2.4, width * 0.95);
+    ctx.strokeStyle = interacting ? 'rgba(8,25,56,.34)' : 'rgba(8,25,56,.56)';
     previousStroke.call(ctx);
     ctx.restore();
   }
@@ -296,14 +296,14 @@
       ctx.moveTo(p.x, p.y);
       ctx.quadraticCurveTo((p.x + end.x) * 0.5 + nx * side * reach * 0.14, (p.y + end.y) * 0.5 + ny * side * reach * 0.14, end.x, end.y);
       ctx.lineWidth = 0.18 + hash(local, 21, 22) * 0.13;
-      ctx.strokeStyle = 'rgba(125,205,255,.15)';
+      ctx.strokeStyle = 'rgba(132,216,255,.18)';
       previousStroke.call(ctx);
     }
     ctx.restore();
   }
 
   function drawRootCollar(ctx, root, count, interacting) {
-    const radius = clamp(8 + count * 0.72, 10, 16);
+    const radius = clamp(7 + count * 0.58, 8.5, 14);
     const detail = interacting ? 0.40 : 1;
     const seed = root.centre.x * 0.0017 + root.centre.y * 0.0023 + count * 0.61;
     const points = [];
@@ -316,15 +316,15 @@
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     traceSmooth(ctx, points, true);
-    ctx.fillStyle = `rgba(8,29,81,${(0.34 * detail).toFixed(3)})`;
+    ctx.fillStyle = `rgba(12,42,104,${(0.20 * detail).toFixed(3)})`;
     ctx.fill();
     ctx.globalCompositeOperation = 'screen';
-    const glow = ctx.createRadialGradient(root.centre.x, root.centre.y, 0, root.centre.x, root.centre.y, radius * 1.6);
-    glow.addColorStop(0, `rgba(138,124,255,${(0.42 * detail).toFixed(3)})`);
-    glow.addColorStop(0.45, `rgba(73,151,248,${(0.26 * detail).toFixed(3)})`);
-    glow.addColorStop(1, 'rgba(40,105,220,0)');
+    const glow = ctx.createRadialGradient(root.centre.x, root.centre.y, 0, root.centre.x, root.centre.y, radius * 1.7);
+    glow.addColorStop(0, `rgba(151,135,255,${(0.46 * detail).toFixed(3)})`);
+    glow.addColorStop(0.45, `rgba(83,170,252,${(0.31 * detail).toFixed(3)})`);
+    glow.addColorStop(1, 'rgba(45,116,226,0)');
     ctx.beginPath();
-    ctx.arc(root.centre.x, root.centre.y, radius * 1.6, 0, Math.PI * 2);
+    ctx.arc(root.centre.x, root.centre.y, radius * 1.7, 0, Math.PI * 2);
     ctx.fillStyle = glow;
     ctx.fill();
     ctx.restore();
@@ -339,7 +339,7 @@
       const width = baseWidth * (0.98 - Math.min(index, 6) * 0.038) * clamp(segment.length / 78, 0.78, 1.20);
       coverOriginalSpoke(ctx, segment, width, interacting);
       const curve = curveForSpoke(segment, root, index);
-      drawTissueRoot(ctx, curve, width, local, interacting, 1.10);
+      drawTissueRoot(ctx, curve, width, local, interacting, 1.18);
       drawSpokeFibres(ctx, curve, width, local + 0.33, interacting);
     });
     drawRootCollar(ctx, root, candidates.length, interacting);
@@ -395,18 +395,18 @@
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     const cover = ctx.createRadialGradient(end.x, end.y, 0, end.x, end.y, radius * 1.5);
-    cover.addColorStop(0, 'rgba(7,25,74,.78)');
-    cover.addColorStop(0.62, 'rgba(8,28,80,.50)');
-    cover.addColorStop(1, 'rgba(8,28,80,0)');
+    cover.addColorStop(0, 'rgba(7,25,74,.66)');
+    cover.addColorStop(0.62, 'rgba(9,31,88,.42)');
+    cover.addColorStop(1, 'rgba(9,31,88,0)');
     ctx.beginPath();
     ctx.arc(end.x, end.y, radius * 1.5, 0, Math.PI * 2);
     ctx.fillStyle = cover;
     ctx.fill();
     ctx.globalCompositeOperation = 'screen';
     const glow = ctx.createRadialGradient(end.x, end.y, 0, end.x, end.y, radius * 1.8);
-    glow.addColorStop(0, 'rgba(109,104,255,.22)');
-    glow.addColorStop(0.48, 'rgba(53,127,239,.12)');
-    glow.addColorStop(1, 'rgba(53,127,239,0)');
+    glow.addColorStop(0, 'rgba(121,116,255,.28)');
+    glow.addColorStop(0.48, 'rgba(59,143,244,.16)');
+    glow.addColorStop(1, 'rgba(59,143,244,0)');
     ctx.beginPath();
     ctx.arc(end.x, end.y, radius * 1.8, 0, Math.PI * 2);
     ctx.fillStyle = glow;
@@ -449,7 +449,7 @@
         p3: end,
         length: distance(base, end)
       };
-      drawTissueRoot(ctx, fork, width * (0.22 + hash(local, 62, 63) * 0.08), local, false, 0.80);
+      drawTissueRoot(ctx, fork, width * (0.22 + hash(local, 62, 63) * 0.08), local, false, 0.86);
     }
   }
 
@@ -469,7 +469,7 @@
         const branch = branchCurveFromMajor(major, mainWidth, t, side, local);
         blendBranchCap(ctx, branch, interacting);
         const finish = terminalCurve(branch.curve, branch.width, local + 0.83);
-        drawTissueRoot(ctx, finish, branch.width * 0.84, local + 0.91, interacting, 0.78);
+        drawTissueRoot(ctx, finish, branch.width * 0.84, local + 0.91, interacting, 0.84);
         drawTerminalFork(ctx, finish, branch.width * 0.84, local + 1.07, interacting);
       }
     });
