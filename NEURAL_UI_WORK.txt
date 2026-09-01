@@ -53,36 +53,47 @@ LAYER CHECKLIST
 [x] 23 — Terminal alignment correction
 [x] 24 — Exact rendered-path terminal capture
 [x] 25 — Original app-beam suppression mask
+[x] 26 — Bundled app-root convergence
 
-[x] 26 — Bundled app-root convergence  < CODE APPLIED — VISUAL REVIEW PENDING
-    Latest screenshot diagnosis:
-    - the straight original child beams are now largely suppressed; the mask did its job.
-    - main trunks, soma, branching hierarchy and terminal repair remain good and stay untouched.
-    - the remaining obvious mismatch is local to Email/Code Space: their organic app-child roots still begin as a bright radial/fibre-optic fan from one point and then hang as separate tentacles.
-    - target anatomy wants a small shared root body/collar first, then biological splitting into child roots.
+[x] 27 — Reference convergence finish  < CODE APPLIED — VISUAL REVIEW WHEN USER IS FREE
+    Goal:
+    - finish the remaining gap to the target without touching graph behaviour.
+    - keep the strong trunk/soma anatomy already achieved.
+    - make app crowns stop reading as fibre-optic ponytails.
+    - add the missing fine neural organism web around the major anatomy.
 
-    Added memory-graph-neural-spoke-bundle.js VERSION 1:
-    - synthetic visual finishing layer only; no graph/data/physics changes.
-    - captures the same existing semantic app-child endpoints used by spoke/mask rendering.
-    - sits above the existing spoke renderer and masks its bright organic fan paths on their exact deterministic curves.
-    - computes the mean child direction for each app root and creates a short shared organic stem/bundle before the split.
-    - draws a small irregular tissue collar at the app root instead of a starburst centre.
-    - redraws child roots from the bundle hub to their existing real child-node endpoints as darker blue/violet tapered tissue with a restrained cyan lumen and much thinner white spine.
-    - adds only three subtle side fibres per child root; no extra particle clutter.
-    - keeps green child nodes and all hit-testing untouched.
+    memory-graph-neural-spoke-bundle.js VERSION 2:
+    - keeps exact real app-child endpoints and remains synthetic/render-only.
+    - pushes the app split farther away from the app root, creating a clearer shared biological stem before child separation.
+    - increases the irregular app-root tissue collar so the crown reads as one living root body rather than a starburst.
+    - child roots are darker/softer than the shared stem and taper almost to zero at their real node endpoints.
+    - adds restrained local cross-links between nearby child roots, producing small neural mesh cells instead of isolated tentacles.
+    - adds fine side fibres without adding random particle clutter.
+    - continues to mask the older bright organic fan underneath.
 
-    Integration:
-    - memory-graph-neural-spoke-mask.js VERSION 2 now loads the bundle layer dynamically.
-    - no index rewrite needed for this pass.
-    - bundle canvas is z-index 5, above the older spoke canvas, so it can visually replace the fan without touching graph semantics.
+    Final organism web added inside the same VERSION 2 layer:
+    - reconstructs only the already-established synthetic major-trunk curves from the real app-root positions.
+    - adds faint left/right peri-neural web rails outside each major trunk.
+    - adds alternating cross-links through/around the trunk field.
+    - adds a larger irregular mesh around the central soma with small subdued junction lights.
+    - intended to reproduce the target reference's dense connected tissue/web impression while keeping thick trunks dominant.
+    - disabled during active interaction for performance and visual stability.
 
-[ ] 27 — Screenshot / bank decision
-    Check only:
-    - do Email and Code Space now read as one small root body that branches, rather than a fibre-optic fan?
-    - are their child roots darker/softer and subordinate to the main organism?
-    - are green child nodes still clear?
-    - are trunks/soma/large root hierarchy unchanged?
-    - if yes, stop app-root work and bank this neural stack.
+    Safety:
+    - no memory-graph.js changes.
+    - no topology changes.
+    - no physics changes.
+    - no node coordinate changes.
+    - no persistence changes.
+    - no drag/drop changes.
+    - no application behaviour changes.
+
+[ ] 28 — Final browser screenshot / bank
+    When user is free:
+    - pull VERSION 2 bundle and hard-refresh.
+    - compare against original reference image.
+    - only fix a clearly visible local defect if one remains.
+    - otherwise bank the visual stack and stop graphics expansion.
 
 CURRENT FILE ROLES
 - memory-graph-neural-nexus.js VERSION 4
@@ -107,13 +118,13 @@ CURRENT FILE ROLES
   Exact rendered-path terminal capture/taper for medium roots; no reconstructed branch geometry.
 
 - memory-graph-neural-spoke-mask.js VERSION 2
-  Exact straight-beam suppression plus loader for the bundled app-root finishing layer.
+  Exact straight-beam suppression plus loader for bundled app-root finishing.
 
 - memory-graph-neural-spokes.js VERSION 5
   Earlier organic app-child roots retained below the final bundle layer.
 
-- memory-graph-neural-spoke-bundle.js VERSION 1
-  Final app-root crown/bundle: masks radial organic fan, creates one short shared root body, then rebranches to real child endpoints with restrained tissue/lumen rendering.
+- memory-graph-neural-spoke-bundle.js VERSION 2
+  Final app-root bundle plus final global neural web convergence layer.
 
 - memory-graph-neural-width.js VERSION 13
   Loader/integration and existing startup responsibilities; loads terminal repair after lattice.
@@ -129,6 +140,7 @@ LATEST IMPORTANT COMMITS
 - Mask script integration: 7b173691c8d1b238bdab21e4a80feb57c4eea831
 - Bundled app-root finishing V1: 18bbf2360254a68dd943cd371b0bf9a2cf5f1de1
 - Mask loader V2: 9d76a09e430776ad5d9b2ec32aa27e34dda58ff8
+- Final bundle/global-web V2: 111b5144712e25b5c4015aa8407cb62ac8cb977b
 
 WORKING RULE
 Use the newest screenshot and original reference side by side. Fix visible anatomy only. Stop expanding the system once the remaining differences are tuning-level rather than structural.
