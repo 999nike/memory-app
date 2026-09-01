@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 15;
+  const VERSION = 16;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
@@ -277,109 +277,15 @@
     document.head.appendChild(script);
   }
 
-  function loadNeuralTerminal() {
-    if (document.getElementById('memoryGraphNeuralTerminalLoader') || globalThis.MemoryGraphNeuralTerminal) return;
-    const script = document.createElement('script');
-    script.id = 'memoryGraphNeuralTerminalLoader';
-    script.src = './memory-graph-neural-terminal.js?v=1';
-    script.async = false;
-    script.addEventListener('load', () => globalThis.MemoryGraph?.redraw?.());
-    document.head.appendChild(script);
-  }
-
-  function loadNeuralLattice() {
-    if (document.getElementById('memoryGraphNeuralLatticeLoader') || globalThis.MemoryGraphNeuralLattice) {
-      loadNeuralTerminal();
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = 'memoryGraphNeuralLatticeLoader';
-    script.src = './memory-graph-neural-lattice.js?v=2';
-    script.async = false;
-    script.addEventListener('load', () => {
-      loadNeuralTerminal();
-      globalThis.MemoryGraph?.redraw?.();
-    });
-    document.head.appendChild(script);
-  }
-
-  function loadNeuralBranches() {
-    if (document.getElementById('memoryGraphNeuralBranchesLoader') || globalThis.MemoryGraphNeuralBranches) {
-      loadNeuralLattice();
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = 'memoryGraphNeuralBranchesLoader';
-    script.src = './memory-graph-neural-branches.js?v=3';
-    script.async = false;
-    script.addEventListener('load', () => {
-      loadNeuralLattice();
-      globalThis.MemoryGraph?.redraw?.();
-    });
-    document.head.appendChild(script);
-  }
-
-  function loadNeuralArms() {
-    if (document.getElementById('memoryGraphNeuralArmsLoader') || globalThis.MemoryGraphNeuralArms) {
-      loadNeuralBranches();
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = 'memoryGraphNeuralArmsLoader';
-    script.src = './memory-graph-neural-arms.js?v=1';
-    script.async = false;
-    script.addEventListener('load', () => {
-      loadNeuralBranches();
-      globalThis.MemoryGraph?.redraw?.();
-    });
-    document.head.appendChild(script);
-  }
-
-  function loadNeuralCrowns() {
-    if (document.getElementById('memoryGraphNeuralCrownsLoader') || globalThis.MemoryGraphNeuralCrowns) {
-      loadNeuralArms();
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = 'memoryGraphNeuralCrownsLoader';
-    script.src = './memory-graph-neural-crowns.js?v=1';
-    script.async = false;
-    script.addEventListener('load', () => {
-      loadNeuralArms();
-      globalThis.MemoryGraph?.redraw?.();
-    });
-    document.head.appendChild(script);
-  }
-
-  function loadNeuralDetail() {
-    if (document.getElementById('memoryGraphNeuralDetailLoader') || globalThis.MemoryGraphNeuralDetail) {
-      loadNeuralCrowns();
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = 'memoryGraphNeuralDetailLoader';
-    script.src = './memory-graph-neural-detail.js?v=1';
-    script.async = false;
-    script.addEventListener('load', () => {
-      loadNeuralCrowns();
-      globalThis.MemoryGraph?.redraw?.();
-    });
-    document.head.appendChild(script);
-  }
-
+  // One middle-trunk renderer. Scaffold owns node branches; Flow owns pulses.
+  // Retired experiments stay unloaded so they cannot add canvases or stroke hooks.
   function loadNeuralNexus() {
-    if (document.getElementById('memoryGraphNeuralNexusLoader') || globalThis.MemoryGraphNeuralNexus) {
-      loadNeuralDetail();
-      return;
-    }
+    if (document.getElementById('memoryGraphNeuralNexusLoader') || globalThis.MemoryGraphNeuralNexus) return;
     const script = document.createElement('script');
     script.id = 'memoryGraphNeuralNexusLoader';
-    script.src = './memory-graph-neural-nexus.js?v=5';
+    script.src = './memory-graph-neural-nexus.js?v=6';
     script.async = false;
-    script.addEventListener('load', () => {
-      loadNeuralDetail();
-      globalThis.MemoryGraph?.redraw?.();
-    });
+    script.addEventListener('load', () => globalThis.MemoryGraph?.redraw?.());
     document.head.appendChild(script);
   }
 

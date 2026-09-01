@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 5;
+  const VERSION = 6;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralNexusInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralNexusInstalled', { value: true });
@@ -286,6 +286,77 @@
     });
   }
 
+  function drawTrunkFibres(ctx, tube, curve, width, seed, interacting) {
+    // Grow bounded forks from the rendered tissue itself, on this existing canvas.
+    // No independent overlay, recursive growth, particle loop or endpoint changes.
+    const count = interacting ? 4 : 9;
+    const branches = [];
+    const synapses = [];
+    for (let index = 0; index < count; index += 1) {
+      for (const side of [-1, 1]) {
+        const t = 0.16 + index / Math.max(1, count - 1) * 0.66
+          + (hash(seed, index, side + 8) - 0.5) * 0.055;
+        const sample = Math.round(t * (tube.centre.length - 1));
+        const anchor = tube.centre[sample];
+        const tangent = tangentOnCurve(curve, t);
+        const nx = -tangent.y * side, ny = tangent.x * side;
+        const reach = clamp(curve.length * 0.17, 24, 66) * (0.42 + hash(seed, index, side + 4) * 0.86);
+        const sweep = -0.2 + hash(seed, index, side + 12) * 1.1;
+        const control = { x: anchor.x + nx * width * 1.4 + tangent.x * reach * sweep,
+          y: anchor.y + ny * width * 1.4 + tangent.y * reach * sweep };
+        const tip = { x: anchor.x + nx * reach + tangent.x * reach * sweep * 1.3,
+          y: anchor.y + ny * reach + tangent.y * reach * sweep * 1.3 };
+        // A quadratic control point is off the drawn curve. Attach forks at B(.55).
+        const u = 0.55, v = 1 - u;
+        const join = { x: v * v * anchor.x + 2 * v * u * control.x + u * u * tip.x,
+          y: v * v * anchor.y + 2 * v * u * control.y + u * u * tip.y };
+        const fork = { x: join.x + nx * reach * 0.44 - tangent.x * reach * 0.36,
+          y: join.y + ny * reach * 0.44 - tangent.y * reach * 0.36 };
+        branches.push([anchor, control, tip], [join, {
+          x: join.x + nx * reach * 0.24, y: join.y + ny * reach * 0.24
+        }, fork]);
+        synapses.push(join);
+      }
+    }
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.shadowBlur = 0;
+    ctx.lineCap = 'round';
+    // Each pass batches every fork; work is bounded per trunk.
+    ctx.beginPath();
+    for (const [start, control, end] of branches) {
+      ctx.moveTo(start.x, start.y);
+      ctx.quadraticCurveTo(control.x, control.y, end.x, end.y);
+    }
+    ctx.lineWidth = interacting ? 1.4 : 2.4;
+    ctx.strokeStyle = 'rgba(44,99,245,.16)';
+    previousStroke.call(ctx);
+    ctx.lineWidth = 0.6;
+    ctx.strokeStyle = 'rgba(103,195,255,.42)';
+    previousStroke.call(ctx);
+    if (!interacting) {
+      ctx.beginPath();
+      for (const point of synapses) {
+        ctx.moveTo(point.x + 1.25, point.y);
+        ctx.arc(point.x, point.y, 1.25, 0, Math.PI * 2);
+      }
+      ctx.fillStyle = 'rgba(168,231,255,.78)';
+      ctx.fill();
+      // Cross fibres share the same tube samples as the longitudinal strands.
+      ctx.beginPath();
+      for (let index = 3; index < tube.centre.length - 4; index += 4) {
+        const left = tube.left[index], right = tube.right[index + 3];
+        ctx.moveTo(left.x, left.y);
+        ctx.lineTo(tube.centre[index + 1].x, tube.centre[index + 1].y);
+        ctx.lineTo(right.x, right.y);
+      }
+      ctx.lineWidth = 0.48;
+      ctx.strokeStyle = 'rgba(127,194,255,.38)';
+      previousStroke.call(ctx);
+    }
+    ctx.restore();
+  }
+
   function drawOrganicTube(ctx, curve, width, seed, interacting) {
     const tube = organicTubePoints(curve, width, seed, interacting);
     const detail = interacting ? 0.62 : 1;
@@ -349,6 +420,7 @@
     ctx.strokeStyle = `rgba(226,248,255,${(0.95 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
     ctx.restore();
+    drawTrunkFibres(ctx, tube, curve, width, seed, interacting);
   }
 
   function angleDelta(a, b) {
@@ -478,7 +550,7 @@
     roots.forEach((root, index) => {
       const seed = Math.abs(Math.sin(root.centre.x * 0.017 + root.centre.y * 0.029 + index * 0.731));
       const curve = controlPoints(nexus, root.centre, seed, 0.78, index + 1);
-      const width = clamp(curve.length * 0.068, 14, 26);
+      const width = clamp(curve.length * 0.035, 7, 14);
       drawOrganicTube(ctx, curve, width, seed, interacting);
     });
 

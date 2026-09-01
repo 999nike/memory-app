@@ -279,3 +279,29 @@ LATEST IMPORTANT COMMITS
 
 WORKING RULE
 Use the newest screenshot and original reference side by side. Fix visible anatomy only. If a patch appears visually unchanged, verify that the exact renderer VERSION is actually loaded before writing another graphics patch.
+
+
+34. 2026-09-01 — bounded connector recovery on molecular-v2
+- Replaced the stacked neural loader chain with Width v16 -> Nexus v6;
+  Scaffold v7 and Flow v3 remain loaded directly. Group UX, dive, startup
+  layout protection, graph physics, endpoint capture and app adapters unchanged.
+- Stopped loading Arms, Terminal, Detail, Crowns, Branches, Lattice, Spokes,
+  SpokeMask and SpokeBundle from both index.html and the dynamic loader chain.
+  Their old files remain in history/current tree, unloaded; no speculative deletion.
+- Nexus now draws a thinner trunk (width clamp 7..14) and bounded connected
+  forks/cross-fibres on its existing canvas. Forks attach at actual quadratic
+  curve points, not off-curve control points. No added canvas or animation loop.
+- Verification: executed the before/after source and loader chains with native
+  Canvas in an isolated temporary DOM fixture, 1150x720, 3 roots, 21 main edges
+  and 4 manual-folder edges. Checked initial attachment counts, moved roots,
+  interaction mode and DPR 2; syntax checks passed. Before/after images inspected.
+- Replay created 11 neural canvases before, 3 after. Over 60 identical simulated
+  frame timestamps: stroke/fill calls fell from 55,117 to 20,788. Mean total
+  neural drawFrame callback time fell from 21.62 ms to 5.44 ms in this replay.
+  These are fixture CPU timings, NOT measured Chrome/HP FPS or GPU timings.
+- Browser access to the temporary localhost fixture was blocked by the browser
+  environment (ERR_BLOCKED_BY_CLIENT); no full-app browser pass claimed here.
+- Changes target the GitHub testing branch only. The restored HP tree, its
+  unresolved checkout state, conventional main, private backup and folders were
+  not changed. Visual agreement with the target and HP performance remain to
+  be checked in the deployed/real app; do not call the whole project restored.
