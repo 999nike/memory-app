@@ -68,6 +68,22 @@
     return changed;
   }
 
+  function prepareGroupedMemoryRelease(memoryId) {
+    const id = String(memoryId || '');
+    const graph = lastGraph;
+    const group = groupForMemory(id);
+    const body = group ? bodies.get(String(group.id)) : null;
+    const node = graph?.memoryNodes?.find((item) => String(item.id) === id);
+    if (!id || !group || !body || !node) return false;
+
+    const satellite = satelliteWorld(node, group, body);
+    node.x = Number(satellite.x);
+    node.y = Number(satellite.y);
+    node.vx = 0;
+    node.vy = 0;
+    return true;
+  }
+
   function addMemoryToGroup(memoryId, groupId) {
     const changed = groupsApi()?.addMemoryToGroup?.(memoryId, groupId) === true;
     if (changed) {
@@ -95,9 +111,11 @@
     return 35 + Math.min(21, Math.sqrt(count) * 7.2);
   }
 
-  // Match the normal memory graph target orbit. Folder size/member count is a
-  // presentation concern; it must not create a second set of gravity rules.
+  // Match the compact direct-child geometry used by the canonical app solver.
+  // Folder size/member count remains an internal presentation concern.
   function normalOrbit(graph, gravityWeight = 1) {
+    const parityOrbit = Number(graph?.memoryGroupOrbit);
+    if (Number.isFinite(parityOrbit)) return parityOrbit;
     const minSide = Math.max(1, Math.min(Number(graph?.width || 1), Number(graph?.height || 1)));
     const baseOrbit = Math.max(88, minSide * 0.27);
     return Math.max(62, baseOrbit / Math.max(0.001, Number(gravityWeight || 1)));
@@ -556,6 +574,14 @@
     flushNeuralLayers();
   }
 
+  function redrawOnly() {
+    const api = globalThis.MemoryGraph;
+    if (typeof api?.redraw !== 'function') return false;
+    api.redraw();
+    flushNeuralLayers();
+    return true;
+  }
+
   function restartBaseSimulation() {
     const api = globalThis.MemoryGraph;
     if (typeof api?.wakeSimulation !== 'function') return false;
@@ -964,8 +990,10 @@
     version: VERSION,
     bodyCount: () => bodies.size,
     isGroupedMemory: (memoryId) => Boolean(groupForMemory(memoryId)),
+    prepareGroupedMemoryRelease,
     persist: persistBodies,
     redraw: () => scheduleGraphRedraw(true),
+    redrawOnly,
     wake: wakePhysics
   });
 })();

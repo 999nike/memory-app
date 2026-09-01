@@ -156,3 +156,13 @@
 
 - Removed the legacy manual-gravity velocity writes to ordinary canonical Memory nodes. Group bodies retain their existing manual force, drag, persistence and projection behavior; the canonical solver is now the only integrator for ordinary Memory nodes.
 - Verified `memory-graph-manual-gravity.js` syntax and served app/Gmail/Code Space endpoints (HTTP 200). Browser drag/settling feel remains pending visual verification.
+
+## Verified Memory position and launch invariants - 31 August 2026
+
+- Group-inspector unpin uses the narrow `MemoryGraphManualGravity.prepareGroupedMemoryRelease(memoryId)` coordinate handoff: it copies only the current visible satellite x/y to the existing canonical Memory node and zeros that node's vx/vy before normal membership detach. It does not rebuild, wake the solver, or alter the group body.
+- Group deletion prepares every member through that same coordinate handoff before deleting the group. The delete path contains no `MemoryGraph.refresh()` and ends with the explicit non-destructive `MemoryGraphManualGravity.redrawOnly()` path.
+- `MemoryGraph.redraw` is exposed as a draw-only graph operation; manual gravity's `redrawOnly()` deliberately does not fall back to `refresh()`. This preserves root, camera and remaining group/body positions during delete/unpin presentation updates.
+- `memory-graph.js` preserves a live Memory root's x/y/vx/vy across legitimate rebuilds. Fresh graph creation alone uses a startup state, so group create/delete/rename/unpin rebuilds no longer recenter the blue root.
+- Memory-root launch position is now saved only at deliberate blue-root drag end in `memory-graph-layout-v1` as normalized x/y ratios. Startup restores it before Memory nodes and manual group bodies are constructed; root velocity is not persisted. When no saved root exists, the fresh launch anchor is 50% canvas width / 22% canvas height.
+- Visually verified: grouped-member unpin and group delete retain member positions; group bodies and the blue root remain stable; group lifecycle rebuilds preserve live root state; hard refresh restores a deliberately moved Memory root; fresh layout uses the upper launch anchor.
+- Files changed: `memory-graph.js`, `memory-graph-manual-gravity.js`, `memory-graph-manual-groups.js`. Relevant pre-change backups: `backupbranches\\inspector-unpin-position-handoff-prepatch-2026-08-31`, `backupbranches\\group-delete-position-handoff-prepatch-2026-08-31`, `backupbranches\\memory-root-rebuild-invariant-prepatch-2026-08-31`, and `backupbranches\\memory-root-launch-position-prepatch-2026-08-31`.

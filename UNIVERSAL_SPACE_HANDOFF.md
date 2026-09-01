@@ -19,6 +19,9 @@
 
 - Titled/group nodes and group inspector working.
 - Contained memories are readable.
+- Inspector unpin and group delete hand off each released member's visible satellite position to its canonical node; neither path rebuilds/recentres the graph.
+- `MemoryGraph.redraw` / manual-gravity `redrawOnly()` provide the non-destructive draw path for those operations.
+- Live Memory-root x/y/vx/vy survive legitimate rebuilds. A deliberate blue-root drag saves normalized x/y only; startup restores it before Memory/group layout. Fresh layout fallback is 50% x / 22% y of the graph canvas.
 - Root and drag physics are stable.
 
 ## Universal App Adapter
@@ -40,6 +43,7 @@
 - Code Space `codex.open` embeds the existing local Code Space wrapper at `http://127.0.0.1:8090/` in the Universal Space detail panel; no Code Space source was modified. Browser visual verification remains pending.
 - Corrected the Code Space iframe to use the existing fixed `detail-overlay` mode so it no longer participates in graph grid sizing; browser repeated open/close verification remains pending.
 - Manual group gravity no longer injects velocity into ordinary canonical Memory nodes; group-body drag/settling paths remain intact. Browser movement verification is pending.
+- Inspector unpin now hands the visible grouped satellite position to its canonical node before detaching, without rebuilding the graph. Browser verification is pending.
 
 ## Live activity
 
@@ -78,3 +82,7 @@ NEVER COPY INTO PROJECT OR BACKUPS.
 ## Immediate next direction
 
 Continue proving the generic adapter model with real app capabilities. Code Space adapter registration and bounded local routes are implemented; browser visual placement/interaction still needs testing. Do not build the API/OpenAPI/MCP/DOM auto-scanner unless explicitly requested.
+
+## Next-session entry
+
+Read `UNIVERSAL_SPACE_HANDOFF.md` first, then `UNIVERSAL_SPACE_LEDGER.md`. Do not rely on old chat context.

@@ -337,8 +337,10 @@
         ? `Its ${count} ${count === 1 ? 'memory' : 'memories'} will return to the main graph.`
         : 'The empty group bubble will be removed.';
       if (!window.confirm(`Delete ${String(group.title || 'this group')}?\n\n${detail}\n\nNo memories will be deleted.`)) return;
+      const members = [...(group.members || [])];
+      if (!members.every((memoryId) => globalThis.MemoryGraphManualGravity?.prepareGroupedMemoryRelease?.(memoryId))) return;
       if (!deleteGroup(group.id)) return;
-      requestAnimationFrame(() => globalThis.MemoryGraph?.refresh?.());
+      globalThis.MemoryGraphManualGravity?.redrawOnly?.();
     });
 
     head.append(inspectorTitle, close);
@@ -387,9 +389,10 @@
         remove.title = 'Remove from group';
         remove.setAttribute('aria-label', `Remove ${memory?.title || 'memory'} from group`);
         remove.addEventListener('click', () => {
+          if (!globalThis.MemoryGraphManualGravity?.prepareGroupedMemoryRelease?.(memoryId)) return;
           if (!detachMemory(memoryId)) return;
           renderInspector();
-          requestAnimationFrame(() => globalThis.MemoryGraph?.refresh?.());
+          globalThis.MemoryGraphManualGravity?.redraw?.();
         });
         row.append(name, open, remove);
         inspectorList.appendChild(row);

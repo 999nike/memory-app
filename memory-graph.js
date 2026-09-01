@@ -11,6 +11,9 @@
   const MAX_SCALE = 2.8;
   const UNIVERSE_BOUNDARY_FORCE = 0.0012;
   const CLUSTER_ROOT_INERTIA = 5;
+  const DIRECT_APP_CHILD_ORBIT = 72;
+  const DIRECT_APP_CHILD_ORBIT_STEP = 9;
+  const DIRECT_APP_CHILD_MAX_ORBIT = 135;
   const IMPORTANCE_WEIGHT = {
     critical: 1.42,
     high: 1.20,
@@ -126,6 +129,10 @@
   }
 
   function rebuildGraph(width, height) {
+    const existingRoot = graph?.spaceNode;
+    const liveRoot = existingRoot && Number.isFinite(existingRoot.x) && Number.isFinite(existingRoot.y)
+      ? { id: String(existingRoot.id), x: existingRoot.x, y: existingRoot.y, vx: existingRoot.vx, vy: existingRoot.vy }
+      : null;
     stopViewTransition();
     stopSimulation();
     context.clearRect(0, 0, width, height);
@@ -144,7 +151,15 @@
     const savedState = savedStateForSpace(data.space.id);
     if (previousSpaceId && previousSpaceId !== data.space.id) resetView();
 
-    graph = buildGraph(data, width, height, savedState);
+    graph = buildGraph(data, width, height, savedState, liveRoot);
+    if (liveRoot && liveRoot.id === String(graph.spaceNode.id)) {
+      graph.spaceNode.x = liveRoot.x;
+      graph.spaceNode.y = liveRoot.y;
+      graph.spaceNode.vx = liveRoot.vx;
+      graph.spaceNode.vy = liveRoot.vy;
+      graph.centreX = liveRoot.x;
+      graph.centreY = liveRoot.y;
+    }
     syncCanonicalGraphCollections();
     for (const node of graph.nodes) {
       if (!node.fixed) containNode(node);
@@ -165,9 +180,31 @@
     if (graph.nodes.length > 1) startSimulation();
   }
 
-  function buildGraph(data, width, height, savedState = null) {
-    const centreX = width / 2;
-    const centreY = height / 2;
+  function memoryRootStartState(width, height, savedState = null, liveRoot = null) {
+    if (liveRoot && Number.isFinite(liveRoot.x) && Number.isFinite(liveRoot.y)) {
+      return {
+        x: liveRoot.x,
+        y: liveRoot.y,
+        vx: Number.isFinite(liveRoot.vx) ? liveRoot.vx : 0,
+        vy: Number.isFinite(liveRoot.vy) ? liveRoot.vy : 0
+      };
+    }
+
+    const savedX = Number(savedState?.memoryRoot?.xRatio);
+    const savedY = Number(savedState?.memoryRoot?.yRatio);
+    if (Number.isFinite(savedX) && Number.isFinite(savedY)) {
+      return { x: savedX * width, y: savedY * height, vx: 0, vy: 0 };
+    }
+
+    return { x: width * 0.5, y: height * 0.22, vx: 0, vy: 0 };
+  }
+
+  function buildGraph(data, width, height, savedState = null, liveRoot = null) {
+    const universeCentreX = width / 2;
+    const universeCentreY = height / 2;
+    const rootStart = memoryRootStartState(width, height, savedState, liveRoot);
+    const centreX = rootStart.x;
+    const centreY = rootStart.y;
     const baseOrbit = Math.max(88, Math.min(width, height) * 0.27);
     const spaceNode = {
       id: data.space.id,
@@ -177,17 +214,17 @@
       label: data.space.name || 'Memory Space',
       x: centreX,
       y: centreY,
-      vx: 0,
-      vy: 0,
+      vx: rootStart.vx,
+      vy: rootStart.vy,
       radius: 40,
       fixed: true
     };
 
     const memories = data.memories;
-    const startRing = Math.max(90, Math.min(width, height) * 0.32);
     const memoryNodes = memories.map((memory, index) => {
       const angle = -Math.PI / 2 + (index / Math.max(1, memories.length)) * Math.PI * 2;
       const profile = memoryProfile(memory, data.allMemories);
+      const localOrbit = directAppChildOrbit(index);
       const savedNode = savedState?.nodes?.[memory.id];
       const savedOffsetX = Number(savedNode?.offsetX);
       const savedOffsetY = Number(savedNode?.offsetY);
@@ -196,13 +233,13 @@
         id: memory.id,
         kind: 'memory',
         label: memory.title || 'Untitled memory',
-        x: hasSavedPosition ? centreX + savedOffsetX * width : centreX + Math.cos(angle) * startRing,
-        y: hasSavedPosition ? centreY + savedOffsetY * height : centreY + Math.sin(angle) * startRing,
+        x: hasSavedPosition ? centreX + savedOffsetX * width : centreX + Math.cos(angle) * localOrbit,
+        y: hasSavedPosition ? centreY + savedOffsetY * height : centreY + Math.sin(angle) * localOrbit,
         vx: 0,
         vy: 0,
         radius: profile.radius,
-        targetOrbit: Math.max(62, baseOrbit / profile.gravityWeight),
-        localOrbit: Math.max(62, baseOrbit / profile.gravityWeight),
+        targetOrbit: localOrbit,
+        localOrbit,
         gravityWeight: profile.gravityWeight,
         parentId: spaceNode.id,
         relationshipCount: profile.relationshipCount,
@@ -230,8 +267,8 @@
         appRoot: true,
         clusterRoot: true,
         label: appDefinition.name,
-        x: centreX + Math.cos(appAngle) * appOrbit,
-        y: centreY + Math.sin(appAngle) * appOrbit,
+        x: universeCentreX + Math.cos(appAngle) * appOrbit,
+        y: universeCentreY + Math.sin(appAngle) * appOrbit,
         vx: 0,
         vy: 0,
         radius: 34,
@@ -256,7 +293,7 @@
       const appendChildren = (children, parent, depth, parentAngle) => {
         children.forEach((definition, index, siblings) => {
           const angle = parentAngle + (index / Math.max(1, siblings.length)) * Math.PI * 2;
-          const spawnOrbit = depth === 1 ? 72 + index * 9 : 54 + index * 7;
+          const spawnOrbit = depth === 1 ? directAppChildOrbit(index) : 54 + index * 7;
           const current = stateUpdates.get(String(definition.id));
           const node = {
             id: definition.id,
@@ -291,7 +328,7 @@
       appendChildren(appDefinition.nodes || [], appRoot, 1, appAngle);
     });
     const edges = [...buildRealEdges(spaceNode, memoryNodes), ...appEdges];
-    buildPresentationControlNodes(width, height, centreX, centreY, baseOrbit);
+    buildPresentationControlNodes(width, height, universeCentreX, universeCentreY, baseOrbit);
 
     return {
       width,
@@ -299,6 +336,7 @@
       centreX,
       centreY,
       orbitRadius: baseOrbit,
+      memoryGroupOrbit: directAppChildOrbit(3),
       spaceNode,
       memoryNodes,
       appNodes,
@@ -306,6 +344,11 @@
       nodes: [spaceNode, ...memoryNodes, ...appNodes],
       edges
     };
+  }
+
+  function directAppChildOrbit(index) {
+    const childIndex = Math.max(0, Number(index) || 0);
+    return Math.min(DIRECT_APP_CHILD_MAX_ORBIT, DIRECT_APP_CHILD_ORBIT + childIndex * DIRECT_APP_CHILD_ORBIT_STEP);
   }
 
   function appControlRadius(depth) {
@@ -1132,7 +1175,9 @@
       openExistingInspector(selectedNode.id);
     }
 
-    if (pointerState.moved && (mode === 'pan' || mode === 'inspect' || mode === 'home')) {
+    if (pointerState.moved && mode === 'cluster' && selectedNode === graph?.spaceNode) {
+      persistGraphState(false, true);
+    } else if (pointerState.moved && (mode === 'pan' || mode === 'inspect' || mode === 'home')) {
       persistGraphState(true);
     } else if (pointerState.moved && mode === 'node') {
       persistGraphState(false);
@@ -1292,7 +1337,17 @@
     return nodes;
   }
 
-  function persistGraphState(includeView = true) {
+  function serialiseMemoryRoot() {
+    if (!graph?.spaceNode) return null;
+    const width = Math.max(1, graph.width);
+    const height = Math.max(1, graph.height);
+    return {
+      xRatio: graph.spaceNode.x / width,
+      yRatio: graph.spaceNode.y / height
+    };
+  }
+
+  function persistGraphState(includeView = true, includeMemoryRoot = false) {
     if (!graph?.spaceNode?.id) return false;
 
     const store = loadGraphState();
@@ -1306,6 +1361,10 @@
       nodes: serialiseNodes(),
       updatedAt: new Date().toISOString()
     };
+
+    if (includeMemoryRoot) {
+      next.memoryRoot = serialiseMemoryRoot();
+    }
 
     if (includeView) {
       next.view = serialiseView();
@@ -1635,7 +1694,7 @@
     const appendChildren = (definitions, localParent, depth, parentAngle) => {
       definitions.forEach((definition, index, siblings) => {
         const angle = parentAngle + (index / Math.max(1, siblings.length)) * Math.PI * 2;
-        const spawnOrbit = depth === 1 ? 72 + index * 9 : 54 + index * 7;
+        const spawnOrbit = depth === 1 ? directAppChildOrbit(index) : 54 + index * 7;
         const current = stateUpdates.get(String(definition.id));
         const node = {
           id: definition.id,
@@ -1869,6 +1928,7 @@
     version: VERSION,
     mount,
     refresh,
+    redraw: drawGraph,
     wakeSimulation() {
       simulationFrames = 0;
       startSimulation();

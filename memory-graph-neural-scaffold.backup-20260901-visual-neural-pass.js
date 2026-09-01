@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 6;
+  const VERSION = 5;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralScaffoldInstalled', { value: true });
@@ -290,10 +290,10 @@
     strokeTaperedCore(ctx, curve, width, detail);
 
     if (!interacting) {
-      const companions = compact ? 3 : 8;
+      const companions = compact ? 2 : 4;
       for (let lane = 1; lane <= companions; lane += 1) {
-        const companion = controlPoints(curve.p0, curve.p3, curve.seed + lane * 0.451, 0.38 + lane * 0.09, lane);
-        strokeCurve(ctx, companion, compact ? 0.42 : 0.44 + lane * 0.10, `rgba(149,232,255,${(0.34 + lane * 0.060).toFixed(3)})`);
+        const companion = controlPoints(curve.p0, curve.p3, curve.seed + lane * 0.451, 0.48 + lane * 0.12, lane);
+        strokeCurve(ctx, companion, compact ? 0.38 : 0.52 + lane * 0.13, `rgba(149,232,255,${(0.34 + lane * 0.060).toFixed(3)})`);
       }
     }
     ctx.restore();
@@ -301,11 +301,11 @@
 
   function drawTrunkBundle(ctx, curve, width, interacting, compact = false) {
     if (interacting) return;
-    const lanes = compact ? 4 : 11;
+    const lanes = compact ? 2 : 5;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (let lane = 1; lane <= lanes; lane += 1) {
-      const filament = controlPoints(curve.p0, curve.p3, curve.seed + lane * 0.613, 0.28 + lane * 0.07, lane + 8);
+      const filament = controlPoints(curve.p0, curve.p3, curve.seed + lane * 0.613, 0.34 + lane * 0.12, lane + 8);
       strokeCurve(ctx, filament, Math.max(0.6, width * (0.24 - lane * 0.025)), `rgba(116,222,255,${(0.48 - lane * 0.045).toFixed(3)})`);
       strokeCurve(ctx, filament, Math.max(0.22, width * (0.065 - lane * 0.006)), `rgba(245,254,255,${(0.78 - lane * 0.055).toFixed(3)})`);
     }
@@ -315,8 +315,8 @@
     if (interacting) return;
     const mobile = sourceCanvas?.clientWidth < 700;
     const major = density >= 1.4;
-    const divisor = compact ? 48 : major ? 18 : mobile ? 38 : 26;
-    const count = clamp(Math.round(curve.length / divisor * density), compact ? 2 : major ? 8 : 5, compact ? 6 : major ? 19 : mobile ? 10 : 16);
+    const divisor = compact ? 58 : major ? 24 : mobile ? 50 : 34;
+    const count = clamp(Math.round(curve.length / divisor * density), compact ? 1 : major ? 5 : 3, compact ? 4 : major ? 12 : mobile ? 7 : 13);
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -349,7 +349,7 @@
       ctx.strokeStyle = major ? 'rgba(157,229,255,.46)' : 'rgba(157,229,255,.28)';
       previousStroke.call(ctx);
 
-      if (!compact && hash(localSeed, 9, 10) > (mobile ? 0.54 : 0.30)) {
+      if (!compact && hash(localSeed, 9, 10) > (mobile ? 0.66 : 0.44)) {
         const forkSide = hash(localSeed, 11, 12) > 0.5 ? 1 : -1;
         const fork = {
           x: mid.x + px * forkSide * reach * 0.44 + tangent.x * reach * 0.15,
@@ -368,7 +368,7 @@
 
   function drawJunction(ctx, point, seed, timestamp, scale = 1) {
     const pulse = 0.80 + Math.sin(timestamp * 0.0019 + seed * 17.3) * 0.16;
-    const radius = 16 * scale;
+    const radius = 12 * scale;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
@@ -393,13 +393,12 @@
   }
 
   function drawFibreLights(ctx, curve, seed, timestamp, density = 1, compact = false) {
-    const count = clamp(Math.round(curve.length / (compact ? 24 : 8) * density), compact ? 4 : 8, compact ? 11 : 34);
+    const count = clamp(Math.round(curve.length / (compact ? 32 : 14) * density), compact ? 3 : 6, compact ? 8 : 22);
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (let index = 0; index < count; index += 1) {
       const localSeed = seed + index * 0.193;
-      const drift = ((timestamp * (0.000045 + hash(localSeed, 7, 8) * 0.000035)) + hash(localSeed, 9, 10)) % 1;
-      const t = 0.04 + ((index / count + drift + hash(localSeed, 1, 2) * 0.12) % 1) * 0.92;
+      const t = 0.06 + ((index + 0.24 + hash(localSeed, 1, 2) * 0.72) / (count + 1)) * 0.88;
       const point = pointOnCurve(curve, t);
       const flicker = 0.62 + Math.sin(timestamp * 0.004 + localSeed * 18.7) * 0.24;
       const radius = (compact ? 0.38 : 0.46) + hash(localSeed, 3, 4) * (compact ? 0.28 : 0.62);
@@ -407,7 +406,7 @@
       ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(195,245,255,${(0.34 * flicker).toFixed(3)})`;
       ctx.fill();
-      if (index % 3 === 0) {
+      if (index % 4 === 0) {
         ctx.beginPath();
         ctx.arc(point.x, point.y, radius * 2.1, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(72,183,255,${(0.09 * flicker).toFixed(3)})`;
@@ -445,7 +444,7 @@
   function drawCentreMass(ctx, centre, clusters, timestamp, interacting) {
     if (!centre) return;
     const mobile = sourceCanvas?.clientWidth < 700;
-    const radius = mobile ? 50 : 78;
+    const radius = mobile ? 42 : 62;
     const pulse = 0.90 + Math.sin(timestamp * 0.0015) * 0.08;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -514,11 +513,11 @@
   }
 
   function drawCluster(ctx, geometry, timestamp, interacting, compact = false) {
-    const trunkWidth = clamp(geometry.trunk.length * (compact ? 0.076 : 0.130), compact ? 5.8 : 15.0, compact ? 11.8 : 30.0);
+    const trunkWidth = clamp(geometry.trunk.length * (compact ? 0.070 : 0.098), compact ? 5.0 : 11.0, compact ? 10.5 : 22.0);
     drawOrganicTube(ctx, geometry.trunk, trunkWidth, interacting, compact);
     drawTrunkBundle(ctx, geometry.trunk, trunkWidth, interacting, compact);
-    drawDendrites(ctx, geometry.trunk, geometry.seed, interacting, compact ? 1.05 : 2.10, compact);
-    if (!interacting) drawFibreLights(ctx, geometry.trunk, geometry.seed + 0.41, timestamp, compact ? 0.90 : 1.80, compact);
+    drawDendrites(ctx, geometry.trunk, geometry.seed, interacting, compact ? 0.86 : 1.65, compact);
+    if (!interacting) drawFibreLights(ctx, geometry.trunk, geometry.seed + 0.41, timestamp, compact ? 0.70 : 1.25, compact);
     if (!interacting) {
       drawJunction(ctx, geometry.trunk.p0, geometry.seed + 0.17, timestamp, compact ? 0.72 : 1.30);
       drawJunction(ctx, geometry.junction, geometry.seed, timestamp, compact ? 0.94 : 1.62);
@@ -529,13 +528,13 @@
       if (child.stem) {
         const stemWidth = clamp(child.stem.length * 0.045, 2.6, 6.4);
         drawOrganicTube(ctx, child.stem, stemWidth, interacting, false);
-        drawDendrites(ctx, child.stem, child.seed + 1.1, interacting, 1.10, false);
-        if (!interacting) drawFibreLights(ctx, child.stem, child.seed + 1.57, timestamp, 1.20, false);
+        drawDendrites(ctx, child.stem, child.seed + 1.1, interacting, 0.72, false);
+        if (!interacting) drawFibreLights(ctx, child.stem, child.seed + 1.57, timestamp, 0.82, false);
       }
       const branchWidth = clamp(child.branch.length * (compact ? 0.030 : 0.034), compact ? 1.8 : 2.4, compact ? 4.6 : 6.8);
       drawOrganicTube(ctx, child.branch, branchWidth, interacting, compact);
-      drawDendrites(ctx, child.branch, child.seed + 2.3, interacting, compact ? 0.82 : 1.30, compact);
-      if (!interacting) drawFibreLights(ctx, child.branch, child.seed + 2.91, timestamp, compact ? 0.90 : 2.10, compact);
+      drawDendrites(ctx, child.branch, child.seed + 2.3, interacting, compact ? 0.62 : 0.88, compact);
+      if (!interacting) drawFibreLights(ctx, child.branch, child.seed + 2.91, timestamp, compact ? 0.72 : 1.48, compact);
       if (!interacting) {
         drawPulse(ctx, child.branch, child.seed, timestamp, 0.35);
         if (child.stem && hash(child.seed, 11, 12) > 0.35) drawJunction(ctx, child.shared, child.seed + 3.3, timestamp, 0.54);
