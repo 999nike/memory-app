@@ -121,7 +121,50 @@ LAYER CHECKLIST
     [ ] Pull this patch, verify MemoryGraphNeuralSpokes.version === 6, then compare the detached purple tips and lag.
     [ ] Complete the HP runtime audit before another renderer change.
 
+[x] 31 — MEASURED SCAFFOLD OVERDRAW REDUCTION (Scaffold V7)
+    Evidence: user-supplied Trace-20260901T134104.json.gz, 2026-09-01.
+    - Trace spans 388.97 seconds, with a long inactive gap; do not average FPS across the whole recording.
+    - 98 animation batches: mean 184.56 ms of main-thread animation work.
+    - Scaffold drawFrame: 8,659.8 ms total, mean 88.37 ms, max 158.5 ms.
+    - Branches drawFrame: 2,816.5 ms total, mean 28.74 ms.
+    - Spokes V6 drawFrame: 572.3 ms total, mean 5.84 ms.
+    - GPU tasks attributed to this renderer: 58.72 seconds total. GPU time cannot be assigned to a specific canvas from this trace.
+    - The recording mostly captures ongoing rendering, not a sustained drag; drag FPS still needs verification.
+    Executed-source audit (embedded script source, not just URL query strings):
+    - Width 13, Nexus 4, Arms 4, Branches 2, Lattice 2, Terminal 3, Spokes 6, Bundle 2.
+    - SpokeMask is actually VERSION 1 even though its URL says v=2.
+    - Scaffold is VERSION 6 at URL v=2; Flow is VERSION 3 at URL v=8.
+    - Detail 1 and Crowns 1 are also present.
+    - Executed neural sources otherwise match the pinned branch snapshots after newline normalization.
+    - This verifies the recorded JavaScript, not the complete local checkout or a live global/DOM dump.
+    Runtime ownership and limits:
+    - Ten neural drawFrame callbacks are active; Arms/Terminal wrappers execute but have no drawFrame callbacks in this recording.
+    - Nexus owns the major shared trunks/soma; Branches owns medium purple branches; Scaffold adds separate bright connections and local dendrites.
+    - Scaffold, Spokes, Crowns and Bundle overlap around app children; Bundle's dark masking contributes to the star/petal silhouette.
+    - Detail/Lattice/Crowns/Scaffold/Bundle all add fine detail; the trace samples the nested Canvas interception chain.
+    - Canonical thin blue drawEdge strokes remain suppressed by Scaffold's early return; source replay confirms no native main-edge stroke.
+    - Exact live canvas DOM order/z-index and current global values were not exported; source CSS and active callbacks are evidence, not a live DOM inspection.
+    One changed drawing path:
+    - Scaffold drawCluster retains existing trunk/stem/child curves, five base tissue/spine strokes and dendrites.
+    - Stop invoking its additional 16-segment spine strokes, companion bundles, fibre lights, moving pulses and extra junctions.
+    - Other neural renderers retain their lights/anatomy; no overlay, canvas, hook or dependency added.
+    - index.html requests Scaffold V7; all other load order/version strings unchanged.
+    Validation:
+    - JavaScript syntax; native Canvas replay of the trace-loaded neural stack with fixed main and manual groups.
+    - Idle Scaffold: 3,881 -> 1,265 strokes (67.4% fewer), 1,729 -> 7 fills.
+    - Interacting Scaffold: 1,460 -> 292 strokes (80% fewer).
+    - Surviving strokes are exact old path/style subsets; primary spine connections remain; other layers' strokes/counts unchanged.
+    - Ten overlays before and after; empty graph handled. Before/after fixture images visually reviewed.
+    - These are fixture operation counts, not HP GPU timings or a promise of 60 FPS.
+    Next gate:
+    [ ] Apply only Scaffold/index/tracker; verify MemoryGraphNeuralScaffold.version === 7.
+    [ ] Short HP visual/drag comparison; if needed record 5-10 seconds, then STOP recording.
+    [ ] Do not stack another renderer. Reassess remaining Branches/GPU work using the next trace.
+
 CURRENT FILE ROLES
+- memory-graph-neural-scaffold.js VERSION 7
+  Underlying main/manual connections and dendrites; redundant spine/strand/particle passes removed after timing audit.
+
 - memory-graph-neural-nexus.js VERSION 4
   Main trunk bodies, tissue, irregular walls, centre spine, living soma.
 

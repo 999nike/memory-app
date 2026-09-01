@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 6;
+  const VERSION = 7;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralScaffoldInstalled', { value: true });
@@ -514,32 +514,32 @@
   }
 
   function drawCluster(ctx, geometry, timestamp, interacting, compact = false) {
+    // Retain Scaffold's connections and dendrites. Repeated spine strokes,
+    // companion bundles and particle passes dominate its measured frame time.
+    const drawConnection = (curve, width) => {
+      const detail = interacting ? 0.58 : 1;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      strokeCurve(ctx, curve, width * 5.2, `rgba(10,55,190,${(0.055 * detail).toFixed(3)})`);
+      strokeCurve(ctx, curve, width * 3.25, `rgba(21,102,245,${(0.115 * detail).toFixed(3)})`);
+      strokeCurve(ctx, curve, width * 1.78, `rgba(39,149,255,${(0.24 * detail).toFixed(3)})`);
+      strokeCurve(ctx, curve, Math.max(0.9, width * 0.52), `rgba(104,215,255,${(0.58 * detail).toFixed(3)})`);
+      strokeCurve(ctx, curve, Math.max(0.35, width * 0.13), `rgba(244,253,255,${(0.88 * detail).toFixed(3)})`);
+      ctx.restore();
+    };
     const trunkWidth = clamp(geometry.trunk.length * (compact ? 0.076 : 0.130), compact ? 5.8 : 15.0, compact ? 11.8 : 30.0);
-    drawOrganicTube(ctx, geometry.trunk, trunkWidth, interacting, compact);
-    drawTrunkBundle(ctx, geometry.trunk, trunkWidth, interacting, compact);
+    drawConnection(geometry.trunk, trunkWidth);
     drawDendrites(ctx, geometry.trunk, geometry.seed, interacting, compact ? 1.05 : 2.10, compact);
-    if (!interacting) drawFibreLights(ctx, geometry.trunk, geometry.seed + 0.41, timestamp, compact ? 0.90 : 1.80, compact);
-    if (!interacting) {
-      drawJunction(ctx, geometry.trunk.p0, geometry.seed + 0.17, timestamp, compact ? 0.72 : 1.30);
-      drawJunction(ctx, geometry.junction, geometry.seed, timestamp, compact ? 0.94 : 1.62);
-      drawPulse(ctx, geometry.trunk, geometry.seed, timestamp, 0.10);
-    }
 
     for (const child of geometry.children) {
       if (child.stem) {
         const stemWidth = clamp(child.stem.length * 0.045, 2.6, 6.4);
-        drawOrganicTube(ctx, child.stem, stemWidth, interacting, false);
+        drawConnection(child.stem, stemWidth);
         drawDendrites(ctx, child.stem, child.seed + 1.1, interacting, 1.10, false);
-        if (!interacting) drawFibreLights(ctx, child.stem, child.seed + 1.57, timestamp, 1.20, false);
       }
       const branchWidth = clamp(child.branch.length * (compact ? 0.030 : 0.034), compact ? 1.8 : 2.4, compact ? 4.6 : 6.8);
-      drawOrganicTube(ctx, child.branch, branchWidth, interacting, compact);
+      drawConnection(child.branch, branchWidth);
       drawDendrites(ctx, child.branch, child.seed + 2.3, interacting, compact ? 0.82 : 1.30, compact);
-      if (!interacting) drawFibreLights(ctx, child.branch, child.seed + 2.91, timestamp, compact ? 0.90 : 2.10, compact);
-      if (!interacting) {
-        drawPulse(ctx, child.branch, child.seed, timestamp, 0.35);
-        if (child.stem && hash(child.seed, 11, 12) > 0.35) drawJunction(ctx, child.shared, child.seed + 3.3, timestamp, 0.54);
-      }
     }
   }
 
