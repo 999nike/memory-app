@@ -45,32 +45,32 @@ LAYER CHECKLIST
 [x] 15 — Fine neural lattice
 [x] 16 — Organic app-spoke roots
 [x] 17 — Vascular light / soma lattice tuning
+[x] 18 — Terminal + app-spoke convergence
 
-[x] 18 — Terminal + app-spoke convergence  < CODE APPLIED — VISUAL REVIEW PENDING
+[x] 19 — Final spoke/tip tissue polish  < CODE APPLIED — VISUAL REVIEW PENDING
     Screenshot diagnosis:
-    - overall network is now recognisably biological and much closer to target.
-    - the biggest remaining shape defect is blunt-ended medium roots: several side branches stop as flat purple stubs.
-    - Code Space / Email child connections are still visually too radial/bright in places and can read as a starburst.
-    - central soma and main trunks are now good enough that adding more mass would be counterproductive.
+    - main trunks and central soma are now strong and should not be rebuilt.
+    - remaining defect is mostly finish quality: app roots are too dark/black through the middle, and a few medium-root caps still show as blunt purple stumps.
+    - target reference has blue/violet translucent tissue carrying a visible bright fibre, not black radial arms.
 
-    Applied memory-graph-neural-spokes.js VERSION 2:
-    - stronger narrow masking of the original straight child beams, leaving node ends clear.
-    - organic child roots now bend more strongly and taper almost to a point at their nodes.
-    - darker outer tissue + restrained blue/violet body + thinner centre spine so child spokes stop overpowering the app node.
-    - app-root collar changed toward a soft irregular soma-like cuff instead of a dark radial star.
-    - extra fine side fibres remain restrained around child roots.
-    - same synthetic layer now performs TERMINAL FINISHING for existing medium second-order branches.
-    - terminal finish starts before the old blunt cap, overlaps it, continues beyond it as a tapered tissue root and forks into two smaller biological tips.
-    - terminal geometry is derived from the same deterministic root/nexus positions as the existing branch renderer, so it remains visually attached without changing real graph data.
-    - interaction mode remains heavily reduced.
-    - no graph nodes, edges, topology, physics, persistence, dragging or app behaviour changed.
+    Applied memory-graph-neural-spokes.js VERSION 3:
+    - reduced the dark masking width/alpha over original child spokes so the organic redraw is no longer dominated by near-black cover bars.
+    - increased blue/violet tissue visibility and centre-spine brightness on app-child roots.
+    - increased app-root width slightly so the biological tissue body covers the old beam cleanly without becoming a cable.
+    - increased curvature modestly to keep child roots from reading as radial spokes.
+    - reduced and brightened the app-root collar so it reads like a small living cuff rather than a black star.
+    - terminal continuation now begins deeper inside the parent branch for more overlap.
+    - each blunt medium-root cap receives a small tissue blend/cuff before the tapered continuation is drawn.
+    - terminal continuation is slightly wider/brighter and forks remain tapered.
+    - no new renderer was added; this is tuning inside the existing spoke/terminal layer only.
+    - no graph nodes, edges, topology, physics, persistence, dragging or application behaviour changed.
 
-[ ] 19 — Final reference balance
+[ ] 20 — Reference balance only
     Inspect next screenshot for only these questions:
-    - are the blunt branch caps gone?
-    - are app-child roots now curved/tapered instead of bright radial spokes?
-    - does the central soma need more fine web density, or is it already enough?
-    - do not add another major anatomy system unless a specific remaining defect is obvious.
+    - are Code Space / Email spokes now blue tissue instead of black radial arms?
+    - are the remaining blunt purple caps visually merged into tapered continuations?
+    - is anything now too bright compared with the target?
+    - if yes, tune alpha/width only; do not add more anatomy systems.
 
 CURRENT FILE ROLES
 - memory-graph-neural-nexus.js VERSION 4
@@ -91,8 +91,8 @@ CURRENT FILE ROLES
 - memory-graph-neural-lattice.js VERSION 2
   Fine outer lattice, cross-links, embedded axon lights, dense soma mesh.
 
-- memory-graph-neural-spokes.js VERSION 2
-  Organic app-child roots + suppression of old electric spokes + tapered terminal finishing for blunt medium roots.
+- memory-graph-neural-spokes.js VERSION 3
+  Organic app-child roots, beam suppression, app-root cuffs and tapered terminal finishing.
 
 - memory-graph-neural-width.js VERSION 12
   Loader/integration and existing startup responsibilities.
@@ -103,6 +103,7 @@ LATEST IMPORTANT COMMITS
 - Lattice V2: 3c174cfafb0a6cce869ab7d0812bac6020e93ae3
 - Lattice loader V12: ee21a642db1b8a1f506eadbb7bd4b4587b1422ad
 - Spoke + terminal convergence V2: 0a0fc757b0967e74bcf024603b27253669ee0dc1
+- Spoke + terminal polish V3: c039151dfcd6390217d2d4153fa1ee2f79960385
 
 WORKING RULE
 Use the newest screenshot and original reference side by side. Fix visible anatomy only. Stop expanding the system once the remaining differences are tuning-level rather than structural.
