@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 11;
+  const VERSION = 12;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
@@ -281,7 +281,7 @@
     if (document.getElementById('memoryGraphNeuralLatticeLoader') || globalThis.MemoryGraphNeuralLattice) return;
     const script = document.createElement('script');
     script.id = 'memoryGraphNeuralLatticeLoader';
-    script.src = './memory-graph-neural-lattice.js?v=1';
+    script.src = './memory-graph-neural-lattice.js?v=2';
     script.async = false;
     script.addEventListener('load', () => globalThis.MemoryGraph?.redraw?.());
     document.head.appendChild(script);
