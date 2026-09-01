@@ -26,32 +26,41 @@ Test address: http://127.0.0.1:4173
 When the user says "main folder" or "root", they mean this working directory,
 NOT the Git branch main. Do not switch to main because of that wording.
 
-CURRENT REPORTED STATE - NOT THE DESIRED SETUP
+CURRENT CONFIRMED BASELINE - 1 SEPTEMBER 2026
 
-Latest local Codex audit, 1 September 2026:
-- The working folder serves 4173 and contains the restored, working spatial app.
-- Its HEAD points to main; the working tree is dirty.
-- The audit initially found no configured remotes; old origin refs remained.
-- Latest local Codex report: origin was restored to the repository above and
-  molecular-v2 fetched. The comparison then failed: unknown switch 'n' in
-  git cat-file. No new commit or push followed that failure.
-- Local molecular-v2 is attached to the linked worktree:
-  E:\WIZZ-Server\new-version\universal-space-molecular-v2-bank
-- Snapshot c41c2dbe1bf0b799dc5548836b733ae2de17709a exists without a reachable
-  reference. Its contents have not been verified against the current app here.
-- No successful push of that snapshot has been reported.
-- Port 8090 belongs to E:\WIZZ-Server\workspaces\code-space\server.js;
-  it is not a duplicate Universal Space server.
+User-provided HP terminal output confirms:
+- Working folder: E:\WIZZ-Server\new-version\universal-space
+- Checked-out branch: molecular-v2, tracking origin/molecular-v2.
+- HEAD and origin/molecular-v2 match at:
+  4694b417c989b2ddd89a2c50e7849979a9c471b0
+- git status --short --branch printed no modified or untracked paths.
+- origin is https://github.com/999nike/memory-app.
+- The previous restored working files were saved in the Git stash named
+  "HP restored state before molecular-v2 update".
+- Local restoration commit b112af3 was preserved under the local tag
+  restored-before-neural-update before the successful branch alignment.
+- The linked bank worktree was last reported detached at 9535bc9.
 
-Required reconciliation: preserve the restored working files and conventional
-main, then establish molecular-v2 in the ONE working folder above and verify
-the intended remote. A snapshot push alone does not fix the local branch or
-worktree mismatch. Do not call reconciliation complete until both are checked.
-Do not switch/reset/copy files blindly to achieve that result.
-The documentation commit on GitHub does not bank the restored application.
-Before banking it later, read the latest remote head and retain these current
-rules and documentation; do not overwrite them with the older snapshot tree.
-Replace this current-state section with dated evidence after a verified change.
+The user has now accepted 4694b41 as the working neural visual baseline and
+explicitly requested it be retained as the rollback version on molecular-v2.
+This is the starting point for further work toward the reference picture,
+not a claim that the target design is finished. HP FPS has not been measured.
+The local screenshot shows Memory, EMAIL and Code Space joined by the finer
+branching central trunk, with Settings separate.
+
+Rollback application commit: 4694b417c989b2ddd89a2c50e7849979a9c471b0
+Use the existing branch history and baseline record in
+UNIVERSAL_SPACE_LEDGER.md. Do not create another project copy or branch.
+Preserve subsequent work before any explicitly requested rollback; prefer a
+reviewed forward restoration commit on molecular-v2 rather than rewriting
+shared history or discarding local changes.
+
+GitHub molecular-v2 was independently checked at that same commit before
+recording this baseline. GitHub main was checked at
+8de6f6fcc713f756ac2985402c4e176acb6279ec and is not a target of this work.
+This supersedes the earlier dirty-main/missing-origin reconciliation reports.
+Other folders have not been cleaned or retired. No Windows filesystem changes
+are claimed by this GitHub documentation update.
 
 STRICT WORKSPACE RULES
 

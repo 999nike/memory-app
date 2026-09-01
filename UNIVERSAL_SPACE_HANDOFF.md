@@ -54,9 +54,15 @@
 - Inbox acknowledgement clears the activity.
 - Incoming Gmail activity can trigger this automatically without browser refresh.
 
-## Latest approved bank
+## Latest approved rollback baseline - 1 September 2026
 
-`E:\WIZZ-Server\new-version\backupbranches\universal-space_2026-08-30_live-gmail-purple-activity`
+- Branch: `molecular-v2`.
+- Exact application commit: `4694b417c989b2ddd89a2c50e7849979a9c471b0`.
+- User accepted the local HP result as the baseline toward the neural reference picture and explicitly requested this rollback record.
+- See `UNIVERSAL_SPACE_LEDGER.md` and `UNIVERSAL_SPACE_RULES.txt` for evidence and recovery boundaries.
+- Current neural stack: Scaffold, Flow and Nexus; Width loads Nexus only. The retired overlay chain must not be re-enabled from old work notes.
+- This is visual-baseline acceptance, not a complete functional regression test or measured HP performance result.
+- The older 30 August folder bank remains historical; this record creates no new backup folder.
 
 ## Protected original
 
@@ -81,7 +87,7 @@ NEVER COPY INTO PROJECT OR BACKUPS.
 
 ## Immediate next direction
 
-Continue proving the generic adapter model with real app capabilities. Code Space adapter registration and bounded local routes are implemented; browser visual placement/interaction still needs testing. Do not build the API/OpenAPI/MCP/DOM auto-scanner unless explicitly requested.
+Preserve the accepted neural baseline above. The user's next visual goal is to refine the existing connections toward the supplied brain-like reference, one coherent patch followed by a local visual check. Do not add renderer overlays or change graph physics/positions to achieve styling. Earlier adapter verification remains outstanding separately; do not start an API/OpenAPI/MCP/DOM auto-scanner.
 
 ## Next-session entry
 

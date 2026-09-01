@@ -16,7 +16,16 @@ This record distinguishes user/local-Codex reports from GitHub checks. No Window
 
 “Main folder” means the project directory, not the main branch.
 
-## Latest local Codex reports
+## Current accepted baseline - 1 September 2026
+
+- Exact application rollback commit: `4694b417c989b2ddd89a2c50e7849979a9c471b0` on `molecular-v2`.
+- Latest user-provided terminal output confirms the approved working folder now checks out `molecular-v2`, tracks `origin/molecular-v2`, matches that commit and has no printed modified/untracked files.
+- The user accepted the local visual result as the starting point toward the neural reference picture. See root `UNIVERSAL_SPACE_LEDGER.md` for the checkpoint.
+- Restored pre-update work was preserved in the reported local stash and `restored-before-neural-update` tag. The linked bank worktree was reported detached at `9535bc9`.
+- GitHub independently matched `4694b41` before the checkpoint documentation publication. Conventional `main` remains protected.
+- This resolves the previously reported checkout/tracking mismatch; it does not retire extra folders or establish measured HP FPS.
+
+## Historical local Codex reports - superseded by the current baseline above
 
 - The user restored their own pre-experiment version and confirmed it works. No new FPS measurement is available.
 - The primary worktree is universal-space, with .git inside it and HEAD on main; working files are dirty. This is the unresolved mismatch, not the intended setup.
@@ -34,7 +43,7 @@ Paths below are under E:\WIZZ-Server\new-version unless stated otherwise.
 | Folder | Reported role / evidence | Disposition |
 | --- | --- | --- |
 | universal-space | Active server.mjs on port 4173, restored working spatial files | Only working project |
-| universal-space-molecular-v2-bank | Linked worktree sharing universal-space/.git; holds molecular-v2 | Retain until branch/worktree reconciliation; do not delete directly |
+| universal-space-molecular-v2-bank | Linked worktree sharing universal-space/.git; latest user output shows detached HEAD at 9535bc9 | Unique work/retirement not reviewed; do not delete directly |
 | molecular-v2-publish | Separate clone on molecular-v2; not serving 4173 | Unique work and retirement still unresolved |
 | memory-app-visual-lab/memory-app | Protected original per existing handoff; dirty memory-graph.js | Do not modify |
 | backupbranches | Existing named snapshots; no Git metadata reported | No automatic backup creation; contents not blanket-approved for deletion |
@@ -44,7 +53,7 @@ Paths below are under E:\WIZZ-Server\new-version unless stated otherwise.
 
 E:\junkz is not the protected path; local Codex reports it does not exist.
 
-## Remote state checked for this publication
+## Historical remote state before the earlier documentation publication
 
 Immediately before this documentation change, GitHub molecular-v2 pointed to a1012f2c954a479467cb432bb3b788ff417d6d87. Its application code is the failed connector experiment, not the HP restoration.
 
@@ -69,4 +78,4 @@ Required untracked adapters are not junk. Trace HTML, dynamic loaders, imports, 
 
 The previously proposed documentation moves have not run. Preserve filenames, update links and agent entry paths in the same change, and verify the app afterward. Do not relocate runtime files as housekeeping. No new backups, project copies or worktrees.
 
-Reconciliation is complete only when the restored files are preserved, conventional main is preserved, molecular-v2 is established in the approved working directory, and the intended remote state is verified. Do not claim a snapshot push alone accomplished that.
+The current-baseline section records the subsequently completed branch alignment and user acceptance. Folder cleanup remains pending; successful Git reconciliation does not imply the extra directories have been retired.
