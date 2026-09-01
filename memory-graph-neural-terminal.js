@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 2;
+  const VERSION = 3;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralTerminalInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralTerminalInstalled', { value: true });
@@ -9,10 +9,12 @@
   const previousBeginPath = proto.beginPath;
   const previousMoveTo = proto.moveTo;
   const previousLineTo = proto.lineTo;
+  const previousQuadraticCurveTo = proto.quadraticCurveTo;
   const previousClearRect = proto.clearRect;
   const previousStroke = proto.stroke;
 
-  const segments = [];
+  const pathState = new WeakMap();
+  let captured = [];
   let layer = null;
   let layerContext = null;
   let sourceCanvas = null;
@@ -22,42 +24,37 @@
   const FRAME_MS = 76;
   const INTERACTING_FRAME_MS = 180;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-  const distance = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
-
-  // IMPORTANT: this hash exactly matches memory-graph-neural-arms.js.
-  // This terminal layer now follows the EXISTING medium-root geometry instead of
-  // reconstructing a separate branch system, which prevents detached tip fragments.
   const hash = (seed, a = 0, b = 0) => {
-    const value = Math.sin(seed * 7829.381 + a * 101.219 + b * 241.637) * 43758.5453;
+    const value = Math.sin(seed * 7907.713 + a * 97.137 + b * 251.843) * 43758.5453;
     return value - Math.floor(value);
   };
 
-  function isMainGraph(ctx) {
-    return ctx?.canvas?.classList?.contains('memory-graph-canvas') === true;
+  function isArmsCanvas(ctx) {
+    return ctx?.canvas?.classList?.contains('memory-graph-neural-arms-canvas') === true;
   }
 
-  function isSemanticBlueLine(ctx) {
-    if (!ctx?.__memoryNeuralTerminalStart || !ctx?.__memoryNeuralTerminalEnd) return false;
-    return String(ctx.strokeStyle || '').includes('120, 184, 255');
+  function isMediumBranchSpine(ctx) {
+    return isArmsCanvas(ctx) && String(ctx.strokeStyle || '').includes('207,240,255');
   }
 
-  function ensureLayer(canvas) {
-    if (!canvas?.parentElement) return false;
-    if (!layer || sourceCanvas !== canvas || !layer.isConnected) {
+  function ensureLayer() {
+    const graph = document.querySelector('.memory-graph-canvas');
+    if (!graph?.parentElement) return false;
+    if (!layer || sourceCanvas !== graph || !layer.isConnected) {
       layer?.remove();
       layer = document.createElement('canvas');
       layer.className = 'memory-graph-neural-terminal-canvas';
       layer.setAttribute('aria-hidden', 'true');
-      canvas.parentElement.appendChild(layer);
+      graph.parentElement.appendChild(layer);
       layerContext = layer.getContext('2d');
-      sourceCanvas = canvas;
+      sourceCanvas = graph;
     }
     if (!layerContext) return false;
 
-    const rect = canvas.getBoundingClientRect();
+    const rect = graph.getBoundingClientRect();
     const width = Math.max(1, Math.round(rect.width));
     const height = Math.max(1, Math.round(rect.height));
-    const dpr = Math.max(1, canvas.width / Math.max(1, width));
+    const dpr = Math.max(1, graph.width / Math.max(1, width));
     const pixelWidth = Math.max(1, Math.round(width * dpr));
     const pixelHeight = Math.max(1, Math.round(height * dpr));
     if (layer.width !== pixelWidth || layer.height !== pixelHeight) {
@@ -71,146 +68,43 @@
     return true;
   }
 
-  function transformedEndpoints(ctx) {
-    const start = ctx.__memoryNeuralTerminalStart;
-    const end = ctx.__memoryNeuralTerminalEnd;
-    if (!start || !end) return null;
-    const canvas = ctx.canvas;
-    const rect = canvas.getBoundingClientRect();
-    const dpr = Math.max(1, canvas.width / Math.max(1, rect.width));
-    const matrix = ctx.getTransform();
-    const project = (point) => ({
-      x: (matrix.a * point.x + matrix.c * point.y + matrix.e) / dpr,
-      y: (matrix.b * point.x + matrix.d * point.y + matrix.f) / dpr
+  function recordPoint(ctx, x, y) {
+    if (!isArmsCanvas(ctx)) return;
+    const state = pathState.get(ctx) || [];
+    state.push({ x: Number(x), y: Number(y) });
+    pathState.set(ctx, state);
+  }
+
+  function captureMediumBranch(ctx) {
+    if (!isMediumBranchSpine(ctx)) return;
+    const points = pathState.get(ctx);
+    if (!Array.isArray(points) || points.length < 5) return;
+
+    let length = 0;
+    for (let index = 1; index < points.length; index += 1) {
+      length += Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y);
+    }
+    if (length < 12) return;
+
+    const first = points[0];
+    const last = points[points.length - 1];
+    const seed = Math.abs(Math.sin(first.x * 0.017 + first.y * 0.023 + last.x * 0.031 + last.y * 0.013));
+    captured.push({
+      points: points.map((point) => ({ ...point })),
+      length,
+      width: clamp(length * 0.028, 2.2, 5.2),
+      seed
     });
-    return { from: project(start), to: project(end) };
+    ensureLayer();
   }
 
-  function capture(ctx) {
-    const target = sourceCanvas || document.querySelector('.memory-graph-canvas');
-    if (!target || !ensureLayer(target)) return;
-    const points = transformedEndpoints(ctx);
-    if (!points || distance(points.from, points.to) < 4) return;
-    segments.push({ ...points, length: distance(points.from, points.to) });
-  }
-
-  function groupBySource(items) {
-    const groups = [];
-    const tolerance = 14;
-    for (const segment of items) {
-      let group = groups.find((candidate) => distance(candidate.centre, segment.from) <= tolerance);
-      if (!group) {
-        group = { centre: { ...segment.from }, segments: [] };
-        groups.push(group);
-      }
-      group.segments.push(segment);
-      const count = group.segments.length;
-      group.centre.x += (segment.from.x - group.centre.x) / count;
-      group.centre.y += (segment.from.y - group.centre.y) / count;
-    }
-    return groups;
-  }
-
-  function rootGroups(items) {
-    const groups = groupBySource(items);
-    const endpointTolerance = 18;
-    return groups
-      .filter((group) => !items.some((segment) => distance(group.centre, segment.to) <= endpointTolerance))
-      .sort((a, b) => b.segments.length - a.segments.length)
-      .slice(0, 8);
-  }
-
-  function nexusPoint(roots) {
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
-    for (const root of roots) {
-      minX = Math.min(minX, root.centre.x);
-      maxX = Math.max(maxX, root.centre.x);
-      minY = Math.min(minY, root.centre.y);
-      maxY = Math.max(maxY, root.centre.y);
-    }
-    return { x: (minX + maxX) * 0.5, y: (minY + maxY) * 0.5 };
-  }
-
-  function controlPoints(from, to, seed, bendScale = 1, lane = 0) {
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    const px = -dy / length;
-    const py = dx / length;
-    const side = hash(seed, lane, 1) > 0.5 ? 1 : -1;
-    const bend = side * clamp(length * (0.09 + hash(seed, lane, 2) * 0.10), 10, 86) * bendScale;
-    const skew = (hash(seed, lane, 3) - 0.5) * 0.16;
-    return {
-      p0: from,
-      p1: { x: from.x + dx * (0.28 + skew) + px * bend * 0.72, y: from.y + dy * (0.28 + skew) + py * bend * 0.72 },
-      p2: { x: from.x + dx * (0.70 - skew) + px * bend, y: from.y + dy * (0.70 - skew) + py * bend },
-      p3: to,
-      length
-    };
-  }
-
-  function pointOnCurve(curve, t) {
-    const mt = 1 - t;
-    const mt2 = mt * mt;
-    const t2 = t * t;
-    return {
-      x: curve.p0.x * mt2 * mt + 3 * curve.p1.x * mt2 * t + 3 * curve.p2.x * mt * t2 + curve.p3.x * t2 * t,
-      y: curve.p0.y * mt2 * mt + 3 * curve.p1.y * mt2 * t + 3 * curve.p2.y * mt * t2 + curve.p3.y * t2 * t
-    };
-  }
-
-  function tangentOnCurve(curve, t) {
-    const mt = 1 - t;
-    const x = 3 * mt * mt * (curve.p1.x - curve.p0.x) + 6 * mt * t * (curve.p2.x - curve.p1.x) + 3 * t * t * (curve.p3.x - curve.p2.x);
-    const y = 3 * mt * mt * (curve.p1.y - curve.p0.y) + 6 * mt * t * (curve.p2.y - curve.p1.y) + 3 * t * t * (curve.p3.y - curve.p2.y);
-    const length = Math.max(0.001, Math.hypot(x, y));
-    return { x: x / length, y: y / length };
-  }
-
-  function mediumBranch(major, mainWidth, seed, arm) {
-    const positions = [0.08, 0.16, 0.25, 0.35, 0.46, 0.57, 0.68, 0.78, 0.87];
-    const local = seed + arm * 0.613;
-    const t = clamp(positions[arm] + (hash(local, 1, 2) - 0.5) * 0.034, 0.06, 0.91);
-    const origin = pointOnCurve(major, t);
-    const tangent = tangentOnCurve(major, t);
-    const nx = -tangent.y;
-    const ny = tangent.x;
-    const side = hash(local, 3, 4) > 0.47 ? 1 : -1;
-    const branchWidth = mainWidth * (0.15 + hash(local, 7, 8) * 0.075) * (1 - t * 0.16);
-    const reach = mainWidth * (2.5 + hash(local, 5, 6) * 2.7) * (1 - t * 0.10);
-    const start = {
-      x: origin.x + nx * side * mainWidth * 0.07 - tangent.x * branchWidth * 0.82,
-      y: origin.y + ny * side * mainWidth * 0.07 - tangent.y * branchWidth * 0.82
-    };
-    const forward = reach * (0.98 + hash(local, 9, 10) * 0.75);
-    const lateral = reach * (0.35 + hash(local, 11, 12) * 0.40) * side;
-    const end = { x: origin.x + tangent.x * forward + nx * lateral, y: origin.y + tangent.y * forward + ny * lateral };
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const len = Math.max(1, Math.hypot(dx, dy));
-    const bx = -dy / len;
-    const by = dx / len;
-    const bend = (hash(local, 13, 14) - 0.5) * reach * 0.16;
-    return {
-      local,
-      width: branchWidth,
-      curve: {
-        p0: start,
-        p1: {
-          x: start.x + tangent.x * reach * 0.50 + nx * side * reach * 0.07 + bx * bend,
-          y: start.y + tangent.y * reach * 0.50 + ny * side * reach * 0.07 + by * bend
-        },
-        p2: {
-          x: start.x + dx * 0.74 + nx * side * reach * 0.045 + bx * bend * 0.45,
-          y: start.y + dy * 0.74 + ny * side * reach * 0.045 + by * bend * 0.45
-        },
-        p3: end,
-        length: distance(start, end)
-      }
-    };
+  function tangent(points, index) {
+    const a = points[Math.max(0, index - 1)];
+    const b = points[Math.min(points.length - 1, index + 1)];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.max(0.001, Math.hypot(dx, dy));
+    return { x: dx / length, y: dy / length };
   }
 
   function traceSmooth(ctx, points, close = false) {
@@ -231,75 +125,74 @@
   }
 
   function buildTail(branch) {
-    const { curve, width, local } = branch;
-    const centre = [];
-    const halfWidths = [];
-    const tangents = [];
-    const startT = 0.62;
-    const sourceSteps = 10;
-
-    for (let index = 0; index <= sourceSteps; index += 1) {
-      const t = startT + (1 - startT) * (index / sourceSteps);
-      const p = pointOnCurve(curve, t);
-      const tangent = tangentOnCurve(curve, t);
-      const shoulder = 0.72 * Math.exp(-Math.pow(t / 0.22, 2));
-      const taper = 0.12 + Math.pow(1 - t, 0.82) * 0.88 + shoulder;
-      centre.push(p);
-      tangents.push(tangent);
-      halfWidths.push(width * taper * 0.96);
-    }
-
-    const oldEnd = curve.p3;
-    const endTangent = tangentOnCurve(curve, 0.985);
+    const source = branch.points;
+    const startIndex = Math.max(1, Math.floor((source.length - 1) * 0.66));
+    const centre = source.slice(startIndex).map((point) => ({ ...point }));
+    const oldEnd = centre[centre.length - 1];
+    const endTangent = tangent(source, source.length - 1);
     const nx = -endTangent.y;
     const ny = endTangent.x;
-    const side = hash(local, 70, 71) > 0.5 ? 1 : -1;
-    const extension = width * (3.0 + hash(local, 72, 73) * 2.6);
-    const extensionSteps = 8;
+    const side = hash(branch.seed, 1, 2) > 0.5 ? 1 : -1;
+    const extension = branch.width * (3.4 + hash(branch.seed, 3, 4) * 2.8);
+    const steps = 9;
 
-    for (let index = 1; index <= extensionSteps; index += 1) {
-      const u = index / extensionSteps;
-      const bend = Math.sin(Math.PI * u) * extension * (0.07 + hash(local, 74, 75) * 0.07) * side;
-      const p = {
+    for (let index = 1; index <= steps; index += 1) {
+      const u = index / steps;
+      const bend = Math.sin(Math.PI * u) * extension * (0.055 + hash(branch.seed, 5, 6) * 0.055) * side;
+      centre.push({
         x: oldEnd.x + endTangent.x * extension * u + nx * bend,
         y: oldEnd.y + endTangent.y * extension * u + ny * bend
-      };
-      const tangent = {
-        x: endTangent.x + nx * side * (1 - u) * 0.08,
-        y: endTangent.y + ny * side * (1 - u) * 0.08
-      };
-      const tangentLength = Math.max(0.001, Math.hypot(tangent.x, tangent.y));
-      centre.push(p);
-      tangents.push({ x: tangent.x / tangentLength, y: tangent.y / tangentLength });
-      halfWidths.push(width * (0.12 * Math.pow(1 - u, 0.78) + 0.004));
+      });
     }
 
     const left = [];
     const right = [];
+    const sourceCount = source.length - startIndex;
     for (let index = 0; index < centre.length; index += 1) {
-      const tangent = tangents[index];
-      const nxLocal = -tangent.y;
-      const nyLocal = tangent.x;
-      const ripple = Math.sin((index / Math.max(1, centre.length - 1)) * Math.PI * 4.4 + local * 9.1) * 0.06;
-      const half = halfWidths[index] * (1 + ripple);
-      left.push({ x: centre[index].x + nxLocal * half, y: centre[index].y + nyLocal * half });
-      right.push({ x: centre[index].x - nxLocal * half, y: centre[index].y - nyLocal * half });
+      const t = tangent(centre, index);
+      const px = -t.y;
+      const py = t.x;
+      let half;
+      if (index < sourceCount) {
+        const u = index / Math.max(1, sourceCount - 1);
+        half = branch.width * (0.58 - u * 0.35);
+      } else {
+        const u = (index - sourceCount + 1) / Math.max(1, centre.length - sourceCount);
+        half = branch.width * (0.23 * Math.pow(1 - u, 0.76) + 0.008);
+      }
+      const ripple = 1 + Math.sin((index / Math.max(1, centre.length - 1)) * Math.PI * 4.2 + branch.seed * 8.7) * 0.06;
+      half *= ripple;
+      left.push({ x: centre[index].x + px * half, y: centre[index].y + py * half });
+      right.push({ x: centre[index].x - px * half, y: centre[index].y - py * half });
     }
-    return { centre, left, right, width, local };
+    return { centre, left, right, width: branch.width, seed: branch.seed, sourceCount };
   }
 
   function drawTail(ctx, branch) {
     const tail = buildTail(branch);
     const body = [...tail.left, ...tail.right.slice().reverse()];
+    const sourceEndIndex = Math.max(1, tail.sourceCount - 1);
+    const coverPoints = tail.centre.slice(0, sourceEndIndex + 1);
     const first = tail.centre[0];
     const last = tail.centre[tail.centre.length - 1];
+
+    // Exact-path cover: hide the old purple blunt terminal before laying the taper over it.
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    traceSmooth(ctx, coverPoints);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(2.0, tail.width * 1.28);
+    ctx.strokeStyle = 'rgba(8,27,76,.68)';
+    previousStroke.call(ctx);
+    ctx.restore();
 
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     traceSmooth(ctx, body, true);
-    ctx.fillStyle = 'rgba(13,38,104,.26)';
+    ctx.fillStyle = 'rgba(11,36,99,.38)';
     ctx.shadowBlur = 8;
-    ctx.shadowColor = 'rgba(58,95,241,.20)';
+    ctx.shadowColor = 'rgba(56,96,244,.20)';
     ctx.fill();
     ctx.restore();
 
@@ -307,66 +200,44 @@
     ctx.globalCompositeOperation = 'screen';
     traceSmooth(ctx, body, true);
     const tissue = ctx.createLinearGradient(first.x, first.y, last.x, last.y);
-    tissue.addColorStop(0, 'rgba(108,88,248,.28)');
-    tissue.addColorStop(0.45, 'rgba(69,116,241,.25)');
-    tissue.addColorStop(0.78, 'rgba(55,151,242,.18)');
-    tissue.addColorStop(1, 'rgba(49,154,231,.03)');
+    tissue.addColorStop(0, 'rgba(100,96,250,.36)');
+    tissue.addColorStop(0.42, 'rgba(67,132,248,.31)');
+    tissue.addColorStop(0.78, 'rgba(54,170,246,.22)');
+    tissue.addColorStop(1, 'rgba(52,160,232,.02)');
     ctx.fillStyle = tissue;
     ctx.fill();
 
     traceSmooth(ctx, tail.centre);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.lineWidth = Math.max(0.20, tail.width * 0.040);
-    ctx.strokeStyle = 'rgba(214,244,255,.48)';
+    ctx.lineWidth = Math.max(0.20, tail.width * 0.052);
+    ctx.strokeStyle = 'rgba(224,249,255,.62)';
     previousStroke.call(ctx);
 
-    const forkBaseIndex = Math.max(1, tail.centre.length - 5);
+    const forkBaseIndex = Math.max(1, tail.centre.length - 4);
     const forkBase = tail.centre[forkBaseIndex];
-    const tangent = tail.centre.length > forkBaseIndex + 1
-      ? (() => {
-          const next = tail.centre[forkBaseIndex + 1];
-          const dx = next.x - forkBase.x;
-          const dy = next.y - forkBase.y;
-          const len = Math.max(0.001, Math.hypot(dx, dy));
-          return { x: dx / len, y: dy / len };
-        })()
-      : { x: 1, y: 0 };
-    const nx = -tangent.y;
-    const ny = tangent.x;
+    const t = tangent(tail.centre, forkBaseIndex);
+    const nx = -t.y;
+    const ny = t.x;
     for (const side of [-1, 1]) {
-      const reach = tail.width * (1.7 + hash(tail.local, side, 88) * 1.6);
+      const reach = tail.width * (1.45 + hash(tail.seed, side, 8) * 1.35);
       const end = {
-        x: forkBase.x + tangent.x * reach * 0.72 + nx * side * reach * 0.58,
-        y: forkBase.y + tangent.y * reach * 0.72 + ny * side * reach * 0.58
+        x: forkBase.x + t.x * reach * 0.70 + nx * side * reach * 0.56,
+        y: forkBase.y + t.y * reach * 0.70 + ny * side * reach * 0.56
       };
       ctx.beginPath();
       ctx.moveTo(forkBase.x, forkBase.y);
       ctx.quadraticCurveTo(
-        forkBase.x + tangent.x * reach * 0.34 + nx * side * reach * 0.18,
-        forkBase.y + tangent.y * reach * 0.34 + ny * side * reach * 0.18,
+        forkBase.x + t.x * reach * 0.34 + nx * side * reach * 0.17,
+        forkBase.y + t.y * reach * 0.34 + ny * side * reach * 0.17,
         end.x,
         end.y
       );
-      ctx.lineWidth = 0.22;
-      ctx.strokeStyle = 'rgba(124,202,255,.20)';
+      ctx.lineWidth = 0.20;
+      ctx.strokeStyle = 'rgba(132,207,255,.21)';
       previousStroke.call(ctx);
     }
     ctx.restore();
-  }
-
-  function drawMediumBranchTails(ctx, roots) {
-    if (roots.length < 2) return;
-    const nexus = nexusPoint(roots);
-    roots.forEach((root, rootIndex) => {
-      const rootSeed = Math.abs(Math.sin(root.centre.x * 0.017 + root.centre.y * 0.029 + rootIndex * 0.731));
-      const major = controlPoints(nexus, root.centre, rootSeed, 0.78, rootIndex + 1);
-      const mainWidth = clamp(major.length * 0.055, 10, 20);
-      const branchSeed = rootSeed + 0.39;
-      for (let arm = 0; arm < 9; arm += 1) {
-        drawTail(ctx, mediumBranch(major, mainWidth, branchSeed, arm));
-      }
-    });
   }
 
   function drawFrame(timestamp) {
@@ -380,37 +251,36 @@
     if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;
     layerContext.clearRect(0, 0, rect.width, rect.height);
     if (interacting) return;
-    drawMediumBranchTails(layerContext, rootGroups(segments));
+    for (const branch of captured) drawTail(layerContext, branch);
   }
 
   proto.beginPath = function neuralTerminalBeginPath(...args) {
-    if (isMainGraph(this)) {
-      this.__memoryNeuralTerminalStart = null;
-      this.__memoryNeuralTerminalEnd = null;
-    }
+    if (isArmsCanvas(this)) pathState.set(this, []);
     return previousBeginPath.apply(this, args);
   };
 
   proto.moveTo = function neuralTerminalMoveTo(x, y, ...rest) {
-    if (isMainGraph(this)) {
-      this.__memoryNeuralTerminalStart = { x: Number(x), y: Number(y) };
-      this.__memoryNeuralTerminalEnd = null;
-    }
+    recordPoint(this, x, y);
     return previousMoveTo.call(this, x, y, ...rest);
   };
 
   proto.lineTo = function neuralTerminalLineTo(x, y, ...rest) {
-    if (isMainGraph(this) && this.__memoryNeuralTerminalStart) this.__memoryNeuralTerminalEnd = { x: Number(x), y: Number(y) };
+    recordPoint(this, x, y);
     return previousLineTo.call(this, x, y, ...rest);
   };
 
+  proto.quadraticCurveTo = function neuralTerminalQuadraticCurveTo(cpx, cpy, x, y, ...rest) {
+    recordPoint(this, x, y);
+    return previousQuadraticCurveTo.call(this, cpx, cpy, x, y, ...rest);
+  };
+
   proto.clearRect = function neuralTerminalClearRect(...args) {
-    if (isMainGraph(this)) segments.length = 0;
+    if (isArmsCanvas(this)) captured = [];
     return previousClearRect.apply(this, args);
   };
 
   proto.stroke = function neuralTerminalStroke(...args) {
-    if (isMainGraph(this) && isSemanticBlueLine(this) && Number(this.lineWidth || 1) <= 1.6) capture(this);
+    captureMediumBranch(this);
     return previousStroke.apply(this, args);
   };
 
@@ -427,12 +297,13 @@
         height:100%;
         pointer-events:none;
         mix-blend-mode:screen;
-        opacity:.92;
+        opacity:.94;
       }
     `;
     document.head.appendChild(style);
   }
 
+  ensureLayer();
   globalThis.MemoryGraphNeuralTerminal = Object.freeze({ version: VERSION, redraw() { lastPaint = 0; } });
   globalThis.MemoryGraph?.redraw?.();
 })();
