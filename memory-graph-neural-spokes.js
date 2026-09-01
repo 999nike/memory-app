@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralSpokesInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralSpokesInstalled', { value: true });
@@ -19,8 +19,8 @@
   let frame = 0;
   let lastPaint = 0;
 
-  const FRAME_MS = 58;
-  const INTERACTING_FRAME_MS = 132;
+  const FRAME_MS = 64;
+  const INTERACTING_FRAME_MS = 148;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const distance = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
   const hash = (seed, a = 0, b = 0) => {
@@ -120,32 +120,18 @@
       .slice(0, 8);
   }
 
-  function curveFor(segment, root, index) {
-    const from = root.centre;
-    const to = segment.to;
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    const nx = -dy / length;
-    const ny = dx / length;
-    const seed = segment.seed + index * 0.613;
-    const side = hash(seed, 1, 2) > 0.5 ? 1 : -1;
-    const bend = side * clamp(length * (0.055 + hash(seed, 3, 4) * 0.075), 4, 26);
-    const spread = (hash(seed, 5, 6) - 0.5) * length * 0.08;
-    return {
-      p0: from,
-      p1: {
-        x: from.x + dx * 0.30 + nx * bend * 0.72,
-        y: from.y + dy * 0.30 + ny * bend * 0.72
-      },
-      p2: {
-        x: from.x + dx * 0.72 + nx * bend + (dx / length) * spread,
-        y: from.y + dy * 0.72 + ny * bend + (dy / length) * spread
-      },
-      p3: to,
-      length,
-      seed
-    };
+  function nexusPoint(roots) {
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const root of roots) {
+      minX = Math.min(minX, root.centre.x);
+      maxX = Math.max(maxX, root.centre.x);
+      minY = Math.min(minY, root.centre.y);
+      maxY = Math.max(maxY, root.centre.y);
+    }
+    return { x: (minX + maxX) * 0.5, y: (minY + maxY) * 0.5 };
   }
 
   function pointOnCurve(curve, t) {
@@ -183,8 +169,8 @@
     if (close) ctx.closePath();
   }
 
-  function sampleTube(curve, width, seed, interacting) {
-    const count = interacting ? 12 : 28;
+  function sampleTube(curve, width, seed, interacting, tipFloor = 0.012) {
+    const count = interacting ? 12 : 30;
     const left = [];
     const right = [];
     const centre = [];
@@ -198,23 +184,15 @@
       const tangent = tangentOnCurve(curve, t);
       const nx = -tangent.y;
       const ny = tangent.x;
-      const window = Math.pow(Math.sin(Math.PI * t), 0.64);
-      const shoulder = 0.72 * Math.exp(-Math.pow(t / 0.20, 2));
-      const taper = 0.18 + Math.pow(1 - t, 0.72) * 0.82 + shoulder * 0.50;
-      const drift = width * window * (
-        Math.sin(t * Math.PI * 2.2 + phase) * 0.13
-        + Math.sin(t * Math.PI * 6.6 + phase * 0.71) * 0.035
-      );
+      const window = Math.pow(Math.sin(Math.PI * t), 0.60);
+      const shoulder = 0.90 * Math.exp(-Math.pow(t / 0.19, 2));
+      const terminal = Math.pow(1 - t, 0.74);
+      const taper = tipFloor + terminal * (0.92 - tipFloor) + shoulder * 0.48;
+      const drift = width * window * (Math.sin(t * Math.PI * 2.25 + phase) * 0.15 + Math.sin(t * Math.PI * 6.8 + phase * 0.71) * 0.045);
       const cx = p.x + nx * drift;
       const cy = p.y + ny * drift;
-      const leftRipple = window * (
-        Math.sin(t * Math.PI * 3.5 + phaseL) * 0.22
-        + Math.sin(t * Math.PI * 8.1 + phaseR) * 0.055
-      );
-      const rightRipple = window * (
-        Math.sin(t * Math.PI * 3.9 + phaseR) * 0.24
-        + Math.sin(t * Math.PI * 7.6 + phaseL) * 0.060
-      );
+      const leftRipple = window * (Math.sin(t * Math.PI * 3.4 + phaseL) * 0.25 + Math.sin(t * Math.PI * 8.2 + phaseR) * 0.065);
+      const rightRipple = window * (Math.sin(t * Math.PI * 3.9 + phaseR) * 0.27 + Math.sin(t * Math.PI * 7.7 + phaseL) * 0.070);
       const half = width * taper;
       centre.push({ x: cx, y: cy });
       left.push({ x: cx + nx * half * (1 + leftRipple), y: cy + ny * half * (1 + leftRipple) });
@@ -223,30 +201,17 @@
     return { left, right, centre };
   }
 
-  function coverOriginalSpoke(ctx, segment, width, interacting) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.beginPath();
-    ctx.moveTo(segment.from.x, segment.from.y);
-    ctx.lineTo(segment.to.x, segment.to.y);
-    ctx.lineCap = 'round';
-    ctx.lineWidth = Math.max(2.4, width * 1.42);
-    ctx.strokeStyle = interacting ? 'rgba(4,12,28,.46)' : 'rgba(4,12,28,.78)';
-    previousStroke.call(ctx);
-    ctx.restore();
-  }
-
-  function drawOrganicSpoke(ctx, curve, width, seed, interacting) {
+  function drawTissueRoot(ctx, curve, width, seed, interacting, brightness = 1) {
     const tube = sampleTube(curve, width, seed, interacting);
     const body = [...tube.left, ...tube.right.slice().reverse()];
-    const detail = interacting ? 0.46 : 1;
+    const detail = interacting ? 0.42 : 1;
 
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     traceSmooth(ctx, body, true);
-    ctx.fillStyle = `rgba(8,27,78,${(0.62 * detail).toFixed(3)})`;
-    ctx.shadowBlur = interacting ? 2 : 9;
-    ctx.shadowColor = `rgba(48,72,226,${(0.19 * detail).toFixed(3)})`;
+    ctx.fillStyle = `rgba(7,24,72,${(0.70 * detail).toFixed(3)})`;
+    ctx.shadowBlur = interacting ? 2 : 8;
+    ctx.shadowColor = `rgba(46,69,215,${(0.16 * detail).toFixed(3)})`;
     ctx.fill();
     ctx.restore();
 
@@ -254,108 +219,238 @@
     ctx.globalCompositeOperation = 'screen';
     traceSmooth(ctx, body, true);
     const tissue = ctx.createLinearGradient(curve.p0.x, curve.p0.y, curve.p3.x, curve.p3.y);
-    tissue.addColorStop(0, `rgba(112,82,255,${(0.36 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.34, `rgba(72,96,246,${(0.29 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.70, `rgba(43,132,239,${(0.21 * detail).toFixed(3)})`);
-    tissue.addColorStop(1, `rgba(36,105,210,${(0.09 * detail).toFixed(3)})`);
+    tissue.addColorStop(0, `rgba(102,77,245,${(0.28 * detail * brightness).toFixed(3)})`);
+    tissue.addColorStop(0.42, `rgba(61,100,232,${(0.22 * detail * brightness).toFixed(3)})`);
+    tissue.addColorStop(0.78, `rgba(37,126,221,${(0.15 * detail * brightness).toFixed(3)})`);
+    tissue.addColorStop(1, `rgba(31,98,190,${(0.04 * detail * brightness).toFixed(3)})`);
     ctx.fillStyle = tissue;
     ctx.fill();
-
     traceSmooth(ctx, tube.centre);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.lineWidth = Math.max(0.34, width * 0.065);
-    ctx.strokeStyle = `rgba(83,169,255,${(0.30 * detail).toFixed(3)})`;
+    ctx.lineWidth = Math.max(0.25, width * 0.040);
+    ctx.strokeStyle = `rgba(112,193,255,${(0.24 * detail * brightness).toFixed(3)})`;
     previousStroke.call(ctx);
     traceSmooth(ctx, tube.centre);
-    ctx.lineWidth = Math.max(0.22, width * 0.026);
-    ctx.strokeStyle = `rgba(224,248,255,${(0.64 * detail).toFixed(3)})`;
+    ctx.lineWidth = Math.max(0.18, width * 0.018);
+    ctx.strokeStyle = `rgba(230,249,255,${(0.54 * detail * brightness).toFixed(3)})`;
     previousStroke.call(ctx);
     ctx.restore();
+  }
 
+  function curveForSpoke(segment, root, index) {
+    const from = root.centre;
+    const to = segment.to;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const nx = -dy / length;
+    const ny = dx / length;
+    const seed = segment.seed + index * 0.613;
+    const side = hash(seed, 1, 2) > 0.5 ? 1 : -1;
+    const bend = side * clamp(length * (0.10 + hash(seed, 3, 4) * 0.10), 7, 34);
+    const skew = (hash(seed, 5, 6) - 0.5) * 0.12;
+    return {
+      p0: from,
+      p1: { x: from.x + dx * (0.28 + skew) + nx * bend * 0.74, y: from.y + dy * (0.28 + skew) + ny * bend * 0.74 },
+      p2: { x: from.x + dx * (0.70 - skew) + nx * bend, y: from.y + dy * (0.70 - skew) + ny * bend },
+      p3: to,
+      length,
+      seed
+    };
+  }
+
+  function coverOriginalSpoke(ctx, segment, width, interacting) {
+    const dx = segment.to.x - segment.from.x;
+    const dy = segment.to.y - segment.from.y;
+    const start = { x: segment.from.x + dx * 0.055, y: segment.from.y + dy * 0.055 };
+    const end = { x: segment.from.x + dx * 0.945, y: segment.from.y + dy * 0.945 };
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(4.8, width * 2.25);
+    ctx.strokeStyle = interacting ? 'rgba(3,10,24,.58)' : 'rgba(3,10,24,.94)';
+    previousStroke.call(ctx);
+    ctx.restore();
+  }
+
+  function drawSpokeFibres(ctx, curve, width, seed, interacting) {
     if (interacting) return;
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     ctx.lineCap = 'round';
-    for (let fibre = 0; fibre < 3; fibre += 1) {
+    for (let fibre = 0; fibre < 5; fibre += 1) {
       const local = seed + fibre * 0.457;
-      const t = 0.30 + fibre * 0.19 + (hash(local, 13, 14) - 0.5) * 0.08;
+      const t = 0.22 + fibre * 0.13 + (hash(local, 13, 14) - 0.5) * 0.06;
       const p = pointOnCurve(curve, t);
       const tangent = tangentOnCurve(curve, t);
       const nx = -tangent.y;
       const ny = tangent.x;
-      const side = hash(local, 15, 16) > 0.5 ? 1 : -1;
-      const reach = width * (1.7 + hash(local, 17, 18) * 2.2);
-      const end = {
-        x: p.x + nx * side * reach + tangent.x * reach * (hash(local, 19, 20) - 0.35),
-        y: p.y + ny * side * reach + tangent.y * reach * (hash(local, 19, 20) - 0.35)
-      };
+      const side = fibre % 2 ? -1 : 1;
+      const reach = width * (1.8 + hash(local, 17, 18) * 2.8);
+      const end = { x: p.x + nx * side * reach + tangent.x * reach * (hash(local, 19, 20) - 0.38), y: p.y + ny * side * reach + tangent.y * reach * (hash(local, 19, 20) - 0.38) };
       ctx.beginPath();
       ctx.moveTo(p.x, p.y);
-      ctx.quadraticCurveTo(
-        (p.x + end.x) * 0.5 + nx * side * reach * 0.18,
-        (p.y + end.y) * 0.5 + ny * side * reach * 0.18,
-        end.x,
-        end.y
-      );
-      ctx.lineWidth = 0.22;
-      ctx.strokeStyle = 'rgba(117,196,255,.14)';
+      ctx.quadraticCurveTo((p.x + end.x) * 0.5 + nx * side * reach * 0.14, (p.y + end.y) * 0.5 + ny * side * reach * 0.14, end.x, end.y);
+      ctx.lineWidth = 0.18 + hash(local, 21, 22) * 0.13;
+      ctx.strokeStyle = 'rgba(116,192,255,.12)';
       previousStroke.call(ctx);
     }
     ctx.restore();
   }
 
   function drawRootCollar(ctx, root, count, interacting) {
-    const radius = clamp(7.5 + count * 0.9, 9, 17);
-    const detail = interacting ? 0.46 : 1;
+    const radius = clamp(9 + count * 0.95, 11, 19);
+    const detail = interacting ? 0.40 : 1;
     const seed = root.centre.x * 0.0017 + root.centre.y * 0.0023 + count * 0.61;
+    const points = [];
+    for (let index = 0; index < 36; index += 1) {
+      const angle = (index / 36) * Math.PI * 2;
+      const wobble = 0.82 + Math.sin(angle * 3 + seed * 7.1) * 0.13 + Math.sin(angle * 7 + seed * 11.3) * 0.07;
+      const r = radius * wobble;
+      points.push({ x: root.centre.x + Math.cos(angle) * r, y: root.centre.y + Math.sin(angle) * r });
+    }
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
-    ctx.beginPath();
-    const points = 30;
-    for (let index = 0; index <= points; index += 1) {
-      const angle = (index / points) * Math.PI * 2;
-      const wobble = 0.86 + Math.sin(angle * 3 + seed * 7.1) * 0.12 + Math.sin(angle * 7 + seed * 11.3) * 0.06;
-      const r = radius * wobble;
-      const x = root.centre.x + Math.cos(angle) * r;
-      const y = root.centre.y + Math.sin(angle) * r;
-      if (!index) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    ctx.fillStyle = `rgba(9,27,78,${(0.46 * detail).toFixed(3)})`;
+    traceSmooth(ctx, points, true);
+    ctx.fillStyle = `rgba(7,24,70,${(0.58 * detail).toFixed(3)})`;
     ctx.fill();
     ctx.globalCompositeOperation = 'screen';
-    const glow = ctx.createRadialGradient(root.centre.x, root.centre.y, 0, root.centre.x, root.centre.y, radius);
-    glow.addColorStop(0, `rgba(100,92,255,${(0.28 * detail).toFixed(3)})`);
-    glow.addColorStop(0.55, `rgba(53,126,245,${(0.18 * detail).toFixed(3)})`);
-    glow.addColorStop(1, 'rgba(40,90,220,0)');
+    const glow = ctx.createRadialGradient(root.centre.x, root.centre.y, 0, root.centre.x, root.centre.y, radius * 1.45);
+    glow.addColorStop(0, `rgba(122,111,255,${(0.35 * detail).toFixed(3)})`);
+    glow.addColorStop(0.45, `rgba(63,133,242,${(0.19 * detail).toFixed(3)})`);
+    glow.addColorStop(1, 'rgba(35,90,210,0)');
     ctx.beginPath();
-    ctx.arc(root.centre.x, root.centre.y, radius, 0, Math.PI * 2);
+    ctx.arc(root.centre.x, root.centre.y, radius * 1.45, 0, Math.PI * 2);
     ctx.fillStyle = glow;
     ctx.fill();
     ctx.restore();
   }
 
   function drawRootSpokes(ctx, root, rootIndex, interacting) {
-    const candidates = root.segments
-      .filter((segment) => segment.length > 16)
-      .sort((a, b) => b.length - a.length)
-      .slice(0, 9);
+    const candidates = root.segments.filter((segment) => segment.length > 16).sort((a, b) => b.length - a.length).slice(0, 9);
     if (!candidates.length) return;
-
-    const baseWidth = clamp(2.5 + candidates.length * 0.23, 3.0, 4.8);
+    const baseWidth = clamp(2.7 + candidates.length * 0.19, 3.0, 4.5);
     candidates.forEach((segment, index) => {
       const local = segment.seed + rootIndex * 0.731 + index * 0.417;
-      const width = baseWidth * (0.96 - Math.min(index, 6) * 0.045) * clamp(segment.length / 75, 0.78, 1.25);
+      const width = baseWidth * (0.96 - Math.min(index, 6) * 0.040) * clamp(segment.length / 78, 0.76, 1.18);
       coverOriginalSpoke(ctx, segment, width, interacting);
-      drawOrganicSpoke(ctx, curveFor(segment, root, index), width, local, interacting);
+      const curve = curveForSpoke(segment, root, index);
+      drawTissueRoot(ctx, curve, width, local, interacting, 0.92);
+      drawSpokeFibres(ctx, curve, width, local + 0.33, interacting);
     });
     drawRootCollar(ctx, root, candidates.length, interacting);
   }
 
-  function drawSharedSpokes(ctx, roots, interacting) {
+  function majorCurve(from, to, seed, lane = 0) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const px = -dy / length;
+    const py = dx / length;
+    const side = hash(seed, lane, 1) > 0.5 ? 1 : -1;
+    const bend = side * clamp(length * (0.09 + hash(seed, lane, 2) * 0.10), 10, 86) * 0.78;
+    const skew = (hash(seed, lane, 3) - 0.5) * 0.16;
+    return {
+      p0: from,
+      p1: { x: from.x + dx * (0.28 + skew) + px * bend * 0.72, y: from.y + dy * (0.28 + skew) + py * bend * 0.72 },
+      p2: { x: from.x + dx * (0.70 - skew) + px * bend, y: from.y + dy * (0.70 - skew) + py * bend },
+      p3: to,
+      length
+    };
+  }
+
+  function branchCurveFromMajor(major, mainWidth, t, side, seed) {
+    const origin = pointOnCurve(major, t);
+    const tangent = tangentOnCurve(major, t);
+    const nx = -tangent.y;
+    const ny = tangent.x;
+    const branchWidth = mainWidth * (0.24 + hash(seed, 1, 2) * 0.12) * (1 - t * 0.10);
+    const reach = mainWidth * (5.6 + hash(seed, 3, 4) * 3.9) * (1 - t * 0.08);
+    const start = { x: origin.x - tangent.x * branchWidth * 1.65 + nx * side * mainWidth * 0.02, y: origin.y - tangent.y * branchWidth * 1.65 + ny * side * mainWidth * 0.02 };
+    const forward = reach * (0.82 + hash(seed, 5, 6) * 0.58);
+    const lateral = reach * (0.44 + hash(seed, 7, 8) * 0.42) * side;
+    const end = { x: origin.x + tangent.x * forward + nx * lateral, y: origin.y + tangent.y * forward + ny * lateral };
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    return {
+      curve: {
+        p0: start,
+        p1: { x: start.x + tangent.x * reach * 0.42 + nx * side * reach * 0.12, y: start.y + tangent.y * reach * 0.42 + ny * side * reach * 0.12 },
+        p2: { x: start.x + dx * 0.73 + nx * side * reach * 0.08, y: start.y + dy * 0.73 + ny * side * reach * 0.08 },
+        p3: end,
+        length: distance(start, end)
+      },
+      width: branchWidth
+    };
+  }
+
+  function terminalCurve(parent, width, seed) {
+    const start = pointOnCurve(parent, 0.63);
+    const tangent = tangentOnCurve(parent, 0.98);
+    const nx = -tangent.y;
+    const ny = tangent.x;
+    const oldEnd = parent.p3;
+    const extra = width * (4.1 + hash(seed, 51, 52) * 3.8);
+    const side = hash(seed, 53, 54) > 0.5 ? 1 : -1;
+    const end = { x: oldEnd.x + tangent.x * extra + nx * side * extra * (0.18 + hash(seed, 55, 56) * 0.22), y: oldEnd.y + tangent.y * extra + ny * side * extra * (0.18 + hash(seed, 55, 56) * 0.22) };
+    return {
+      p0: start,
+      p1: { x: start.x + tangent.x * extra * 0.34 + nx * side * extra * 0.10, y: start.y + tangent.y * extra * 0.34 + ny * side * extra * 0.10 },
+      p2: { x: oldEnd.x + tangent.x * extra * 0.34 + nx * side * extra * 0.20, y: oldEnd.y + tangent.y * extra * 0.34 + ny * side * extra * 0.20 },
+      p3: end,
+      length: distance(start, end)
+    };
+  }
+
+  function drawTerminalFork(ctx, curve, width, seed, interacting) {
+    if (interacting) return;
+    const base = pointOnCurve(curve, 0.73);
+    const tangent = tangentOnCurve(curve, 0.88);
+    const nx = -tangent.y;
+    const ny = tangent.x;
+    for (const side of [-1, 1]) {
+      const local = seed + side * 0.719;
+      const reach = width * (3.0 + hash(local, 60, 61) * 2.7);
+      const end = { x: base.x + tangent.x * reach * 0.72 + nx * side * reach * 0.58, y: base.y + tangent.y * reach * 0.72 + ny * side * reach * 0.58 };
+      const fork = {
+        p0: base,
+        p1: { x: base.x + tangent.x * reach * 0.28 + nx * side * reach * 0.16, y: base.y + tangent.y * reach * 0.28 + ny * side * reach * 0.16 },
+        p2: { x: base.x + tangent.x * reach * 0.58 + nx * side * reach * 0.43, y: base.y + tangent.y * reach * 0.58 + ny * side * reach * 0.43 },
+        p3: end,
+        length: distance(base, end)
+      };
+      drawTissueRoot(ctx, fork, width * (0.20 + hash(local, 62, 63) * 0.07), local, false, 0.66);
+    }
+  }
+
+  function drawBranchTipFinish(ctx, roots, interacting) {
+    if (roots.length < 2) return;
+    const nexus = nexusPoint(roots);
+    const positions = [0.13, 0.27, 0.42, 0.58, 0.74];
+    roots.forEach((root, rootIndex) => {
+      const seed = Math.abs(Math.sin(root.centre.x * 0.017 + root.centre.y * 0.029 + rootIndex * 0.731));
+      const major = majorCurve(nexus, root.centre, seed, rootIndex + 1);
+      const mainWidth = clamp(major.length * 0.055, 10, 20);
+      const count = interacting ? 1 : positions.length;
+      for (let index = 0; index < count; index += 1) {
+        const local = seed + 0.17 + index * 0.733;
+        const t = clamp(positions[index] + (hash(local, 11, 12) - 0.5) * 0.052, 0.09, 0.82);
+        const side = (index % 2 ? -1 : 1) * (hash(local, 13, 14) > 0.22 ? 1 : -1);
+        const branch = branchCurveFromMajor(major, mainWidth, t, side, local);
+        const finish = terminalCurve(branch.curve, branch.width, local + 0.83);
+        drawTissueRoot(ctx, finish, branch.width * 0.72, local + 0.91, interacting, 0.58);
+        drawTerminalFork(ctx, finish, branch.width * 0.72, local + 1.07, interacting);
+      }
+    });
+  }
+
+  function drawShared(ctx, roots, interacting) {
     roots.forEach((root, index) => drawRootSpokes(ctx, root, index, interacting));
+    drawBranchTipFinish(ctx, roots, interacting);
   }
 
   function drawFrame(timestamp) {
@@ -368,7 +463,7 @@
     const rect = sourceCanvas.getBoundingClientRect();
     if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;
     layerContext.clearRect(0, 0, rect.width, rect.height);
-    drawSharedSpokes(layerContext, rootGroups(segments), interacting);
+    drawShared(layerContext, rootGroups(segments), interacting);
   }
 
   proto.beginPath = function neuralSpokesBeginPath(...args) {
