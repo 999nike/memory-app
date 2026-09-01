@@ -38,40 +38,38 @@ LAYER CHECKLIST
 [x] Layer 8 — Medium branch silhouette
 [x] Layer 9 — Screenshot-driven branch repair
 [x] Layer 10 — Dense root-field convergence
+[x] Layer 11 — Trunk bark / soma mantle
 
-[x] Layer 11 — Main trunk body convergence  < CODE APPLIED — VISUAL REVIEW PENDING
+[x] Layer 12 — Main trunk renderer convergence  < CODE APPLIED — VISUAL REVIEW PENDING
     Latest screenshot diagnosis:
-    - root field is improving, but the three major trunks still dominate as smooth blue cables.
-    - the old clean parallel edge silhouette is still readable through the detail layers.
-    - the central soma is still too small/clean compared with the dense living body in the reference.
-    - micro roots are present but too faint at full-graph scale.
+    - the network is noticeably more organic, but the three main trunks still read as clean rails through the bark/detail stack.
+    - the central junction still reads too clearly as a Y compared with the swollen neural body in the target.
+    - next correction belongs in the actual main trunk renderer, not another overlay layer.
 
-    Applied memory-graph-neural-arms.js VERSION 4:
-    - added an irregular dark-blue trunk mantle over each existing major trunk to visually suppress the old clean rail/cable silhouette.
-    - mantle uses independently irregular left/right walls and centre drift.
-    - added stronger soma-side shoulder swelling and smaller distal collars.
-    - added patchy blue/violet internal tissue blooms so trunk bodies are not visually uniform.
-    - kept outer membranes deliberately faint to avoid recreating bright parallel rails.
-    - increased internal trunk mesh from 5 to 7 wandering fibres and increased cross-ribs.
-    - increased desktop micro-root count from 24 to 30 and raised their visibility moderately.
-    - increased medium branch zones from 8 to 9, slightly thicker/longer but still subordinate to main trunks.
-    - added a larger irregular nexus mantle with lobes facing each app root.
-    - increased nexus lace from 34 to 46 strands and raised it slightly in visibility.
-    - interaction mode still reduces all expensive detail.
-    - no graph, data, physics, persistence or interaction semantics changed.
+    Applied memory-graph-neural-nexus.js VERSION 4:
+    - increased true trunk width and body depth so tissue, not edge lines, defines the silhouette.
+    - stronger independent left/right wall irregularity plus larger centreline drift.
+    - added irregular soma-side swelling, mid-trunk bulges and distal collars.
+    - reduced bright outer membrane rails to one faint edge per side.
+    - kept one very thin bright central spine.
+    - added three restrained internal tissue/vascular lanes inside each major trunk.
+    - increased blue/violet tissue fill while keeping the outside darker.
+    - enlarged the real central soma substantially and increased root-facing lobes so the Y intersection should fuse into one body.
+    - added 26 internal soma web strands inside the main nexus renderer.
+    - reduced nexus outline brightness.
+    - no topology, physics, persistence, drag/drop or app semantics changed.
 
-[ ] Layer 12 — Final screenshot-driven balance
+[ ] Layer 13 — Final screenshot-driven balance
     Check only:
-    - did trunk bark finally kill the clean cable/rail read?
-    - is soma now large/dense enough?
-    - are side roots visible enough without becoming clutter?
-    - are app clusters still readable?
-    - if trunk is too heavy, lower bark alpha before adding anything else.
-    - if still too clean, adjust trunk silhouette/opacity only; no new renderer.
+    - do the main trunks finally read as translucent roots rather than rails?
+    - has the centre become a living soma rather than a Y connector?
+    - is the combination of nexus VERSION 4 + arms VERSION 4 too heavy or correctly dense?
+    - are side roots visible enough at normal zoom?
+    - if needed, tune opacity/width/density only; do not add another renderer.
 
 CURRENT FILE ROLES
 - memory-graph-neural-nexus.js
-  Original organic trunk body, soma, membranes, centre spine.
+  VERSION 4: primary organic trunk bodies, irregular walls, tissue, vascular lanes, centre spine and enlarged living soma.
 
 - memory-graph-neural-detail.js
   Moving fibre lights, fine tendrils, distal flares, local webbing, soma weave.
@@ -86,16 +84,16 @@ CURRENT FILE ROLES
   Loader/integration only plus existing width/startup responsibilities.
 
 CURRENT CODE STATE
-- memory-graph-neural-nexus.js VERSION = 3
+- memory-graph-neural-nexus.js VERSION = 4
 - memory-graph-neural-detail.js VERSION = 1
 - memory-graph-neural-crowns.js VERSION = 1
 - memory-graph-neural-arms.js VERSION = 4
 - memory-graph-neural-width.js VERSION = 9
 
 LATEST IMPORTANT COMMITS
-- Branch-arm VERSION 2 repair: a328eef545485c8866bfdcdc622640ab3eb6fb75
 - Dense root-field VERSION 3: a8ff14363049add508fa02bb4fe328264894ad45
 - Trunk bark / soma VERSION 4: b8ed0bf3705b317e4e5a8db6e8557ad4ccca8b85
+- Main trunk renderer VERSION 4: 11d2a43e3f270e2367fa6dfc392472a34eb60db0
 
 WORKING RULE
 Use the newest browser screenshot and original reference side by side. Fix visible anatomy only. Do not add unrelated graphics systems.
