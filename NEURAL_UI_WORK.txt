@@ -2,6 +2,16 @@ UNIVERSAL SPACE — NEURAL UI WORK TRACKER
 Date: 2026-09-01
 Branch: molecular-v2
 
+CURRENT DIRECTION — updated after user acceptance, 1 September 2026
+- Accepted application rollback baseline: 4694b417c989b2ddd89a2c50e7849979a9c471b0.
+- User confirms EMAIL notification pulses are working.
+- Next: refine one existing middle trunk's organic tissue and internal spine.
+- Finish the connection design before extending the existing pulses to all
+  finished connection routes. Keep the working EMAIL activity path intact.
+- Current ordered checklist:
+  docs/research/NEURAL_CONNECTOR_RESEARCH_PLAN.md, "Current sequence".
+- The layer checklist below is history, not the next-work queue.
+
 HISTORICAL FAILED EXPERIMENT — 1 September 2026 restoration update
 The user restored a working LOCAL version and paused this patch sequence.
 The version lists and unchecked next steps below describe the older GitHub

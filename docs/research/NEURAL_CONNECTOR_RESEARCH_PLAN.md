@@ -2,17 +2,34 @@
 
 Date: 1 September 2026
 
-Status: RESEARCH COMPLETE; IMPLEMENTATION NOT STARTED. This document authorizes no code changes by itself.
+Status: WORKING NEURAL BASELINE ACCEPTED at application commit `4694b41`; visual refinement remains. The current sequence below supersedes the initial research checklist. This document authorizes no code changes by itself.
 
 Repository path: `docs/research/NEURAL_CONNECTOR_RESEARCH_PLAN.md` on `molecular-v2`.
 
 Canonical Windows project: `E:\WIZZ-Server\new-version\universal-space`.
 
-Read the root `UNIVERSAL_SPACE_RULES.txt` first. This research is now stored in Git; it does not establish that the restored HP files have been banked.
+Read the root `UNIVERSAL_SPACE_RULES.txt` first. The user's terminal output and local visual acceptance are recorded in `UNIVERSAL_SPACE_LEDGER.md`; the application rollback commit is `4694b417c989b2ddd89a2c50e7849979a9c471b0`.
 
 “Main folder” means that working directory, NOT the Git branch `main`.
 
-## Decision
+## Current sequence after local acceptance - 1 September 2026
+
+The user accepted the simplified neural design as a starting baseline, then confirmed that the existing EMAIL pulses notify them of mail. Their latest screenshot shows purple activity around EMAIL. Preserve this working notification behavior during styling. This report is not a complete route/acknowledgement regression test or a measured HP FPS result.
+
+- [x] Establish the working baseline and save its exact rollback commit: `4694b41`.
+- [x] Record user confirmation that EMAIL notification pulses are working.
+- [ ] NEXT: refine ONE existing middle trunk into an irregular, gently tapered translucent blue/violet root with a thin bright internal spine. Use its current anchors and centre path; keep attached fibres aligned. The current narrow rails are a base, not the finished tissue silhouette.
+- [ ] After the trunk is accepted, blend the central soma and trunk bases into a small organic junction; reduce the polygonal cage appearance.
+- [ ] Refine connected forks and fine webbing within the existing drawing budget. Keep clear hierarchy and attached junctions throughout movement.
+- [ ] Carry the accepted biological style into the app-child connections, one bounded pass at a time, while retaining the green bubbles and all existing actions.
+- [ ] AFTER DESIGN ACCEPTANCE: extend the existing pulse/activity system across the finished connection routes, including the middle trunks and app-child paths. Reuse existing blue flow and purple notification semantics. Route real activity through connected geometry; do not make every app falsely report new mail. Preserve the working EMAIL notification and acknowledgement path.
+- [ ] Accept each local visual/performance result before continuing, and record passed milestones in the existing ledger.
+
+Current drawing ownership: Nexus V6 draws the middle trunks/soma and bounded attached fibres; Scaffold V7 draws the underlying main/manual connections and local dendrites; Flow V3 owns existing route pulses. Width V16 loads Nexus only. Do not re-enable the retired overlay chain. For the next middle-trunk patch, inspect the existing Nexus drawing call and select one stable route; the old Scaffold-only hook hypothesis below is historical.
+
+The original proposal's geometry helper and complete shared-path cache have not been implemented merely because the simplified baseline works. Evaluate the smallest change to the existing trunk first; adopt a helper only if it solves a demonstrated need. Pulse expansion is deferred until the design is accepted and is not part of the next trunk patch.
+
+## Original research decision
 
 Build the middle connector as a small, bounded Canvas 2D drawing feature inside the restored app's existing rendering path. Use one shared geometric skeleton for the tissue, spine, branch attachments and lights. Start with a single trunk before attempting the whole organism.
 
@@ -24,15 +41,15 @@ This is a technically plausible route, not a promise of reference-image quality 
 
 - Only working project: `E:\WIZZ-Server\new-version\universal-space`.
 - Test URL on the user's HP: `http://127.0.0.1:4173`.
-- The user restored their own pre-experiment backup and confirmed the spatial app works again.
-- GitHub `999nike/memory-app`, branch `molecular-v2`, still contains the failed connector work according to this session. Do not copy it over the restoration.
+- The user preserved their earlier restoration, aligned the local checkout with `molecular-v2` at `4694b41`, and accepted the resulting neural visual baseline.
+- GitHub `999nike/memory-app`, branch `molecular-v2`, contains that application baseline followed by documentation checkpoints. The earlier failed overlay sequence is historical; do not restore it.
 - **Do not touch `main`**: it is the separate conventional interface.
 - **Do not touch `E:\junkz backup`**: the user alone controls that backup.
 - Other similarly named folders are not alternate working projects. No new project copies, backup branches or worktrees.
 - Preserve all graph nodes/edges, physics, drag/drop, persisted positions, application actions, grouping and inspector behavior.
 - This documentation publication changes no app files, server configuration, local branches or backups. Only remote molecular-v2 receives the documentation commit.
 
-Read `docs/operations/UNIVERSAL_SPACE_LOCATIONS_AND_BASELINE_2026-09-01.md` for the folder map. Read the restored local operational handoff/ledger and `NEURAL_UI_WORK.txt` before implementation; the latter describes a failed experiment, not the restored runtime.
+Read `docs/operations/UNIVERSAL_SPACE_LOCATIONS_AND_BASELINE_2026-09-01.md` for the folder map. Read the current operational handoff/ledger and `NEURAL_UI_WORK.txt` before implementation; entries 1–33 describe historical experiments, while entry 34 records the simplified baseline. Follow the current sequence above.
 
 ## What the reference actually requires
 
@@ -49,7 +66,7 @@ Reference: `ChatGPT Image Aug 30, 2026, 02_05_55 AM(5).png`, supplied in this co
 | Small fibre lights | A few reusable light sprites travelling along cached path distances. Most tissue stays visually stable. |
 | No dark petals or radial starbursts | No masks painted over old spokes and no identical thick root-to-every-child ribbons. |
 
-The first implementation is the **middle connector only**. Reskinning all app-child connections is a later, separately approved step. Do not confuse a centre-only milestone with completion of the full reference image.
+The next implementation is **one middle trunk only**. Reskinning app-child connections follows acceptance of the middle anatomy in the user's stated design direction. Do not confuse a centre-only milestone with completion of the full reference image.
 
 ## Online examples and code findings
 
@@ -112,7 +129,7 @@ Use the existing visible root positions, projection and camera transform. The ce
 
 The original research considered the scene-level `drawGraph()` in `memory-graph.js` as a possible integration point. **Subsequent local Codex source audits report that restored Scaffold V2 already owns connector drawing**, capturing and suppressing canonical blue strokes through the Canvas wrappers; Flow owns route pulses. Treat Scaffold's existing drawing stage as the first integration candidate, not a reason to add a competing call in `drawGraph()`.
 
-The proposed narrow hook is the `drawOrganicTube(ctx, geometry.trunk, ...)` call within Scaffold's `drawCluster()`. Its suitability is still unverified: establish whether that trunk is the requested connection between app clusters or an internal cluster trunk, and select one stable connector. `drawCluster()` runs for multiple clusters; do not change them all accidentally. Generic `drawOrganicTube()` also draws stems/branches and must not be changed globally for the single-trunk trial. Browser DOM/active-loop evidence was unavailable in that local audit; source inference is not runtime verification.
+Historical hook hypothesis, superseded for the accepted middle connector by the Nexus ownership recorded above: the proposed narrow hook was the `drawOrganicTube(ctx, geometry.trunk, ...)` call within Scaffold's `drawCluster()`. Its suitability is still unverified: establish whether that trunk is the requested connection between app clusters or an internal cluster trunk, and select one stable connector. `drawCluster()` runs for multiple clusters; do not change them all accidentally. Generic `drawOrganicTube()` also draws stems/branches and must not be changed globally for the single-trunk trial. Browser DOM/active-loop evidence was unavailable in that local audit; source inference is not runtime verification.
 
 ### B. Make one prepared path record
 
@@ -148,9 +165,9 @@ The geometry helper owns no canvas, `requestAnimationFrame`, input listeners, pe
 
 If the restored stack already draws the connection being replaced, disable that exact old drawing path as part of the same change. Do not cover it with a mask. Keep unrelated connections and node drawing intact. Any old loop being retired must actually stop or stop scheduling its former work; CSS hiding alone is insufficient.
 
-## Small-step build sequence
+## Original research build sequence - reference only
 
-Keep this checklist short. Each step needs one coherent diff and a visual/performance gate. The user approves implementation separately from this research plan.
+Use the current sequence at the top for the accepted baseline. This initial table explains the original staged proposal; it is not a command to restart the completed audit or remove working EMAIL pulses. Each further implementation still needs one coherent diff and a visual/performance gate.
 
 | Step | Deliverable | Required gate |
 | --- | --- | --- |
@@ -161,7 +178,7 @@ Keep this checklist short. Each step needs one coherent diff and a visual/perfor
 | 4 — Small moving lights | A few cached light sprites following distance along the existing paths. Tissue geometry remains unchanged by time alone. | Motion is subtle; no continued geometry rebuild at rest; no frame-time regression beyond the gate. |
 | 5 — Bank only a passed result | User's local acceptance, then the existing authorized commit/push workflow for the spatial branch. Update the operational record with measured results. | `main` and personal backup untouched; local/remote differences understood before any synchronization. |
 
-Step 1 may use a temporary fixture inside the one approved project directory if the local developer needs isolation. It must exercise the same helper and is not a new app checkout or a second production rendering stack. Do not activate a replacement across the whole app merely to test one trunk.
+Step 1 may use a disposable fixture in the system temporary directory if the developer needs isolation. It must exercise the same helper and is not a new app checkout or a second production rendering stack. Do not activate a replacement across the whole app merely to test one trunk.
 
 If a result is visually unchanged, verify its active call path once. If it is wrong or slow, repair or remove that step. **Do not compensate by adding another layer.**
 
@@ -192,7 +209,7 @@ Behavior checks: drag each app root and a memory group, expand/collapse Settings
 
 ## Source evidence and unresolved work
 
-Research inspected live public demos, official documentation and actual upstream source. No third-party library was installed into the app, and no new connector was built or benchmarked during this research. This chat has local Codex's served-source audit report, not direct access to the restored HP source or live canvas state. Step 0 still needs browser verification and confirmation of the selected trunk. The supplied older V1 documents/index were read for context and are not treated as the restored spatial entry point.
+Research inspected live public demos, official documentation and actual upstream source. No third-party library was installed into the app during the original research. Subsequently, the simplified connector at `4694b41` was implemented, checked in a native Canvas fixture and a deployed browser, installed locally, and accepted by the user. See `NEURAL_UI_WORK.txt` entry 34 and the operational ledger for the specific verification limits. Direct control of the HP and measured HP FPS remain unavailable. The supplied older V1 documents/index were read for context and are not treated as the restored spatial entry point.
 
 The following Git blob hashes identify representative source files actually read on 1 September; branch URLs may change later. Pin and record the selected package release before implementation rather than importing a moving branch/CDN URL.
 
@@ -205,6 +222,6 @@ The following Git blob hashes identify representative source files actually read
 | D3 shape | `src/curve/bundle.js` | `ac1014ebc0324e8a0fed7f8a5082f47f31f3b553` |
 | PixiJS | `src/scene/mesh-simple/RopeGeometry.ts` | `cb02e66d39a1580370ad3f426287dfb5e7298932` |
 
-## First local Codex task when implementation is requested
+## Next implementation task when requested
 
-Read this plan and the location/baseline record. Work only in `E:\WIZZ-Server\new-version\universal-space`. First perform step 0 read-only: identify the restored runtime's drawing owners and take a short baseline. Identify the one existing renderer call site after resolving the Scaffold/trunk questions above, then implement the smallest step-1 diff within the user's authorized scope. Do not import the failed GitHub connector stack, alter physics/persistence, create project copies or touch `main` or the personal backup. If Git produces a problem, state the exact error in one sentence and stop. After applying one meaningful change, test visually before proceeding.
+Read the current sequence above and the accepted baseline in the operational ledger. Work on `molecular-v2` in the canonical project, or its existing GitHub files when explicitly requested. Verify the current Nexus trunk drawing path and make the smallest single-trunk tissue/spine refinement. Preserve the existing connected forks, graph state and EMAIL activity pulses. Do not restart branch reconciliation, add renderer overlays, alter physics/persistence, create project copies or touch `main` or the private backup. After one meaningful visual change, compare the local result with the target before proceeding. Wider pulse routing follows completion and acceptance of the design.
