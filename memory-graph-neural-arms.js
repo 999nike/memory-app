@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralArmsInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralArmsInstalled', { value: true });
@@ -137,12 +137,12 @@
     const px = -dy / length;
     const py = dx / length;
     const side = hash(seed, lane, 1) > 0.5 ? 1 : -1;
-    const bend = side * clamp(length * (0.09 + hash(seed, lane, 2) * 0.10), 10, 86) * bendScale;
-    const skew = (hash(seed, lane, 3) - 0.5) * 0.16;
+    const bend = side * clamp(length * (0.07 + hash(seed, lane, 2) * 0.09), 7, 58) * bendScale;
+    const skew = (hash(seed, lane, 3) - 0.5) * 0.12;
     return {
       p0: from,
-      p1: { x: from.x + dx * (0.28 + skew) + px * bend * 0.72, y: from.y + dy * (0.28 + skew) + py * bend * 0.72 },
-      p2: { x: from.x + dx * (0.70 - skew) + px * bend, y: from.y + dy * (0.70 - skew) + py * bend },
+      p1: { x: from.x + dx * (0.30 + skew) + px * bend * 0.58, y: from.y + dy * (0.30 + skew) + py * bend * 0.58 },
+      p2: { x: from.x + dx * (0.72 - skew) + px * bend, y: from.y + dy * (0.72 - skew) + py * bend },
       p3: to,
       length
     };
@@ -166,87 +166,212 @@
     return { x: x / length, y: y / length };
   }
 
-  function drawArm(ctx, curve, width, seed, interacting) {
+  function traceSmooth(ctx, points, close = false) {
+    if (!points.length) return;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    if (points.length === 1) return;
+    const limit = close ? points.length + 1 : points.length;
+    for (let index = 1; index < limit; index += 1) {
+      const current = points[index % points.length];
+      const next = points[(index + 1) % points.length];
+      if (!close && index === points.length - 1) {
+        ctx.lineTo(current.x, current.y);
+        break;
+      }
+      ctx.quadraticCurveTo(current.x, current.y, (current.x + next.x) * 0.5, (current.y + next.y) * 0.5);
+    }
+    if (close) ctx.closePath();
+  }
+
+  function sampleOrganicBranch(curve, baseWidth, seed, interacting) {
+    const count = interacting ? 14 : 28;
+    const left = [];
+    const right = [];
+    const centre = [];
+    const phase = hash(seed, 30, 1) * Math.PI * 2;
+    const phaseL = hash(seed, 31, 2) * Math.PI * 2;
+    const phaseR = hash(seed, 32, 3) * Math.PI * 2;
+
+    for (let index = 0; index <= count; index += 1) {
+      const t = index / count;
+      const p = pointOnCurve(curve, t);
+      const tangent = tangentOnCurve(curve, t);
+      const nx = -tangent.y;
+      const ny = tangent.x;
+      const window = Math.sin(Math.PI * t);
+      const centreDrift = baseWidth * window * (
+        Math.sin(t * Math.PI * 2.2 + phase) * 0.10
+        + Math.sin(t * Math.PI * 5.1 + phase * 0.67) * 0.035
+      );
+      const cx = p.x + nx * centreDrift;
+      const cy = p.y + ny * centreDrift;
+
+      const rootShoulder = 1.18 * Math.exp(-Math.pow(t / 0.20, 2));
+      const midBulge = 0.18 * Math.exp(-Math.pow((t - (0.42 + hash(seed, 34, 4) * 0.18)) / 0.22, 2));
+      const taper = 0.18 + Math.pow(1 - t, 0.82) * 0.82 + rootShoulder * 0.42 + midBulge;
+      const half = baseWidth * taper;
+      const leftRipple = window * (
+        Math.sin(t * Math.PI * 3.7 + phaseL) * 0.20
+        + Math.sin(t * Math.PI * 8.2 + phaseR) * 0.055
+      );
+      const rightRipple = window * (
+        Math.sin(t * Math.PI * 4.1 + phaseR) * 0.22
+        + Math.sin(t * Math.PI * 7.4 + phaseL) * 0.060
+      );
+
+      centre.push({ x: cx, y: cy });
+      left.push({ x: cx + nx * half * (1 + leftRipple), y: cy + ny * half * (1 + leftRipple) });
+      right.push({ x: cx - nx * half * (1 + rightRipple), y: cy - ny * half * (1 + rightRipple) });
+    }
+    return { left, right, centre };
+  }
+
+  function drawOrganicArm(ctx, curve, width, seed, interacting) {
     const detail = interacting ? 0.28 : 1;
+    const branch = sampleOrganicBranch(curve, width, seed, interacting);
+    const body = [...branch.left, ...branch.right.slice().reverse()];
+
     ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    traceSmooth(ctx, body, true);
+    ctx.fillStyle = `rgba(24,47,138,${(0.18 * detail).toFixed(3)})`;
+    ctx.shadowBlur = interacting ? 2 : 12;
+    ctx.shadowColor = `rgba(52,75,235,${(0.21 * detail).toFixed(3)})`;
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    traceSmooth(ctx, body, true);
+    const tissue = ctx.createLinearGradient(curve.p0.x, curve.p0.y, curve.p3.x, curve.p3.y);
+    tissue.addColorStop(0, `rgba(86,80,245,${(0.27 * detail).toFixed(3)})`);
+    tissue.addColorStop(0.46, `rgba(46,104,235,${(0.22 * detail).toFixed(3)})`);
+    tissue.addColorStop(1, `rgba(35,114,215,${(0.10 * detail).toFixed(3)})`);
+    ctx.fillStyle = tissue;
+    ctx.fill();
+
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.beginPath();
-    ctx.moveTo(curve.p0.x, curve.p0.y);
-    ctx.bezierCurveTo(curve.p1.x, curve.p1.y, curve.p2.x, curve.p2.y, curve.p3.x, curve.p3.y);
-    ctx.lineWidth = width * 2.7;
-    ctx.strokeStyle = `rgba(28,51,142,${(0.12 * detail).toFixed(3)})`;
-    ctx.shadowBlur = interacting ? 2 : 10;
-    ctx.shadowColor = `rgba(52,72,232,${(0.18 * detail).toFixed(3)})`;
+    traceSmooth(ctx, branch.left);
+    ctx.lineWidth = Math.max(0.34, width * 0.075);
+    ctx.strokeStyle = `rgba(123,188,255,${(0.20 * detail).toFixed(3)})`;
+    previousStroke.call(ctx);
+    traceSmooth(ctx, branch.right);
+    ctx.lineWidth = Math.max(0.34, width * 0.075);
+    ctx.strokeStyle = `rgba(107,169,255,${(0.18 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
 
-    ctx.globalCompositeOperation = 'screen';
-    ctx.beginPath();
-    ctx.moveTo(curve.p0.x, curve.p0.y);
-    ctx.bezierCurveTo(curve.p1.x, curve.p1.y, curve.p2.x, curve.p2.y, curve.p3.x, curve.p3.y);
-    ctx.lineWidth = width * 1.45;
-    ctx.strokeStyle = `rgba(65,98,229,${(0.20 * detail).toFixed(3)})`;
-    previousStroke.call(ctx);
-
-    ctx.beginPath();
-    ctx.moveTo(curve.p0.x, curve.p0.y);
-    ctx.bezierCurveTo(curve.p1.x, curve.p1.y, curve.p2.x, curve.p2.y, curve.p3.x, curve.p3.y);
-    ctx.lineWidth = Math.max(0.56, width * 0.19);
-    ctx.strokeStyle = `rgba(124,205,255,${(0.35 * detail).toFixed(3)})`;
+    traceSmooth(ctx, branch.centre);
+    ctx.lineWidth = Math.max(0.38, width * 0.050);
+    ctx.strokeStyle = `rgba(209,242,255,${(0.50 * detail).toFixed(3)})`;
     previousStroke.call(ctx);
     ctx.restore();
 
     if (interacting) return;
 
-    const tangent = tangentOnCurve(curve, 0.96);
+    const tangent = tangentOnCurve(curve, 0.92);
     const nx = -tangent.y;
     const ny = tangent.x;
+    const forkBase = pointOnCurve(curve, 0.86);
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     ctx.lineCap = 'round';
-    for (let fork = 0; fork < 2; fork += 1) {
-      const side = fork ? 1 : -1;
-      const reach = width * (2.1 + hash(seed, fork, 31) * 2.4);
+    for (let fork = 0; fork < 3; fork += 1) {
+      const side = fork - 1;
+      const local = seed + fork * 0.733;
+      const reach = width * (2.0 + hash(local, 41, 2) * 2.4);
+      const forward = reach * (0.55 + hash(local, 42, 3) * 0.42);
+      const spread = side * reach * (0.60 + hash(local, 43, 4) * 0.36);
       const end = {
-        x: curve.p3.x + tangent.x * reach * 0.55 + nx * side * reach,
-        y: curve.p3.y + tangent.y * reach * 0.55 + ny * side * reach
+        x: forkBase.x + tangent.x * forward + nx * spread,
+        y: forkBase.y + tangent.y * forward + ny * spread
       };
       ctx.beginPath();
-      ctx.moveTo(curve.p3.x, curve.p3.y);
+      ctx.moveTo(forkBase.x, forkBase.y);
       ctx.quadraticCurveTo(
-        curve.p3.x + tangent.x * reach * 0.34 + nx * side * reach * 0.38,
-        curve.p3.y + tangent.y * reach * 0.34 + ny * side * reach * 0.38,
+        forkBase.x + tangent.x * forward * 0.48 + nx * spread * 0.28,
+        forkBase.y + tangent.y * forward * 0.48 + ny * spread * 0.28,
         end.x,
         end.y
       );
-      ctx.lineWidth = 0.32;
-      ctx.strokeStyle = 'rgba(137,211,255,.16)';
+      ctx.lineWidth = fork === 1 ? 0.42 : 0.28;
+      ctx.strokeStyle = fork === 1 ? 'rgba(148,218,255,.20)' : 'rgba(122,197,255,.14)';
       previousStroke.call(ctx);
     }
     ctx.restore();
   }
 
+  function drawRootShoulder(ctx, major, t, side, mainWidth, branchWidth, seed, interacting) {
+    const origin = pointOnCurve(major, t);
+    const tangent = tangentOnCurve(major, t);
+    const nx = -tangent.y;
+    const ny = tangent.x;
+    const centre = {
+      x: origin.x + nx * side * mainWidth * 0.34,
+      y: origin.y + ny * side * mainWidth * 0.34
+    };
+    const radius = branchWidth * (interacting ? 1.4 : 1.9);
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    const glow = ctx.createRadialGradient(centre.x, centre.y, 0, centre.x, centre.y, radius * 2.2);
+    glow.addColorStop(0, interacting ? 'rgba(90,126,245,.08)' : 'rgba(85,98,235,.18)');
+    glow.addColorStop(0.45, interacting ? 'rgba(66,101,220,.04)' : 'rgba(66,103,226,.11)');
+    glow.addColorStop(1, 'rgba(48,72,205,0)');
+    ctx.beginPath();
+    ctx.arc(centre.x, centre.y, radius * 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawMajorArms(ctx, major, width, seed, interacting) {
-    const armCount = interacting ? 1 : 3;
+    const armCount = interacting ? 2 : 5;
     for (let arm = 0; arm < armCount; arm += 1) {
       const local = seed + arm * 0.613;
-      const t = 0.20 + arm * 0.22 + (hash(local, 1, 2) - 0.5) * 0.09;
+      const baseT = [0.14, 0.28, 0.43, 0.60, 0.76][arm] ?? (0.18 + arm * 0.14);
+      const t = clamp(baseT + (hash(local, 1, 2) - 0.5) * 0.055, 0.10, 0.82);
       const origin = pointOnCurve(major, t);
       const tangent = tangentOnCurve(major, t);
       const nx = -tangent.y;
       const ny = tangent.x;
       const side = arm % 2 ? -1 : 1;
-      const reach = width * (4.0 + hash(local, 3, 4) * 3.4);
-      const forward = (hash(local, 5, 6) - 0.30) * reach * 0.72;
-      const end = {
-        x: origin.x + nx * side * reach + tangent.x * forward,
-        y: origin.y + ny * side * reach + tangent.y * forward
+      const branchWidth = width * (0.22 + hash(local, 7, 8) * 0.10) * (1 - arm * 0.045);
+      const reach = width * (3.7 + hash(local, 3, 4) * 3.0) * (1 - arm * 0.045);
+
+      const start = {
+        x: origin.x + nx * side * width * 0.24 - tangent.x * branchWidth * 0.45,
+        y: origin.y + ny * side * width * 0.24 - tangent.y * branchWidth * 0.45
       };
-      const curve = controlPoints(origin, end, local, 0.38, arm + 21);
-      const armWidth = width * (0.24 + hash(local, 7, 8) * 0.11) * (1 - arm * 0.08);
-      drawArm(ctx, curve, armWidth, local, interacting);
+      const forward = reach * (0.60 + hash(local, 5, 6) * 0.52);
+      const lateral = reach * (0.66 + hash(local, 9, 10) * 0.46) * side;
+      const end = {
+        x: origin.x + tangent.x * forward + nx * lateral,
+        y: origin.y + tangent.y * forward + ny * lateral
+      };
+
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const length = Math.max(1, Math.hypot(dx, dy));
+      const bx = -dy / length;
+      const by = dx / length;
+      const bend = (hash(local, 11, 12) - 0.5) * reach * 0.24;
+      const curve = {
+        p0: start,
+        p1: {
+          x: start.x + tangent.x * reach * 0.35 + nx * side * reach * 0.18 + bx * bend,
+          y: start.y + tangent.y * reach * 0.35 + ny * side * reach * 0.18 + by * bend
+        },
+        p2: {
+          x: start.x + dx * 0.73 + nx * side * reach * 0.12 + bx * bend * 0.55,
+          y: start.y + dy * 0.73 + ny * side * reach * 0.12 + by * bend * 0.55
+        },
+        p3: end,
+        length: distance(start, end)
+      };
+
+      drawRootShoulder(ctx, major, t, side, width, branchWidth, local, interacting);
+      drawOrganicArm(ctx, curve, branchWidth, local, interacting);
     }
   }
 
@@ -318,7 +443,7 @@
         height:100%;
         pointer-events:none;
         mix-blend-mode:screen;
-        opacity:.72;
+        opacity:.82;
       }
     `;
     document.head.appendChild(style);
