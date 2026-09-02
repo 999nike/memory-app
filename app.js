@@ -611,7 +611,20 @@
     textarea.remove();
   }
 
-  globalThis.MemoryApp = Object.freeze({ openMemoryInspector });
+  globalThis.MemoryApp = Object.freeze({
+    openMemoryInspector,
+    graphNodeIds() {
+      const space = activeSpace();
+      if (!space?.id) return [];
+      return [
+        String(space.id),
+        ...memoriesForSpace(space.id)
+          .filter((memory) => String(memory.status || 'confirmed') === 'confirmed')
+          .map((memory) => String(memory.id || ''))
+          .filter(Boolean)
+      ];
+    }
+  });
 
   document.getElementById('newMemoryButton').addEventListener('click', () => openMemoryDialog());
   document.getElementById('emptyAddButton').addEventListener('click', () => openMemoryDialog());

@@ -5,10 +5,10 @@
     id: 'email',
     name: 'EMAIL',
     nodes: Object.freeze([
-      { id: 'inbox', label: 'Inbox', stateKey: 'inboxCount', stateInLabel: false, action: 'mailbox.open', view: 'message-list', expandable: true, state: { title: 'Inbox', mailbox: 'INBOX' } },
-      { id: 'unread', label: 'Unread', stateKey: 'unreadCount', action: 'mailbox.open', view: 'message-list', expandable: true, state: { title: 'Unread', mailbox: 'UNREAD' } },
-      { id: 'sent', label: 'Sent', action: 'mailbox.open', view: 'message-list', expandable: true, state: { title: 'Sent', mailbox: 'SENT' } },
-      { id: 'drafts', label: 'Drafts', stateKey: 'draftCount', action: 'mailbox.open', view: 'message-list', expandable: true, state: { title: 'Drafts', mailbox: 'DRAFT' } },
+      { id: 'inbox', label: 'Inbox', stateKey: 'inboxCount', stateInLabel: false, action: 'mailbox.open', view: 'message-list', state: { title: 'Inbox', mailbox: 'INBOX' } },
+      { id: 'unread', label: 'Unread', stateKey: 'unreadCount', action: 'mailbox.open', view: 'message-list', state: { title: 'Unread', mailbox: 'UNREAD' } },
+      { id: 'sent', label: 'Sent', action: 'mailbox.open', view: 'message-list', state: { title: 'Sent', mailbox: 'SENT' } },
+      { id: 'drafts', label: 'Drafts', stateKey: 'draftCount', action: 'mailbox.open', view: 'message-list', state: { title: 'Drafts', mailbox: 'DRAFT' } },
       { id: 'search', label: 'Search', action: 'search', view: 'message-list' },
       { id: 'compose', label: 'Compose', action: 'compose', view: 'message' },
       {
@@ -28,7 +28,7 @@
       }
     ]),
     actions: Object.freeze([
-      'mailbox.open', 'message.open', 'mailbox.status', 'search', 'compose', 'account.open',
+      'mailbox.open', 'search', 'compose', 'account.open',
       'connection.open', 'permissions.open', 'sync.open', 'disconnect.open', 'connect'
     ]),
     views: Object.freeze(['message-list', 'message', 'settings'])
@@ -187,63 +187,63 @@
     return true;
   }
 
-  function replaceMailboxChildren(parentNodeId, children) {
-    return globalThis.UniversalAppAdapters?.replaceAppNodeChildren?.('email', parentNodeId, children) === true;
-  }
+  function renderMailboxPanel(title, messagesValue) {
+    const items = (Array.isArray(messagesValue) ? messagesValue : [])
+      .slice(0, 10)
+      .map((item) => ({
+        messageId: String(item?.id || '').trim(),
+        sender: String(item?.sender || 'Sender unavailable'),
+        subject: String(item?.subject || '(No subject)'),
+        date: String(item?.date || 'Date unavailable')
+      }))
+      .filter((item) => item.messageId);
 
-  function messageNode(mailboxNodeId, message, index) {
-    const subject = String(message.subject || '(No subject)');
-    return {
-      id: `${mailboxNodeId}:message:${message.id || index}`,
-      label: subject.length > 34 ? `${subject.slice(0, 31)}...` : subject,
-      action: 'message.open',
-      view: 'message',
-      state: {
-        messageId: String(message.id || ''),
-        sender: String(message.sender || 'Sender unavailable'),
-        subject,
-        date: String(message.date || 'Date unavailable')
-      }
-    };
+    if (!items.length) {
+      return showPanel(title, `
+        <div class="detail-block">
+          <label>Mailbox headers</label>
+          <p>No ${escapeHtml(title)} messages were returned.</p>
+        </div>`);
+    }
+
+    const rows = items.map((item) => `
+      <div class="detail-block">
+        <button
+          class="ghost-button full-width"
+          type="button"
+          data-gmail-message-id="${escapeHtml(item.messageId)}"
+          data-gmail-message-sender="${escapeHtml(item.sender)}"
+          data-gmail-message-subject="${escapeHtml(item.subject)}"
+          data-gmail-message-date="${escapeHtml(item.date)}"
+        ><strong>${escapeHtml(item.subject)}</strong><br>${escapeHtml(item.sender)}<br>${escapeHtml(item.date)}</button>
+      </div>`).join('');
+
+    return showPanel(title, `
+      <div class="detail-block">
+        <label>Mailbox headers</label>
+        <p>Showing ${items.length} of at most 10 message headers. Message bodies load only when selected.</p>
+      </div>
+      ${rows}`);
   }
 
   async function loadMailbox(context) {
-    const parentNodeId = String(context?.nodeId || '');
     const title = String(context?.state?.title || 'Mailbox');
     const labelId = String(context?.state?.mailbox || 'INBOX');
-    replaceMailboxChildren(parentNodeId, [{
-      id: `${parentNodeId}:loading`,
-      label: 'Loading...',
-      action: 'mailbox.status',
-      state: { title, message: `${title} headers are loading.` }
-    }]);
+    showPanel(title, '<div class="inspector-placeholder"><p>Loading message headers...</p></div>');
     try {
       const result = await messages(labelId, 10);
       if (!result?.connected) {
-        replaceMailboxChildren(parentNodeId, [{
-          id: `${parentNodeId}:disconnected`,
-          label: 'Gmail disconnected',
-          action: 'account.open',
-          view: 'settings'
-        }]);
-        return;
+        return showPanel(title, `
+          <div class="detail-block"><label>Connection</label><p>Gmail is disconnected.</p></div>
+          <div class="detail-actions"><button class="ghost-button" type="button" data-gmail-action="connect">Connect Gmail</button></div>`);
       }
-      const items = Array.isArray(result.messages) ? result.messages : [];
-      replaceMailboxChildren(parentNodeId, items.length
-        ? items.map((message, index) => messageNode(parentNodeId, message, index))
-        : [{
-            id: `${parentNodeId}:empty`,
-            label: 'No messages',
-            action: 'mailbox.status',
-            state: { title, message: `No ${title} messages were returned.` }
-          }]);
+      return renderMailboxPanel(title, result.messages);
     } catch {
-      replaceMailboxChildren(parentNodeId, [{
-        id: `${parentNodeId}:error`,
-        label: 'Unavailable',
-        action: 'mailbox.status',
-        state: { title, message: `${title} headers could not be loaded.` }
-      }]);
+      return showPanel(title, `
+        <div class="detail-block">
+          <label>Unavailable</label>
+          <p>${escapeHtml(title)} headers could not be loaded.</p>
+        </div>`);
     }
   }
 
@@ -331,10 +331,6 @@
       if (String(context.nodeId || '') === 'inbox') acknowledgeInboxActivity();
       return loadMailbox(context);
     }
-    if (actionId === 'message.open') return openMessage(context.state || {});
-    if (actionId === 'mailbox.status') {
-      return showCapability(context.state?.title || 'Gmail', context.state?.message || 'No additional status is available.');
-    }
     if (actionId === 'search') {
       return showCapability('Search', 'Gmail search is not enabled in Phase 1 because the current gmail.metadata permission does not allow Gmail search queries.');
     }
@@ -356,6 +352,17 @@
 
   function mount() {
     document.getElementById('detailContent')?.addEventListener('click', (event) => {
+      const messageRow = event.target.closest?.('[data-gmail-message-id]');
+      if (messageRow) {
+        event.preventDefault();
+        openMessage({
+          messageId: messageRow.dataset.gmailMessageId,
+          sender: messageRow.dataset.gmailMessageSender,
+          subject: messageRow.dataset.gmailMessageSubject,
+          date: messageRow.dataset.gmailMessageDate
+        });
+        return;
+      }
       const button = event.target.closest?.('[data-gmail-action]');
       if (button?.dataset.gmailAction === 'connect') connect();
     });

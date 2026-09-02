@@ -1,7 +1,7 @@
 # Universal Space — app adapter and cluster mapper
 
 Updated: 2 September 2026.
-Status: active plan; loader/factory milestones below are not implemented by this documentation change.
+Status: active plan; Milestone 1 is implemented and Milestone 2 is implemented in the working trees, with browser interaction/regression verification still outstanding because the local browser-control runtime is unavailable.
 Application baseline: `0027fcf53a577d4126a1be96b30255b29ccf2178`.
 
 ## Product outcome
@@ -86,24 +86,26 @@ Important contract details:
 ## Milestone 1 — definition loader and adapter factory
 
 - [x] Inspect the restored registry and recursive graph construction; identify existing integration points.
-- [ ] Audit initial loading order and action dispatch context before editing. The current HTML loads registry -> Gmail -> Code Space -> graph; preserve readiness when adding definition input.
-- [ ] Add the smallest reusable loader/validator and factory around the existing registry. Prefer one small module and a bounded definition source.
-- [ ] Accept the versioned definition plus an explicit capability/handler map. Produce the adapter object expected by `registerAppAdapter`.
-- [ ] Validate before mutation and report useful errors. Reject duplicate app registration instead of silently replacing an existing working adapter.
-- [ ] Load one real or clearly labelled demonstration definition before initial graph construction. Use the existing roots/edges/expand-collapse/inspector paths.
-- [ ] Keep registration/bootstrap reliable if loading fails; the existing four clusters must still initialize.
-- [ ] Check nested mapping, stable namespaced IDs, malformed/duplicate input and owning-adapter action dispatch. Use focused checks; do not build a general test platform.
+- [x] Audit initial loading order and action dispatch context before editing. The current HTML loads registry -> Gmail -> Code Space -> graph; preserve readiness when adding definition input.
+- [x] Add the smallest reusable loader/validator and factory around the existing registry. Prefer one small module and a bounded definition source.
+- [x] Accept the versioned definition plus an explicit capability/handler map. Produce the adapter object expected by `registerAppAdapter`.
+- [x] Validate before mutation and report useful errors. Reject duplicate app registration instead of silently replacing an existing working adapter.
+- [x] Load one real or clearly labelled demonstration definition before initial graph construction. Use the existing roots/edges/expand-collapse/inspector paths.
+- [x] Keep registration/bootstrap reliable if loading fails; the existing four clusters must still initialize.
+- [x] Check nested mapping, stable namespaced IDs, malformed/duplicate input and owning-adapter action dispatch. Use focused checks; do not build a general test platform.
 
 Done when: a definition loaded through the new entry point generates the correct nested cluster and invokes its bound actions, while invalid input adds no partial cluster and leaves working apps intact.
 
+Implementation evidence, 2 September 2026: `app-definition-loader.js` loads a schema-v1 `SETTINGS DEMO` definition after Gmail and Code Space and before the unchanged canonical graph builder. Focused isolated checks passed for recursive namespacing, handler dispatch, size/depth/type/version validation, Memory/Settings and registered-node collisions, atomic rejection and duplicate registration. A bootstrap-order check retained Gmail and Code Space registrations, and the page/new asset returned HTTP 200. Pointer-driven/browser-console verification was attempted but not completed because the local browser-control runtime could not start (`windows sandbox failed: helper_unknown_error: setup refresh had errors`); no browser result is claimed.
+
 ## Milestone 2 — prove reuse with another app/site map
 
-- [ ] Add a second definition through the same loader/factory without custom graph, solver or renderer changes.
-- [ ] Use real supported app/site navigation or existing local read-only capabilities. Labels without functioning bindings count only as a labelled demonstration.
+- [x] Add a second definition through the same loader/factory without custom graph, solver or renderer changes.
+- [x] Use real supported app/site navigation or existing local read-only capabilities. The second map is OFFICE: a strict-origin, hidden-iframe bridge reads only bounded local Office data; `Open Office` and `New Job` remain explicit user-click actions.
 - [ ] Demonstrate changing a category/action in data changes the generated cluster after a normal reload. No per-app graph code should be necessary.
 - [ ] Verify root dragging, nested expand/collapse and repeated inspector open/close. Confirm no duplicate nodes/edges on reload.
 - [ ] Verify Memory group unpin/delete and saved Memory-root position, standalone Settings interaction, EMAIL acknowledgement and Code Space overlay behavior remain intact.
-- [ ] Record which checks ran locally and which need the user's HP/account. Record failures and unsupported capabilities without marking them complete.
+- [x] Record which checks ran locally and which need the user's HP/account. Record failures and unsupported capabilities without marking them complete.
 
 Done when: two different maps use the same factory and existing engine, their supported actions work, and existing app behavior survives the regression check.
 

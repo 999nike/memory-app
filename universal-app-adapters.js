@@ -36,6 +36,7 @@
     const appId = String(value?.id || adapter.id || '');
     if (!appId) throw new Error('App adapter requires an id');
     return Object.freeze({
+      schemaVersion: Number.isInteger(value.schemaVersion) ? value.schemaVersion : null,
       id: appId,
       name: String(value.name || value.label || appId),
       nodes: Object.freeze((value.nodes || value.children || []).map((node) => normalizeNode(appId, node))),
@@ -66,6 +67,9 @@
 
   function registerAppAdapter(adapter) {
     const definition = normalizeDefinition(adapter || {});
+    if (records.has(definition.id)) {
+      throw new Error(`App adapter ${definition.id} is already registered`);
+    }
     records.set(definition.id, {
       adapter,
       definition,
