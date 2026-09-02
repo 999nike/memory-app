@@ -339,3 +339,13 @@ Use the newest screenshot and original reference side by side. Fix visible anato
 - Next gate: user local visual review. Inspect the one fuller tapered trunk
   against the reference, drag roots, and keep EMAIL notification pulses working.
   Do not extend the same styling to other roots yet.
+
+
+36. 2026-09-02 — V7 TRIAL REJECTED; STABLE NEXUS V8 RECOVERY
+- HP visual review found the V7 single-route treatment was barely visible and made the Memory side look visually detached.
+- Cause: V7 selected the first captured route, which is Memory, and tapered only its outer tissue toward its app end. The bright internal spine was intentionally unchanged, so the requested spine improvement did not occur.
+- V8 removes the V7 route selector, 1.18x width change and tissue-only taper. Width V18 and index cache URL updates load Nexus V8.
+- Only index.html, memory-graph-neural-nexus.js and memory-graph-neural-width.js changed in recovery commit cbd7049551b7c614e08d13467d2d43e75e27f348.
+- No graph topology, node positions, physics, drag/drop, persistence, app action or EMAIL pulse code changed.
+- User’s following HP screenshot confirms the middle links are solid again. This is the accepted stable visual baseline for the next single-root design pass.
+- NEXT: one visible biological middle root built from a stable identified route, with shared tissue/spine/fibre geometry and preserved endpoints. Do not use capture order or stack renderers.

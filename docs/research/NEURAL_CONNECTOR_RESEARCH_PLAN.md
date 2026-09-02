@@ -12,22 +12,27 @@ Read the root `UNIVERSAL_SPACE_RULES.txt` first. The user's terminal output and 
 
 “Main folder” means that working directory, NOT the Git branch `main`.
 
-## Current sequence after local acceptance - 1 September 2026
+## Current sequence after local acceptance — 2 September 2026
 
-The user accepted the simplified neural design as a starting baseline, then confirmed that the existing EMAIL pulses notify them of mail. Their latest screenshot shows purple activity around EMAIL. Preserve this working notification behavior during styling. This report is not a complete route/acknowledgement regression test or a measured HP FPS result.
+The stable simplified neural baseline is accepted again after the failed V7 visual trial was removed. The user’s latest HP screenshot confirms the centre-to-app links now look solid again. Existing EMAIL purple notification pulses are working; preserve them.
 
 - [x] Establish the working baseline and save its exact rollback commit: `4694b41`.
 - [x] Record user confirmation that EMAIL notification pulses are working.
-- [ ] NEXT: refine ONE existing middle trunk into an irregular, gently tapered translucent blue/violet root with a thin bright internal spine. Use its current anchors and centre path; keep attached fibres aligned. The current narrow rails are a base, not the finished tissue silhouette.
-- [ ] After the trunk is accepted, blend the central soma and trunk bases into a small organic junction; reduce the polygonal cage appearance.
+- [x] Reject and remove the failed V7 single-route taper. Current renderer recovery is Nexus V8 / Width V18 at commit `cbd7049551b7c614e08d13467d2d43e75e27f348`. It changed rendering only; graph topology, physics, drag/drop, persistence and pulse logic were not changed.
+- [ ] NEXT: build one visibly biological middle root from the existing central junction to one app cluster. It must retain its exact working endpoints throughout movement, use one shared centre path for both tissue and spine, and read clearly as:
+  1. translucent blue/violet outer root,
+  2. thin bright internal spine,
+  3. attached fibres terminating on the same body.
+  Do not use capture order to choose the route. Do not taper it so hard that the app end appears detached. Do not touch graph edges or node physics.
+- [ ] Once that one root passes the user’s HP screen check, blend the central polygon/cage into a small organic soma and join the accepted root bases into it.
 - [ ] Refine connected forks and fine webbing within the existing drawing budget. Keep clear hierarchy and attached junctions throughout movement.
 - [ ] Carry the accepted biological style into the app-child connections, one bounded pass at a time, while retaining the green bubbles and all existing actions.
 - [ ] AFTER DESIGN ACCEPTANCE: extend the existing pulse/activity system across the finished connection routes, including the middle trunks and app-child paths. Reuse existing blue flow and purple notification semantics. Route real activity through connected geometry; do not make every app falsely report new mail. Preserve the working EMAIL notification and acknowledgement path.
 - [ ] Accept each local visual/performance result before continuing, and record passed milestones in the existing ledger.
 
-Current drawing ownership: Nexus V6 draws the middle trunks/soma and bounded attached fibres; Scaffold V7 draws the underlying main/manual connections and local dendrites; Flow V3 owns existing route pulses. Width V16 loads Nexus only. Do not re-enable the retired overlay chain. For the next middle-trunk patch, inspect the existing Nexus drawing call and select one stable route; the old Scaffold-only hook hypothesis below is historical.
+Current drawing ownership: Nexus V8 draws the middle trunks/soma and bounded attached fibres; Scaffold V7 draws the underlying main/manual connections and local dendrites; Flow V3 owns existing route pulses. Width V18 loads Nexus V8 only. Do not re-enable the retired overlay chain. The V7 trial only altered the outer tissue on the first captured route; its taper made the Memory end appear detached and was removed in V8.
 
-The original proposal's geometry helper and complete shared-path cache have not been implemented merely because the simplified baseline works. Evaluate the smallest change to the existing trunk first; adopt a helper only if it solves a demonstrated need. Pulse expansion is deferred until the design is accepted and is not part of the next trunk patch.
+Work from the user's newest screenshot and original neural reference side by side. The long middle routes still read as narrow rails and the central junction still reads as a polygonal cage; those are the next visible anatomy issues. Pulse expansion is deferred until the design is accepted and is not part of the next root patch.
 
 ## Original research decision
 
