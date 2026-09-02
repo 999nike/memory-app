@@ -1,5 +1,18 @@
 # Universal Space Ledger
 
+## Current checkpoint — 2 September 2026
+
+- The user restored the solid local application, saved local commit `0214ede` on `restored-solid-20260902`, and published the forward restoration commit `0027fcf53a577d4126a1be96b30255b29ccf2178` to `molecular-v2`.
+- Their final terminal output shows `molecular-v2` tracking `origin/molecular-v2` with no printed dirty/untracked paths. GitHub was independently checked at the same commit.
+- This is the current application baseline. Earlier renderer baselines and version/checklist claims do not identify the restored runtime.
+- The user changed the next product milestone to app definitions -> reusable adapter/cluster mapper -> existing Universal Space graph. Centre-node/trunk graphics improvement and pulse-design expansion are removed from the active queue.
+- Source audit confirms recursive cluster construction already exists for registered app definitions. The remaining first milestone is a reusable definition loader/validator and action-binding factory. Memory/standalone Settings still use established special paths.
+- Documentation cleanup updates the agent entry point, rules, handoff, operations record and branch guidance; introduces `docs/APP_CLUSTER_MAPPER_PLAN.md` as the single active checklist; and removes eight obsolete graphics/prototype plans and checklists.
+- Removed documents: `NEURAL_UI_WORK.txt`, `docs/research/NEURAL_CONNECTOR_RESEARCH_PLAN.md`, `MOLECULAR_FRONT_SKIN_PLAN.txt`, `REUSABLE_MOLECULAR_ENGINE_PLAN.txt`, `LEDGERPATCH.txt`, `neuralpatchledger.txt`, `patchledger.txt`, `MEMORY_GRAPH_FUTURE_PIN.md`. Previous contents remain in Git history; no archive copies or alternate checklists are created.
+- Scope is documentation only. Runtime JavaScript, HTML/CSS, assets, renderer files, account state and local folders are not changed by this cleanup. The mapper is planned, not newly implemented. No new HP/browser verification is claimed.
+
+The milestones below are historical evidence. Earlier “next” tasks, old permission-state reports and unverified checks are not the current queue; follow the mapper plan and current handoff. Branch/path/authorization policy is maintained in `UNIVERSAL_SPACE_RULES.txt`.
+
 ## Verified baseline — 30 August 2026
 
 - Architecture: one universe, canonical graph, solver and renderer with multiple local app/root gravity wells.
@@ -14,7 +27,7 @@
 - Do not modify `memory-app-visual-lab\memory-app`.
 - Do not rebuild or duplicate the molecular engine, graph, solver, renderer or physics.
 - Preserve Memory, Settings, titled groups, connectors, dragging, boundaries and inspector-close behaviour.
-- Local only unless explicitly authorised; no commit or push.
+- Historical local-only scope applied to those earlier patches. Current scope and authorization are governed by the user and `UNIVERSAL_SPACE_RULES.txt`.
 
 ## Universal App Adapter milestone — 30 August 2026
 
@@ -90,9 +103,9 @@
 - No Gmail-specific geometry, second effect system, physics, graph rebuild, timer or particle collection was added. Memory and standalone Settings activity remain unaffected by app-id filtering.
 - Syntax, focused static checks, served asset HTTP 200 checks, and live Gmail status/summary checks passed. Browser visual verification of the final whole-cluster fan and acknowledgement remains pending.
 
-## Immediate next step
+## Historical next-step note — 30 August 2026, superseded
 
-- Human visual test of simulated Inbox activity, whole-cluster convergence and acknowledgement. Keep `gmail.metadata`; do not add permission expansion or automatic mapping yet.
+- At this point the queued task was an Inbox activity visual test under `gmail.metadata`. Later entries added read-only body support. The 2 September app-mapper plan is now the active queue; this note is not a restriction on it.
 
 ## Live adapter refresh milestone - 30 August 2026
 

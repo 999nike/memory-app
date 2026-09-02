@@ -1,3 +1,5 @@
+> **molecular-v2 — current direction, 2 September 2026:** Start at [AGENTS.md](AGENTS.md), then follow the [current handoff](UNIVERSAL_SPACE_HANDOFF.md) and [app adapter / cluster mapper plan](docs/APP_CLUSTER_MAPPER_PLAN.md). The restored application baseline is `0027fcf`. Centre-node graphics work is retired. The earlier V1/product history below is context, not this branch's next-work queue. Conventional `main` remains frozen.
+
 # Memory App
 
 A private, visible, long-term workspace that a human and AI systems build together.

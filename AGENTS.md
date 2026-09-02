@@ -1,17 +1,24 @@
 # Universal Space agent entry point
 
-Read these existing files before work, in this order:
+Read in this order:
 
-1. `UNIVERSAL_SPACE_RULES.txt` — authoritative branch, folder and hygiene rules.
-2. `docs/operations/UNIVERSAL_SPACE_LOCATIONS_AND_BASELINE_2026-09-01.md` — dated baseline, local reconciliation evidence and folder map.
-3. `UNIVERSAL_SPACE_HANDOFF.md`, then `UNIVERSAL_SPACE_LEDGER.md` — application behavior and operational history.
+1. `UNIVERSAL_SPACE_RULES.txt` — branch, path and workspace policy.
+2. `UNIVERSAL_SPACE_HANDOFF.md` — restored application state and immediate task.
+3. `docs/APP_CLUSTER_MAPPER_PLAN.md` — the sole active implementation checklist.
+4. `UNIVERSAL_SPACE_LEDGER.md` — current checkpoint, then historical evidence as needed.
 
-For connector work, also read `NEURAL_UI_WORK.txt` as failed-experiment history and `docs/research/NEURAL_CONNECTOR_RESEARCH_PLAN.md` as the proposed approach.
+Use `docs/operations/UNIVERSAL_SPACE_LOCATIONS_AND_BASELINE_2026-09-01.md` for the folder map and restoration evidence.
 
-The user requires conventional `main` to stay protected and spatial development to use `molecular-v2` in `E:\WIZZ-Server\new-version\universal-space`. The user's latest HP terminal output confirms that arrangement at application commit `4694b41`; the accepted rollback baseline is recorded in the existing ledger and rules file.
+## Current direction — 2 September 2026
 
-Do not create alternate copies, worktrees, automatic backups or extra renderer overlays. Keep temporary output in the system temporary directory. Maintain the rules file in place; update actual document links when an authorized move occurs.
+The user restored their solid application and published it as `0027fcf53a577d4126a1be96b30255b29ccf2178` on `molecular-v2`. That is the application baseline for this work.
 
-Current user instructions and already granted authorization govern the task. Do not invent another approval requirement when the user has already authorized the specific action. A Git error still requires the user's stated one-sentence report and stop.
+Next: accept a structured app/site definition, validate it, bind supported actions, and feed it through the existing adapter registry and graph builder to generate a cluster. Inspect the existing implementation before choosing the smallest patch. The graph already traverses registered definitions; do not build a second generator inside a new engine.
 
-The user accepted application commit `4694b41` as the neural visual baseline on 1 September 2026. Retain it as the rollback reference while making later visual refinements; do not revive the retired overlay stack from historical checklists.
+Centre-node/trunk graphics, tissue, spine, glow, fibres, renderer overlays and reference-image matching are removed from the work queue. Existing appearance is accepted for this milestone. Do not resume those tasks or remove runtime graphics files as housekeeping.
+
+Memory and standalone Settings still have established construction/interaction paths. Gmail and Code Space use the generic registry. Do not claim the entire application is already app-agnostic or migrate working Memory/Settings merely to tidy the architecture.
+
+The older V1/V2 product ledgers, README history and completed physics patches are historical/product context, not the next-work queue. Their previous local-only, visual-lab, renderer and next-step instructions do not override the user's current authorization or the active rules and mapper plan. The eight superseded graphics/prototype documents were removed; their previous contents remain in Git history.
+
+Current user instructions and already granted authorization govern the task. Follow the workspace and Git-error rules in `UNIVERSAL_SPACE_RULES.txt`. No alternate project copies, worktrees, automatic backups or extra overlays.

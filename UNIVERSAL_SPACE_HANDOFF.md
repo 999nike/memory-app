@@ -1,88 +1,49 @@
 # Universal Space Handoff
 
-## Core rule
+Updated: 2 September 2026. Read `UNIVERSAL_SPACE_RULES.txt` first.
 
-- ONE universe
-- ONE canonical graph
-- ONE solver
-- ONE renderer
-- MULTIPLE app gravity wells
+## Current baseline and task
 
-## Current clusters
+Application baseline: `0027fcf53a577d4126a1be96b30255b29ccf2178` on `molecular-v2`, restored and uploaded by the user. Their terminal reports a clean local checkout tracking `origin/molecular-v2`.
 
-- Memory
-- Settings
-- Email
-- Code Space
+The active work is the app-adapter / cluster mapper in [docs/APP_CLUSTER_MAPPER_PLAN.md](docs/APP_CLUSTER_MAPPER_PLAN.md). Start with its definition-loader milestone. The earlier percentage estimates and “1–2 patches” were conversational estimates, not a verified completion guarantee.
 
-## Memory
+The user accepts the restored presentation. Middle-node graphics, trunks, tissue, internal spines, fibres and reference matching are removed from the queue. Existing runtime graphics files and the saved image are retained; their presence is not an instruction to resume visual work.
 
-- Titled/group nodes and group inspector working.
-- Contained memories are readable.
-- Inspector unpin and group delete hand off each released member's visible satellite position to its canonical node; neither path rebuilds/recentres the graph.
-- `MemoryGraph.redraw` / manual-gravity `redrawOnly()` provide the non-destructive draw path for those operations.
-- Live Memory-root x/y/vx/vy survive legitimate rebuilds. A deliberate blue-root drag saves normalized x/y only; startup restores it before Memory/group layout. Fresh layout fallback is 50% x / 22% y of the graph canvas.
-- Root and drag physics are stable.
+## Architecture actually present
 
-## Universal App Adapter
+- One shared canonical graph and solver, using the existing rendering path.
+- Memory, standalone Settings, EMAIL and Code Space appear in that universe.
+- `universal-app-adapters.js` registers definitions, normalizes nested children and namespaces node IDs. It dispatches actions to the owning adapter and supports state, hierarchy, activity and refresh.
+- `memory-graph.js` already traverses registered definitions into app roots, nodes and edges during graph construction. The mapper must reuse that path.
+- Gmail and Code Space define their app structures and handlers in their own adapter files.
+- Memory and standalone Settings retain special construction/interaction paths; they are not both registered through the same generic contract.
+- Missing: a supported reusable definition input/loader, strict validation and action binding, and proof that another app/site can be mapped without custom graph code.
+- Runtime addition/removal of whole apps is not established by the registry's current registration method. Plan bootstrap registration first and inspect lifecycle before promising hot import.
 
-- Generic adapter contract implemented.
-- Nested expandable nodes implemented.
-- Actions dispatch through the owning adapter.
-- Graph code contains no Gmail-specific logic.
-- Code Space is registered through the same contract with bounded local read-only capabilities.
+## Working behavior to preserve
 
-## Gmail
+Memory titled groups and inspectors work. Inspector unpin and group deletion pass the visible satellite position to the canonical memory node before detach, using the draw-only path. They must not recenter the graph or wake unrelated physics.
 
-- OAuth flow now requests `gmail.readonly`; the existing metadata-only token is detected and requires explicit reauthorization for bodies.
-- Inbox, Unread and Drafts use live state.
-- Inbox headers are readable. A single-message read-only body route and inspector rendering are implemented; body access awaits reauthorization.
-- Settings/Gmail account controls are mapped.
-- Background polling updates state without page reload.
-- Expired-token refresh now retries Gmail requests once and transient summary failures preserve the last known counts/activity.
-- Code Space `codex.open` embeds the existing local Code Space wrapper at `http://127.0.0.1:8090/` in the Universal Space detail panel; no Code Space source was modified. Browser visual verification remains pending.
-- Corrected the Code Space iframe to use the existing fixed `detail-overlay` mode so it no longer participates in graph grid sizing; browser repeated open/close verification remains pending.
-- Manual group gravity no longer injects velocity into ordinary canonical Memory nodes; group-body drag/settling paths remain intact. Browser movement verification is pending.
-- Inspector unpin now hands the visible grouped satellite position to its canonical node before detaching, without rebuilding the graph. Browser verification is pending.
+Memory root x/y/vx/vy survive legitimate rebuilds. Deliberate root drag saves normalized x/y in the graph-layout store; fresh launch fallback is 50% canvas width / 22% height. These invariants were visually verified in the 31 August ledger; no new browser verification is claimed for this docs update.
 
-## Live activity
+Gmail has mapped account/settings controls, live counts and bounded mailbox children. Background refresh preserves last-known state across transient failures. The source requests `gmail.readonly` and supports read-only bodies, but existing metadata-only tokens need explicit reauthorization. Current token state has not been rechecked here.
 
-- Generic per-node activity state.
-- Existing blue neural pulse path is reused.
-- Purple means external/unacknowledged activity.
-- Purple pulses start across EMAIL outer nodes and converge toward Inbox.
-- Inbox acknowledgement clears the activity.
-- Incoming Gmail activity can trigger this automatically without browser refresh.
+Generic activity uses the existing blue/purple pulse path. EMAIL activity converges on Inbox and acknowledgement clears it. Keep that behavior; pulse expansion is not part of the mapper milestone.
 
-## Latest approved bank
+Code Space is a registered adapter. Projects/files use bounded local read-only routes. `codex.open` embeds the existing Code Space service at `http://127.0.0.1:8090/` in the fixed detail overlay. Jobs/Git/Terminal include status-only or unconnected capabilities; do not describe them as executable controls.
 
-`E:\WIZZ-Server\new-version\backupbranches\universal-space_2026-08-30_live-gmail-purple-activity`
+## Verification still outstanding
 
-## Protected original
+The previous ledger leaves Code Space placement, repeated overlay open/close, drag/expand/collapse and cluster isolation for browser verification. Some Gmail body/activity checks also depend on the user's local service/account. Use these as regression checks during a functional patch, not as reasons to restart graphics design.
 
-`E:\WIZZ-Server\new-version\memory-app-visual-lab\memory-app`
+## Locations and protected state
 
-NEVER MODIFY.
-
-## Gmail secrets
-
-`E:\WIZZ-Server\secrets\universal-space-gmail`
-
-NEVER COPY INTO PROJECT OR BACKUPS.
-
-## Development rules
-
-- LOCAL ONLY.
-- NO GitHub unless explicitly requested.
-- Make the smallest patch.
-- Do not rebuild the engine or casually change physics.
-- Visually test before continuing.
-- Ask “bank this one?” at important approved milestones.
-
-## Immediate next direction
-
-Continue proving the generic adapter model with real app capabilities. Code Space adapter registration and bounded local routes are implemented; browser visual placement/interaction still needs testing. Do not build the API/OpenAPI/MCP/DOM auto-scanner unless explicitly requested.
+- Working project: `E:\WIZZ-Server\new-version\universal-space`; test URL: `http://127.0.0.1:4173`.
+- Protected original: `E:\WIZZ-Server\new-version\memory-app-visual-lab\memory-app`. Do not modify.
+- Gmail secrets: `E:\WIZZ-Server\secrets\universal-space-gmail`. Never print or copy into source/backups.
+- See [the operations record](docs/operations/UNIVERSAL_SPACE_LOCATIONS_AND_BASELINE_2026-09-01.md) for historical folder locations. Existing backups are not automatic backup destinations.
 
 ## Next-session entry
 
-Read `UNIVERSAL_SPACE_HANDOFF.md` first, then `UNIVERSAL_SPACE_LEDGER.md`. Do not rely on old chat context.
+Read `AGENTS.md`, follow its reading order, and continue the unchecked milestone in `docs/APP_CLUSTER_MAPPER_PLAN.md`. Record actual implementation and test results in `UNIVERSAL_SPACE_LEDGER.md`. Do not infer completion from old checkmarks or chat memory.

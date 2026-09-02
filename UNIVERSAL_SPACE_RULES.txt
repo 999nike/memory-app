@@ -1,5 +1,5 @@
 UNIVERSAL SPACE - PROJECT RULES
-Recorded: 1 September 2026
+Updated: 2 September 2026
 Owner: devmaster / 999nike
 
 READ THIS FIRST. Maintain this file in place; do not create competing copies.
@@ -26,41 +26,41 @@ Test address: http://127.0.0.1:4173
 When the user says "main folder" or "root", they mean this working directory,
 NOT the Git branch main. Do not switch to main because of that wording.
 
-CURRENT CONFIRMED BASELINE - 1 SEPTEMBER 2026
+CURRENT CONFIRMED BASELINE - 2 SEPTEMBER 2026
 
-User-provided HP terminal output confirms:
-- Working folder: E:\WIZZ-Server\new-version\universal-space
-- Checked-out branch: molecular-v2, tracking origin/molecular-v2.
-- HEAD and origin/molecular-v2 match at:
-  4694b417c989b2ddd89a2c50e7849979a9c471b0
-- git status --short --branch printed no modified or untracked paths.
-- origin is https://github.com/999nike/memory-app.
-- The previous restored working files were saved in the Git stash named
-  "HP restored state before molecular-v2 update".
-- Local restoration commit b112af3 was preserved under the local tag
-  restored-before-neural-update before the successful branch alignment.
-- The linked bank worktree was last reported detached at 9535bc9.
+The user restored their solid local version and published it to molecular-v2:
+- Application baseline: 0027fcf53a577d4126a1be96b30255b29ccf2178.
+- User terminal output confirms molecular-v2 tracks origin/molecular-v2,
+  with no modified or untracked files printed after the successful push.
+- Working folder: E:\WIZZ-Server\new-version\universal-space.
+- GitHub molecular-v2 was independently checked at that same commit.
+- The restore was first committed locally as 0214ede on
+  restored-solid-20260902. That is a recovery reference, not a work branch.
+- The upload explicitly targeted molecular-v2; main was not a push target.
+- Conventional GitHub main was previously checked at
+  8de6f6fcc713f756ac2985402c4e176acb6279ec and must remain unchanged.
 
-The user has now accepted 4694b41 as the working neural visual baseline and
-explicitly requested it be retained as the rollback version on molecular-v2.
-This is the starting point for further work toward the reference picture,
-not a claim that the target design is finished. HP FPS has not been measured.
-The local screenshot shows Memory, EMAIL and Code Space joined by the finer
-branching central trunk, with Settings separate.
+This supersedes the 1 September 4694b41 visual baseline and all previous
+renderer-version checklists. Do not restore those later graphics merely
+because an older document calls them accepted.
 
-Rollback application commit: 4694b417c989b2ddd89a2c50e7849979a9c471b0
-Use the existing branch history and baseline record in
-UNIVERSAL_SPACE_LEDGER.md. Do not create another project copy or branch.
-Preserve subsequent work before any explicitly requested rollback; prefer a
-reviewed forward restoration commit on molecular-v2 rather than rewriting
-shared history or discarding local changes.
+CURRENT PRODUCT DIRECTION
 
-GitHub molecular-v2 was independently checked at that same commit before
-recording this baseline. GitHub main was checked at
-8de6f6fcc713f756ac2985402c4e176acb6279ec and is not a target of this work.
-This supersedes the earlier dirty-main/missing-origin reconciliation reports.
-Other folders have not been cleaned or retired. No Windows filesystem changes
-are claimed by this GitHub documentation update.
+Use docs/APP_CLUSTER_MAPPER_PLAN.md as the only active implementation queue:
+app/site description -> validated definition -> adapter/action bindings ->
+existing canonical graph builder -> generated app cluster.
+
+Freeze the restored visual presentation. No centre-node/trunk graphics
+refinement, tissue/spine/fibre work, reference-image matching or pulse-design
+expansion is required to complete the mapper milestone.
+
+The restored code already supports registered nested app definitions.
+Build the missing reusable input/validation/binding layer on that contract.
+Preserve Memory, Settings, Gmail, Code Space, grouping and position behavior.
+
+Git history preserves the old experiments. The user has explicitly authorized
+this documentation cleanup on molecular-v2. A remote documentation commit
+does not mean the HP has pulled it or that the mapper is implemented.
 
 STRICT WORKSPACE RULES
 
@@ -76,20 +76,19 @@ STRICT WORKSPACE RULES
 5. This rules file and a small AGENTS.md entry point may live in the root.
    AGENTS.md must instruct agents to read this file and the actual handoff;
    do not duplicate the branch policy across multiple conflicting documents.
-6. Use docs/research/NEURAL_CONNECTOR_RESEARCH_PLAN.md and
-   docs/operations/UNIVERSAL_SPACE_LOCATIONS_AND_BASELINE_2026-09-01.md.
-   Put other maintained documentation in docs/ after an explicit move list
-   and reference updates. Preserve existing filenames. Until those moves are
-   completed, read the existing root UNIVERSAL_SPACE_HANDOFF.md and
-   UNIVERSAL_SPACE_LEDGER.md; do not assume proposed docs paths exist.
+6. Keep one active checklist at docs/APP_CLUSTER_MAPPER_PLAN.md. Maintain
+   the root handoff and ledger in place, plus the existing operations record.
+   Update document references in the same change when removing obsolete plans.
+   Do not create competing work.txt checklists or rename preserved files.
 7. Use the system temporary directory for disposable output. No root-level
    audit dumps, screenshots, patch scripts, spare renderers or backup files.
 8. Trace static and dynamic loading, imports, server routes and external use
    before removing a candidate. Untracked does not mean unused. HTTP 200 from
    a static server does not mean the browser executes the file.
-9. No additional renderer overlays without explicit approval. Preserve graph
-   topology, physics, drag/drop, positions, persistence and app behavior during
-   visual work. One coherent patch, followed by an actual visual check.
+9. Keep the restored renderer and physics behavior stable during mapper work.
+   No graphics refinement or new overlays. Use one canonical graph, solver
+   and existing rendering path. Keep generated app nodes out of durable
+   Memory records, exports, counts, AI context and proposal storage.
 10. Before editing, verify the actual working directory and branch against
     this file. Report a mismatch and resolve it within the user's authorized
     scope before ordinary development. Do not hide it behind another copy.
@@ -106,6 +105,8 @@ For banking/reconciliation, report: working path, checked-out branch, commit,
 verified remote target, remaining dirty/untracked files, and whether main's
 reference changed. Do not describe intended state as verified state.
 
-For cleanup, report exact moves/removals, updated references and the local
-browser check. Do not claim an audit, a push or a rules file alone cleaned up
-the folders or established the correct branch.
+For documentation cleanup, report exact removals, updated entry references,
+and verification that runtime files are unchanged. Browser tests are needed
+for later application behavior changes; do not claim them for a docs-only edit.
+Do not claim a remote documentation update cleaned Windows folders, removed
+unused JavaScript, or established that the HP pulled the latest documents.

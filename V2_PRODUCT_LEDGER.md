@@ -1,3 +1,5 @@
+> **Scope note — 2 September 2026:** This is historical product-family planning from August, not the active `molecular-v2` work queue. Follow [AGENTS.md](AGENTS.md), the [current handoff](UNIVERSAL_SPACE_HANDOFF.md) and the [app mapper plan](docs/APP_CLUSTER_MAPPER_PLAN.md) for the user's restored spatial application. Preserve the conventional `main` product and trusted Memory/Bridge boundaries. This older ledger does not revoke the user's current authorization to work on the spatial branch.
+
 # Memory Space V2 Product Ledger
 
 **Updated:** 10 Aug 2026
