@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 8;
+  const VERSION = 2;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralScaffoldInstalled', { value: true });
@@ -248,75 +248,31 @@
     previousStroke.call(ctx);
   }
 
-  function strokeTaperedCore(ctx, curve, width, alpha = 1) {
-    const segments = 8;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    for (let index = 0; index < segments; index += 1) {
-      const startT = index / segments;
-      const endT = (index + 1) / segments;
-      const start = pointOnCurve(curve, startT);
-      const end = pointOnCurve(curve, endT);
-      const taper = endT <= 0.35 ? 1 : 1 - (endT - 0.35) * 0.90;
-
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
-      ctx.lineWidth = Math.max(0.65, width * taper * 0.82);
-      ctx.strokeStyle = `rgba(91,208,255,${(0.55 * alpha * (0.70 + taper * 0.30)).toFixed(3)})`;
-      previousStroke.call(ctx);
-
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
-      ctx.lineWidth = Math.max(0.35, width * taper * 0.20);
-      ctx.strokeStyle = `rgba(239,253,255,${(0.94 * alpha * (0.56 + taper * 0.44)).toFixed(3)})`;
-      previousStroke.call(ctx);
-    }
-    ctx.restore();
-  }
   function drawOrganicTube(ctx, curve, width, interacting, compact = false) {
     const detail = interacting ? 0.58 : 1;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    strokeCurve(ctx, curve, width * 5.2, `rgba(10,55,190,${(0.055 * detail).toFixed(3)})`);
-    strokeCurve(ctx, curve, width * 3.25, `rgba(21,102,245,${(0.115 * detail).toFixed(3)})`);
-    strokeCurve(ctx, curve, width * 1.78, `rgba(39,149,255,${(0.24 * detail).toFixed(3)})`);
+    strokeCurve(ctx, curve, width * 4.2, `rgba(10,55,190,${(0.035 * detail).toFixed(3)})`);
+    strokeCurve(ctx, curve, width * 2.7, `rgba(21,102,245,${(0.070 * detail).toFixed(3)})`);
+    strokeCurve(ctx, curve, width * 1.55, `rgba(39,149,255,${(0.16 * detail).toFixed(3)})`);
     strokeCurve(ctx, curve, Math.max(0.9, width * 0.52), `rgba(104,215,255,${(0.58 * detail).toFixed(3)})`);
     strokeCurve(ctx, curve, Math.max(0.35, width * 0.13), `rgba(244,253,255,${(0.88 * detail).toFixed(3)})`);
-    strokeTaperedCore(ctx, curve, width, detail);
 
     if (!interacting) {
-      const companions = compact ? 3 : 8;
+      const companions = compact ? 2 : 4;
       for (let lane = 1; lane <= companions; lane += 1) {
-        const companion = controlPoints(curve.p0, curve.p3, curve.seed + lane * 0.451, 0.38 + lane * 0.09, lane);
-        strokeCurve(ctx, companion, compact ? 0.42 : 0.44 + lane * 0.10, `rgba(149,232,255,${(0.34 + lane * 0.060).toFixed(3)})`);
+        const companion = controlPoints(curve.p0, curve.p3, curve.seed + lane * 0.271, 0.68 + lane * 0.09, lane);
+        strokeCurve(ctx, companion, compact ? 0.35 : 0.38 + lane * 0.07, `rgba(149,232,255,${(0.16 + lane * 0.035).toFixed(3)})`);
       }
     }
     ctx.restore();
   }
 
-  function drawTrunkBundle(ctx, curve, width, interacting, compact = false) {
-    if (interacting) return;
-    const lanes = compact ? 4 : 11;
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (let lane = 1; lane <= lanes; lane += 1) {
-      const filament = controlPoints(curve.p0, curve.p3, curve.seed + lane * 0.613, 0.28 + lane * 0.07, lane + 8);
-      strokeCurve(ctx, filament, Math.max(0.6, width * (0.24 - lane * 0.025)), `rgba(116,222,255,${(0.48 - lane * 0.045).toFixed(3)})`);
-      strokeCurve(ctx, filament, Math.max(0.22, width * (0.065 - lane * 0.006)), `rgba(245,254,255,${(0.78 - lane * 0.055).toFixed(3)})`);
-    }
-    ctx.restore();
-  }
   function drawDendrites(ctx, curve, seed, interacting, density = 1, compact = false) {
     if (interacting) return;
     const mobile = sourceCanvas?.clientWidth < 700;
-    const major = density >= 1.4;
-    const divisor = compact ? 48 : major ? 18 : mobile ? 38 : 26;
-    const count = clamp(Math.round(curve.length / divisor * density), compact ? 2 : major ? 8 : 5, compact ? 6 : major ? 19 : mobile ? 10 : 16);
+    const divisor = compact ? 58 : mobile ? 50 : 34;
+    const count = clamp(Math.round(curve.length / divisor * density), compact ? 1 : 3, compact ? 4 : mobile ? 7 : 13);
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -331,7 +287,7 @@
       const px = -tangent.y;
       const py = tangent.x;
       const side = hash(localSeed, 3, 4) > 0.5 ? 1 : -1;
-      const reach = (compact ? 8 : major ? 20 : 16) + hash(localSeed, 5, 6) * (compact ? 16 : major ? 66 : mobile ? 34 : 58);
+      const reach = (compact ? 8 : 16) + hash(localSeed, 5, 6) * (compact ? 16 : mobile ? 34 : 58);
       const forward = (hash(localSeed, 7, 8) - 0.35) * reach * 0.55;
       const mid = {
         x: origin.x + px * side * reach * 0.52 + tangent.x * forward * 0.42,
@@ -345,11 +301,11 @@
       ctx.beginPath();
       ctx.moveTo(origin.x, origin.y);
       ctx.quadraticCurveTo(mid.x, mid.y, end.x, end.y);
-      ctx.lineWidth = compact ? 0.36 : major ? 0.76 : 0.48;
-      ctx.strokeStyle = major ? 'rgba(157,229,255,.46)' : 'rgba(157,229,255,.28)';
+      ctx.lineWidth = compact ? 0.36 : 0.48;
+      ctx.strokeStyle = 'rgba(157,229,255,.28)';
       previousStroke.call(ctx);
 
-      if (!compact && hash(localSeed, 9, 10) > (mobile ? 0.54 : 0.30)) {
+      if (!compact && hash(localSeed, 9, 10) > (mobile ? 0.66 : 0.44)) {
         const forkSide = hash(localSeed, 11, 12) > 0.5 ? 1 : -1;
         const fork = {
           x: mid.x + px * forkSide * reach * 0.44 + tangent.x * reach * 0.15,
@@ -358,8 +314,8 @@
         ctx.beginPath();
         ctx.moveTo(mid.x, mid.y);
         ctx.quadraticCurveTo((mid.x + fork.x) * 0.5 + px * forkSide * 3, (mid.y + fork.y) * 0.5 + py * forkSide * 3, fork.x, fork.y);
-        ctx.lineWidth = major ? 0.38 : 0.24;
-        ctx.strokeStyle = major ? 'rgba(210,246,255,.34)' : 'rgba(210,246,255,.22)';
+        ctx.lineWidth = 0.24;
+        ctx.strokeStyle = 'rgba(210,246,255,.22)';
         previousStroke.call(ctx);
       }
     }
@@ -368,13 +324,13 @@
 
   function drawJunction(ctx, point, seed, timestamp, scale = 1) {
     const pulse = 0.80 + Math.sin(timestamp * 0.0019 + seed * 17.3) * 0.16;
-    const radius = 16 * scale;
+    const radius = 10 * scale;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-    gradient.addColorStop(0, `rgba(246,254,255,${(0.38 * pulse).toFixed(3)})`);
-    gradient.addColorStop(0.25, `rgba(117,220,255,${(0.28 * pulse).toFixed(3)})`);
-    gradient.addColorStop(0.72, `rgba(44,124,255,${(0.14 * pulse).toFixed(3)})`);
+    gradient.addColorStop(0, `rgba(246,254,255,${(0.30 * pulse).toFixed(3)})`);
+    gradient.addColorStop(0.25, `rgba(117,220,255,${(0.22 * pulse).toFixed(3)})`);
+    gradient.addColorStop(0.72, `rgba(44,124,255,${(0.10 * pulse).toFixed(3)})`);
     gradient.addColorStop(1, 'rgba(30,82,255,0)');
     ctx.beginPath();
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
@@ -384,38 +340,9 @@
     ctx.arc(point.x, point.y, Math.max(1.1, radius * 0.16), 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(248,254,255,.88)';
     ctx.fill();
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, Math.max(2.4, radius * 0.46), 0, Math.PI * 2);
-    ctx.lineWidth = Math.max(0.35, radius * 0.05);
-    ctx.strokeStyle = `rgba(159,231,255,${(0.34 * pulse).toFixed(3)})`;
-    previousStroke.call(ctx);
     ctx.restore();
   }
 
-  function drawFibreLights(ctx, curve, seed, timestamp, density = 1, compact = false) {
-    const count = clamp(Math.round(curve.length / (compact ? 24 : 8) * density), compact ? 4 : 8, compact ? 11 : 34);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    for (let index = 0; index < count; index += 1) {
-      const localSeed = seed + index * 0.193;
-      const drift = ((timestamp * (0.000045 + hash(localSeed, 7, 8) * 0.000035)) + hash(localSeed, 9, 10)) % 1;
-      const t = 0.04 + ((index / count + drift + hash(localSeed, 1, 2) * 0.12) % 1) * 0.92;
-      const point = pointOnCurve(curve, t);
-      const flicker = 0.62 + Math.sin(timestamp * 0.004 + localSeed * 18.7) * 0.24;
-      const radius = (compact ? 0.38 : 0.46) + hash(localSeed, 3, 4) * (compact ? 0.28 : 0.62);
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(195,245,255,${(0.34 * flicker).toFixed(3)})`;
-      ctx.fill();
-      if (index % 3 === 0) {
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, radius * 2.1, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(72,183,255,${(0.09 * flicker).toFixed(3)})`;
-        ctx.fill();
-      }
-    }
-    ctx.restore();
-  }
   function drawPulse(ctx, curve, seed, timestamp, phase = 0) {
     const duration = 1600 + seed * 1500;
     const progress = ((timestamp + phase * duration + seed * 700) % duration) / duration;
@@ -432,20 +359,13 @@
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
     ctx.fillStyle = gradient;
     ctx.fill();
-    for (let trail = 1; trail <= 3; trail += 1) {
-      const trailPoint = pointOnCurve(curve, clamp(progress - trail * 0.022, 0, 1));
-      ctx.beginPath();
-      ctx.arc(trailPoint.x, trailPoint.y, Math.max(1, radius * (0.30 - trail * 0.05)), 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(108,218,255,${(alpha * (0.18 - trail * 0.035)).toFixed(3)})`;
-      ctx.fill();
-    }
     ctx.restore();
   }
 
   function drawCentreMass(ctx, centre, clusters, timestamp, interacting) {
     if (!centre) return;
     const mobile = sourceCanvas?.clientWidth < 700;
-    const radius = mobile ? 50 : 78;
+    const radius = mobile ? 42 : 62;
     const pulse = 0.90 + Math.sin(timestamp * 0.0015) * 0.08;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -467,7 +387,7 @@
           y: centre.y + direction.y * radius * (0.65 + hash(i + 1.7, 1, 2) * 0.30)
         };
         const root = controlPoints(centre, rootEnd, i * 0.377 + 1.3, 0.45, i);
-        strokeCurve(ctx, root, 1.25, 'rgba(171,235,255,.48)');
+        strokeCurve(ctx, root, 0.55, 'rgba(171,235,255,.24)');
       }
     }
     ctx.restore();
@@ -514,45 +434,27 @@
   }
 
   function drawCluster(ctx, geometry, timestamp, interacting, compact = false) {
-    // Retain Scaffold's connections and dendrites. Repeated spine strokes,
-    // companion bundles and particle passes dominate its measured frame time.
-    const drawConnection = (curve, width) => {
-      const detail = interacting ? 0.58 : 1;
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      strokeCurve(ctx, curve, width * 5.2, `rgba(10,55,190,${(0.055 * detail).toFixed(3)})`);
-      strokeCurve(ctx, curve, width * 3.25, `rgba(21,102,245,${(0.115 * detail).toFixed(3)})`);
-      strokeCurve(ctx, curve, width * 1.78, `rgba(39,149,255,${(0.24 * detail).toFixed(3)})`);
-      strokeCurve(ctx, curve, Math.max(0.9, width * 0.52), `rgba(104,215,255,${(0.58 * detail).toFixed(3)})`);
-      strokeCurve(ctx, curve, Math.max(0.35, width * 0.13), `rgba(244,253,255,${(0.88 * detail).toFixed(3)})`);
-      ctx.restore();
-    };
-    // App children are fine local anatomy, not another copy of the main trunk.
-    // They use the same curve as their connector, with a restrained tissue and
-    // spine so green controls stay readable.
-    const drawChildConnection = (curve, width) => {
-      const detail = interacting ? 0.58 : 1;
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      strokeCurve(ctx, curve, width * 2.75, `rgba(37,52,184,${(0.075 * detail).toFixed(3)})`);
-      strokeCurve(ctx, curve, width * 1.58, `rgba(66,97,238,${(0.14 * detail).toFixed(3)})`);
-      strokeCurve(ctx, curve, Math.max(0.62, width * 0.46), `rgba(78,182,255,${(0.46 * detail).toFixed(3)})`);
-      strokeCurve(ctx, curve, Math.max(0.28, width * 0.095), `rgba(232,250,255,${(0.82 * detail).toFixed(3)})`);
-      ctx.restore();
-    };
-    const trunkWidth = clamp(geometry.trunk.length * (compact ? 0.076 : 0.130), compact ? 5.8 : 15.0, compact ? 11.8 : 30.0);
-    drawConnection(geometry.trunk, trunkWidth);
-    drawDendrites(ctx, geometry.trunk, geometry.seed, interacting, compact ? 1.05 : 2.10, compact);
+    const trunkWidth = clamp(geometry.trunk.length * (compact ? 0.050 : 0.058), compact ? 3.2 : 5.4, compact ? 7.0 : 12.5);
+    drawOrganicTube(ctx, geometry.trunk, trunkWidth, interacting, compact);
+    drawDendrites(ctx, geometry.trunk, geometry.seed, interacting, compact ? 0.72 : 1.25, compact);
+    if (!interacting) {
+      drawJunction(ctx, geometry.junction, geometry.seed, timestamp, compact ? 0.62 : 0.92);
+      drawPulse(ctx, geometry.trunk, geometry.seed, timestamp, 0.10);
+    }
 
     for (const child of geometry.children) {
       if (child.stem) {
         const stemWidth = clamp(child.stem.length * 0.045, 2.6, 6.4);
-        drawChildConnection(child.stem, stemWidth);
-        drawDendrites(ctx, child.stem, child.seed + 1.1, interacting, 0.68, true);
+        drawOrganicTube(ctx, child.stem, stemWidth, interacting, false);
+        drawDendrites(ctx, child.stem, child.seed + 1.1, interacting, 0.72, false);
       }
       const branchWidth = clamp(child.branch.length * (compact ? 0.030 : 0.034), compact ? 1.8 : 2.4, compact ? 4.6 : 6.8);
-      drawChildConnection(child.branch, branchWidth);
-      drawDendrites(ctx, child.branch, child.seed + 2.3, interacting, 0.68, true);
+      drawOrganicTube(ctx, child.branch, branchWidth, interacting, compact);
+      drawDendrites(ctx, child.branch, child.seed + 2.3, interacting, compact ? 0.62 : 0.88, compact);
+      if (!interacting) {
+        drawPulse(ctx, child.branch, child.seed, timestamp, 0.35);
+        if (child.stem && hash(child.seed, 11, 12) > 0.35) drawJunction(ctx, child.shared, child.seed + 3.3, timestamp, 0.54);
+      }
     }
   }
 
