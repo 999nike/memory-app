@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 6;
+  const VERSION = 7;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralNexusInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralNexusInstalled', { value: true });
@@ -357,8 +357,27 @@
     ctx.restore();
   }
 
-  function drawOrganicTube(ctx, curve, width, seed, interacting) {
+  function refineTrialTube(tube, seed) {
+    // Tissue-only transform around the original centreline: the spine and fork
+    // attachment coordinates stay exactly where the accepted baseline put them.
+    const phase = hash(seed, 21, 4) * Math.PI * 2;
+    for (let index = 0; index < tube.centre.length; index += 1) {
+      const t = index / Math.max(1, tube.centre.length - 1);
+      const swell = 0.45 * Math.exp(-Math.pow((t - 0.30) / 0.22, 2));
+      const taper = 0.30 + 0.75 * Math.pow(1 - t, 0.65) + swell;
+      const asymmetry = Math.sin(t * Math.PI * 2.3 + phase) * Math.sin(Math.PI * t) * 0.08;
+      const centre = tube.centre[index];
+      for (const [edge, scale] of [[tube.left[index], taper + asymmetry], [tube.right[index], taper - asymmetry]]) {
+        edge.x = centre.x + (edge.x - centre.x) * scale;
+        edge.y = centre.y + (edge.y - centre.y) * scale;
+      }
+    }
+    return tube;
+  }
+
+  function drawOrganicTube(ctx, curve, width, seed, interacting, refined = false) {
     const tube = organicTubePoints(curve, width, seed, interacting);
+    if (refined) refineTrialTube(tube, seed);
     const detail = interacting ? 0.62 : 1;
 
     ctx.save();
@@ -546,12 +565,16 @@
   function drawSharedNetwork(ctx, roots, timestamp, interacting) {
     if (roots.length < 2) return;
     const nexus = nexusPoint(roots);
+    // Capture order stays stable when roots move; screen position does not.
+    const trialRoot = roots.reduce((first, root) =>
+      segments.indexOf(root.segments[0]) < segments.indexOf(first.segments[0]) ? root : first);
 
     roots.forEach((root, index) => {
       const seed = Math.abs(Math.sin(root.centre.x * 0.017 + root.centre.y * 0.029 + index * 0.731));
       const curve = controlPoints(nexus, root.centre, seed, 0.78, index + 1);
       const width = clamp(curve.length * 0.035, 7, 14);
-      drawOrganicTube(ctx, curve, width, seed, interacting);
+      const tissueWidth = root === trialRoot ? width * 1.18 : width;
+      drawOrganicTube(ctx, curve, tissueWidth, seed, interacting, root === trialRoot);
     });
 
     drawNexus(ctx, nexus, roots, timestamp, interacting);

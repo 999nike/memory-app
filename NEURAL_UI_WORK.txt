@@ -315,3 +315,27 @@ Use the newest screenshot and original reference side by side. Fix visible anato
   unresolved checkout state, conventional main, private backup and folders were
   not changed. Visual agreement with the target and HP performance remain to
   be checked in the deployed/real app; do not call the whole project restored.
+
+35. 2026-09-02 — ONE-TRUNK TISSUE / SPINE TRIAL (Nexus V7)
+- Scope: one captured major trunk only. The selection uses existing capture order,
+  not screen position or child-count sorting, so moving roots does not choose a
+  different trial route.
+- The original Nexus centre samples stay unchanged. Existing internal spine and
+  fork attachment coordinates therefore remain on their accepted baseline path.
+- Only the chosen trunk's tissue edges are reshaped: a fuller irregular body
+  near the central junction and a narrow tapered finish at the app root.
+  Its existing width is increased modestly (1.18x) for readable translucent
+  tissue; other trunks remain Nexus V6-equivalent.
+- No new canvas, requestAnimationFrame loop, renderer, particle system, graph
+  node, physics, input, persistence, activity routing or EMAIL pulse change.
+- Validation before publication:
+  - Nexus and Width syntax checks pass.
+  - Deterministic geometry checks passed over three curved/short paths:
+    centreline unchanged, all tissue points finite, mid-trunk swell and distal
+    taper present.
+  - Native Canvas render exercised the exact V7 draw path; baseline and trial
+    painted 22,354 and 22,297 alpha-bearing pixels respectively in the fixed
+    one-trunk fixture. This is a geometry/render sanity check, not HP FPS.
+- Next gate: user local visual review. Inspect the one fuller tapered trunk
+  against the reference, drag roots, and keep EMAIL notification pulses working.
+  Do not extend the same styling to other roots yet.

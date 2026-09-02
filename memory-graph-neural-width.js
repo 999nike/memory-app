@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 16;
+  const VERSION = 17;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GROUP_KEY = 'memory-graph-folders-v1';
@@ -283,7 +283,7 @@
     if (document.getElementById('memoryGraphNeuralNexusLoader') || globalThis.MemoryGraphNeuralNexus) return;
     const script = document.createElement('script');
     script.id = 'memoryGraphNeuralNexusLoader';
-    script.src = './memory-graph-neural-nexus.js?v=6';
+    script.src = './memory-graph-neural-nexus.js?v=7';
     script.async = false;
     script.addEventListener('load', () => globalThis.MemoryGraph?.redraw?.());
     document.head.appendChild(script);
