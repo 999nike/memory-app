@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 14;
+  const VERSION = 15;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -253,6 +253,35 @@
       };
     });
 
+    // A real graph node for the normal "Add memory" action. It stays in the
+    // Memory cluster and uses the existing UI flow; no second create path or
+    // persistence behaviour is introduced here.
+    const memoryActionOrbit = directAppChildOrbit(Math.min(memories.length + 1, 6));
+    const memoryActionAngle = -0.28;
+    const memoryActionNodes = [{
+      id: 'memory:create',
+      kind: 'control',
+      memoryCreateAction: true,
+      label: 'New memory',
+      x: centreX + Math.cos(memoryActionAngle) * memoryActionOrbit,
+      y: centreY + Math.sin(memoryActionAngle) * memoryActionOrbit,
+      vx: 0,
+      vy: 0,
+      radius: 19,
+      targetOrbit: memoryActionOrbit,
+      localOrbit: memoryActionOrbit,
+      gravityWeight: 1.04,
+      parentId: spaceNode.id,
+      action: 'add-memory',
+      expandable: false,
+      controlDepth: 1,
+      recencyLevel: 0.92,
+      fixed: false,
+      dragging: false,
+      hidden: false
+    }];
+    const memoryActionEdges = memoryActionNodes.map((node) => ({ source: spaceNode, target: node, kind: 'space' }));
+
     const appOrbit = baseOrbit * 1.08;
     const appDefinitions = globalThis.UniversalAppAdapters?.getAppDefinitions?.() || [];
     const appNodes = [];
@@ -327,7 +356,7 @@
       };
       appendChildren(appDefinition.nodes || [], appRoot, 1, appAngle);
     });
-    const edges = [...buildRealEdges(spaceNode, memoryNodes), ...appEdges];
+    const edges = [...buildRealEdges(spaceNode, memoryNodes), ...memoryActionEdges, ...appEdges];
     buildPresentationControlNodes(width, height, universeCentreX, universeCentreY, baseOrbit);
 
     return {
@@ -339,9 +368,11 @@
       memoryGroupOrbit: directAppChildOrbit(3),
       spaceNode,
       memoryNodes,
+      memoryActionNodes,
+      memoryActionEdges,
       appNodes,
       appEdges,
-      nodes: [spaceNode, ...memoryNodes, ...appNodes],
+      nodes: [spaceNode, ...memoryNodes, ...memoryActionNodes, ...appNodes],
       edges
     };
   }
@@ -497,8 +528,8 @@
   function syncCanonicalGraphCollections() {
     if (!graph) return false;
     const controls = [...presentationControlNodes.values()];
-    graph.nodes = [graph.spaceNode, ...graph.memoryNodes, ...(graph.appNodes || []), ...controls];
-    graph.edges = [...buildRealEdges(graph.spaceNode, graph.memoryNodes), ...(graph.appEdges || []), ...presentationControlEdges()];
+    graph.nodes = [graph.spaceNode, ...graph.memoryNodes, ...(graph.memoryActionNodes || []), ...(graph.appNodes || []), ...controls];
+    graph.edges = [...buildRealEdges(graph.spaceNode, graph.memoryNodes), ...(graph.memoryActionEdges || []), ...(graph.appEdges || []), ...presentationControlEdges()];
     return true;
   }
 
@@ -913,6 +944,17 @@
       context.shadowBlur = 18;
       context.shadowColor = 'rgba(120, 184, 255, 0.72)';
       context.stroke();
+      context.restore();
+    }
+
+    if (node.memoryCreateAction) {
+      context.save();
+      context.globalAlpha = depthAlpha;
+      context.fillStyle = 'rgba(228,255,173,0.96)';
+      context.font = '800 25px/1 Inter, system-ui, sans-serif';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText('+', nodeX, nodeY + 1);
       context.restore();
     }
 

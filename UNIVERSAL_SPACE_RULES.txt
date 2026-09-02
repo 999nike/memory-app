@@ -95,6 +95,10 @@ STRICT WORKSPACE RULES
     scope before ordinary development. Do not hide it behind another copy.
 11. If a Git command fails, state the exact error in one sentence and stop.
     No speculative resets, force pushes, merges or rebases to bypass it.
+12. Never describe a change as applied, committed, pushed, deployed, tested or
+    visible until the relevant command or observation proves it. Until then,
+    say it is only being attempted. If proof is blocked or unavailable, state
+    that immediately and ask the user for direction rather than guessing.
 
 COMPLETION EVIDENCE
 
