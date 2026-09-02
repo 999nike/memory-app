@@ -19,7 +19,8 @@ The stable simplified neural baseline is accepted again after the failed V7 visu
 - [x] Establish the working baseline and save its exact rollback commit: `4694b41`.
 - [x] Record user confirmation that EMAIL notification pulses are working.
 - [x] Reject and remove the failed V7 single-route taper. Current renderer recovery is Nexus V8 / Width V18 at commit `cbd7049551b7c614e08d13467d2d43e75e27f348`. It changed rendering only; graph topology, physics, drag/drop, persistence and pulse logic were not changed.
-- [ ] CURRENT TEST PATCH: Nexus V9 builds one visibly biological focus root from the existing central junction to one app cluster. It is selected from the longest visible root and then follows that root while the graph moves; it is never chosen by canvas capture order. It must retain its exact working endpoints throughout movement, use one shared centre path for both tissue and spine, and read clearly as:
+- [x] Nexus V9 focus-root test accepted on the user's HP screen: the broader blue/violet middle tissue and inner spine visibly loaded without breaking the working graph.
+- [ ] CURRENT TEST PATCH: Nexus V10 replaces the central polygon/cage with one small irregular organic soma. Existing root bases must enter that same decorative body continuously; it is not a graph node, persisted entity or separate renderer. It must retain the V9 focus root's exact working endpoints throughout movement, use one shared centre path for both tissue and spine, and read clearly as:
   1. translucent blue/violet outer root,
   2. thin bright internal spine,
   3. attached fibres terminating on the same body.
@@ -30,9 +31,9 @@ The stable simplified neural baseline is accepted again after the failed V7 visu
 - [ ] AFTER DESIGN ACCEPTANCE: extend the existing pulse/activity system across the finished connection routes, including the middle trunks and app-child paths. Reuse existing blue flow and purple notification semantics. Route real activity through connected geometry; do not make every app falsely report new mail. Preserve the working EMAIL notification and acknowledgement path.
 - [ ] Accept each local visual/performance result before continuing, and record passed milestones in the existing ledger.
 
-Current drawing ownership: Nexus V9 draws the middle trunks/soma and bounded attached fibres; its one focus root uses a broader blue/violet tube, sustained app-end collar and brighter internal spine. Scaffold V7 draws the underlying main/manual connections and local dendrites; Flow V3 owns existing route pulses. Width V18 loads Nexus V9 only. Do not re-enable the retired overlay chain. The V7 trial only altered the outer tissue on the first captured route; its taper made the Memory end appear detached and was removed in V8.
+Current drawing ownership: Nexus V10 draws the middle trunks/soma and bounded attached fibres; its one focus root uses a broader blue/violet tube, sustained app-end collar and brighter internal spine. The V10 soma is one small lobe-shaped body with no cage/web strokes. Scaffold V7 draws the underlying main/manual connections and local dendrites; Flow V3 owns existing route pulses. Width V18 loads Nexus V10 only. Do not re-enable the retired overlay chain. The V7 trial only altered the outer tissue on the first captured route; its taper made the Memory end appear detached and was removed in V8.
 
-Work from the user's newest screenshot and original neural reference side by side. The long middle routes still read as narrow rails and the central junction still reads as a polygonal cage; those are the next visible anatomy issues. Pulse expansion is deferred until the design is accepted and is not part of the next root patch.
+Work from the user's newest screenshot and original neural reference side by side. The current gate is whether the centre reads as one small living junction rather than a polygonal cage. Pulse expansion is deferred until the design is accepted and is not part of the next root patch.
 
 ## Original research decision
 

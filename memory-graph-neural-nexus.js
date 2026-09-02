@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 9;
+  const VERSION = 10;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralNexusInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralNexusInstalled', { value: true });
@@ -440,7 +440,7 @@
     for (const root of roots) {
       const rootAngle = Math.atan2(root.centre.y - point.y, root.centre.x - point.x);
       const alignment = Math.max(0, Math.cos(angleDelta(angle, rootAngle)));
-      influence = Math.max(influence, Math.pow(alignment, 5) * 0.58);
+      influence = Math.max(influence, Math.pow(alignment, 5) * 0.34);
     }
     return influence;
   }
@@ -502,8 +502,8 @@
 
   function drawNexus(ctx, point, roots, timestamp, interacting) {
     const rootCount = roots.length;
-    const pulse = 0.986 + Math.sin(timestamp * 0.00115) * 0.018;
-    const radius = clamp(32 + rootCount * 4.0, 44, 64);
+    const pulse = 0.994 + Math.sin(timestamp * 0.00115) * 0.010;
+    const radius = clamp(26 + rootCount * 2.2, 32, 46);
     const seed = rootCount * 0.173 + point.x * 0.0007 + point.y * 0.0009;
     const detail = interacting ? 0.62 : 1;
 
@@ -548,7 +548,6 @@
     ctx.fill();
     ctx.restore();
 
-    drawNexusWeb(ctx, point, radius, seed + 0.61, interacting);
   }
 
   function selectFocusRoot(roots, nexus) {
