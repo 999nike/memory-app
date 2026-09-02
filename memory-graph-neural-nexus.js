@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 8;
+  const VERSION = 9;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralNexusInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralNexusInstalled', { value: true });
@@ -18,6 +18,9 @@
   let sourceCanvas = null;
   let frame = 0;
   let lastPaint = 0;
+  // The chosen anatomical route follows its root while the graph moves.  It is
+  // seeded from geometry, never from canvas capture order.
+  let focusRootAnchor = null;
 
   const FRAME_MS = 42;
   const INTERACTING_FRAME_MS = 84;
@@ -214,7 +217,7 @@
     ctx.closePath();
   }
 
-  function organicTubePoints(curve, width, seed, interacting) {
+  function organicTubePoints(curve, width, seed, interacting, focus = false) {
     const sampleCount = interacting ? 24 : 52;
     const left = [];
     const right = [];
@@ -242,7 +245,11 @@
         Math.sin(t * Math.PI * 1.55 + phaseCentre) * 0.10
         + Math.sin(t * Math.PI * 4.1 + phaseCentre * 0.61) * 0.038
       );
-      const taper = 0.63 + (1 - t) * 0.37 + nexusSwell + distalSwell + midSwell + rhythm;
+      // The focus root keeps a full distal collar so its app end stays visibly
+      // attached.  The other accepted routes retain their recovered V8 shape.
+      const distalFloor = focus ? 0.88 : 0.63;
+      const taper = distalFloor + (1 - t) * (focus ? 0.24 : 0.37)
+        + nexusSwell + distalSwell + midSwell + rhythm;
       const baseHalfWidth = width * 0.82 * taper;
 
       const centreDrift = width * edgeWindow * (
@@ -286,10 +293,10 @@
     });
   }
 
-  function drawTrunkFibres(ctx, tube, curve, width, seed, interacting) {
+  function drawTrunkFibres(ctx, tube, curve, width, seed, interacting, focus = false) {
     // Grow bounded forks from the rendered tissue itself, on this existing canvas.
     // No independent overlay, recursive growth, particle loop or endpoint changes.
-    const count = interacting ? 4 : 9;
+    const count = interacting ? 4 : focus ? 6 : 9;
     const branches = [];
     const synapses = [];
     for (let index = 0; index < count; index += 1) {
@@ -357,16 +364,16 @@
     ctx.restore();
   }
 
-  function drawOrganicTube(ctx, curve, width, seed, interacting) {
-    const tube = organicTubePoints(curve, width, seed, interacting);
-    const detail = interacting ? 0.62 : 1;
+  function drawOrganicTube(ctx, curve, width, seed, interacting, focus = false) {
+    const tube = organicTubePoints(curve, width, seed, interacting, focus);
+    const detail = interacting ? 0.62 : focus ? 1.18 : 1;
 
     ctx.save();
     ctx.globalCompositeOperation = 'source-over';
     traceClosedTube(ctx, tube);
-    ctx.shadowBlur = interacting ? 2 : 8;
-    ctx.shadowColor = `rgba(46,67,228,${(0.26 * detail).toFixed(3)})`;
-    ctx.fillStyle = `rgba(20,43,128,${(0.08 * detail).toFixed(3)})`;
+    ctx.shadowBlur = interacting ? 2 : focus ? 13 : 8;
+    ctx.shadowColor = `rgba(46,67,228,${((focus ? 0.38 : 0.26) * detail).toFixed(3)})`;
+    ctx.fillStyle = `rgba(20,43,128,${((focus ? 0.13 : 0.08) * detail).toFixed(3)})`;
     ctx.fill();
     ctx.restore();
 
@@ -374,19 +381,20 @@
     ctx.globalCompositeOperation = 'screen';
     traceClosedTube(ctx, tube);
     const tissue = ctx.createLinearGradient(curve.p0.x, curve.p0.y, curve.p3.x, curve.p3.y);
-    tissue.addColorStop(0, `rgba(113,73,255,${(0.14 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.23, `rgba(74,85,249,${(0.12 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.54, `rgba(42,112,235,${(0.10 * detail).toFixed(3)})`);
-    tissue.addColorStop(0.80, `rgba(38,138,236,${(0.085 * detail).toFixed(3)})`);
-    tissue.addColorStop(1, `rgba(44,106,207,${(0.06 * detail).toFixed(3)})`);
+    const tissueGain = focus ? 1.7 : 1;
+    tissue.addColorStop(0, `rgba(113,73,255,${(0.14 * tissueGain * detail).toFixed(3)})`);
+    tissue.addColorStop(0.23, `rgba(74,85,249,${(0.12 * tissueGain * detail).toFixed(3)})`);
+    tissue.addColorStop(0.54, `rgba(42,112,235,${(0.10 * tissueGain * detail).toFixed(3)})`);
+    tissue.addColorStop(0.80, `rgba(38,138,236,${(0.085 * tissueGain * detail).toFixed(3)})`);
+    tissue.addColorStop(1, `rgba(44,106,207,${(0.06 * tissueGain * detail).toFixed(3)})`);
     ctx.fillStyle = tissue;
     ctx.fill();
 
     if (!interacting) {
       const lanes = [
-        { ratio: 0.32, alpha: 0.42, width: Math.max(0.42, width * 0.035) },
-        { ratio: 0.50, alpha: 0.60, width: Math.max(0.45, width * 0.040) },
-        { ratio: 0.68, alpha: 0.40, width: Math.max(0.38, width * 0.030) }
+        { ratio: 0.32, alpha: focus ? 0.52 : 0.42, width: Math.max(0.42, width * (focus ? 0.046 : 0.035)) },
+        { ratio: 0.50, alpha: focus ? 0.76 : 0.60, width: Math.max(0.45, width * (focus ? 0.060 : 0.040)) },
+        { ratio: 0.68, alpha: focus ? 0.50 : 0.40, width: Math.max(0.38, width * (focus ? 0.040 : 0.030)) }
       ];
       lanes.forEach((lane, laneIndex) => {
         traceSmoothOpen(ctx, interiorLane(tube, lane.ratio, seed + laneIndex * 0.73));
@@ -412,15 +420,15 @@
     previousStroke.call(ctx);
 
     traceSmoothOpen(ctx, tube.centre);
-    ctx.lineWidth = Math.max(0.75, width * 0.050);
-    ctx.strokeStyle = `rgba(64,166,255,${(0.50 * detail).toFixed(3)})`;
+    ctx.lineWidth = Math.max(focus ? 1.05 : 0.75, width * (focus ? 0.078 : 0.050));
+    ctx.strokeStyle = `rgba(64,166,255,${((focus ? 0.68 : 0.50) * detail).toFixed(3)})`;
     previousStroke.call(ctx);
     traceSmoothOpen(ctx, tube.centre);
-    ctx.lineWidth = Math.max(0.55, width * 0.026);
-    ctx.strokeStyle = `rgba(226,248,255,${(0.95 * detail).toFixed(3)})`;
+    ctx.lineWidth = Math.max(focus ? 0.78 : 0.55, width * (focus ? 0.040 : 0.026));
+    ctx.strokeStyle = `rgba(226,248,255,${Math.min(0.98, (focus ? 1 : 0.95) * detail).toFixed(3)})`;
     previousStroke.call(ctx);
     ctx.restore();
-    drawTrunkFibres(ctx, tube, curve, width, seed, interacting);
+    drawTrunkFibres(ctx, tube, curve, width, seed, interacting, focus);
   }
 
   function angleDelta(a, b) {
@@ -543,14 +551,43 @@
     drawNexusWeb(ctx, point, radius, seed + 0.61, interacting);
   }
 
+  function selectFocusRoot(roots, nexus) {
+    if (!roots.length) return null;
+    let selected = null;
+    if (focusRootAnchor) {
+      selected = roots.reduce((closest, root) => (
+        distance(root.centre, focusRootAnchor) < distance(closest.centre, focusRootAnchor)
+          ? root
+          : closest
+      ));
+    } else {
+      // The longest route is most useful for a visual review and is fully
+      // deterministic from the graph's present geometry.
+      selected = roots.reduce((longest, root) => (
+        distance(root.centre, nexus) > distance(longest.centre, nexus)
+          ? root
+          : longest
+      ));
+    }
+    focusRootAnchor = { ...selected.centre };
+    return selected;
+  }
+
   function drawSharedNetwork(ctx, roots, timestamp, interacting) {
     if (roots.length < 2) return;
     const nexus = nexusPoint(roots);
+    const focusRoot = selectFocusRoot(roots, nexus);
     roots.forEach((root, index) => {
+      const focus = root === focusRoot;
       const seed = Math.abs(Math.sin(root.centre.x * 0.017 + root.centre.y * 0.029 + index * 0.731));
-      const curve = controlPoints(nexus, root.centre, seed, 0.78, index + 1);
-      const width = clamp(curve.length * 0.035, 7, 14);
-      drawOrganicTube(ctx, curve, width, seed, interacting);
+      // The test route's geometry is independent of renderer capture order.
+      const focusSeed = Math.abs(Math.sin(root.centre.x * 0.017 + root.centre.y * 0.029
+        + nexus.x * 0.011 + nexus.y * 0.007));
+      const curve = controlPoints(nexus, root.centre, focus ? focusSeed : seed, 0.78, focus ? 0 : index + 1);
+      const width = focus
+        ? clamp(curve.length * 0.062, 18, 28)
+        : clamp(curve.length * 0.035, 7, 14);
+      drawOrganicTube(ctx, curve, width, focus ? focusSeed : seed, interacting, focus);
     });
 
     drawNexus(ctx, nexus, roots, timestamp, interacting);
