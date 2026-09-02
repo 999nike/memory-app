@@ -283,7 +283,7 @@
     if (document.getElementById('memoryGraphNeuralNexusLoader') || globalThis.MemoryGraphNeuralNexus) return;
     const script = document.createElement('script');
     script.id = 'memoryGraphNeuralNexusLoader';
-    script.src = './memory-graph-neural-nexus.js?v=10';
+    script.src = './memory-graph-neural-nexus.js?v=11';
     script.async = false;
     script.addEventListener('load', () => globalThis.MemoryGraph?.redraw?.());
     document.head.appendChild(script);
