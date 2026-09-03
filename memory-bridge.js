@@ -92,6 +92,13 @@
     });
   }
 
+  async function authorizeOffice(config) {
+    return request(config, '/v1/office/authorize', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+  }
+
   async function listExternalClients(config) {
     const data = await request(config, '/v1/oauth/clients', { method: 'GET' });
     return Array.isArray(data?.clients) ? data.clients : [];
@@ -172,6 +179,7 @@
     publishWorkspace,
     pullExternalProposals,
     getOfficeJobFeedAccess,
+    authorizeOffice,
     listExternalClients,
     revokeExternalClient
   });

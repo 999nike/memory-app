@@ -150,6 +150,7 @@
 
   function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.dispatchEvent(new CustomEvent('memory-workspace-changed'));
   }
 
   function activeSpace() {

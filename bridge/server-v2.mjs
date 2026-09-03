@@ -1,6 +1,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Readable } from 'node:stream';
@@ -21,6 +22,12 @@ const BRIDGE_NAME = process.env.MEMORY_BRIDGE_NAME || 'Memory Bridge';
 const TARGET_ENDPOINT = process.env.MEMORY_BRIDGE_TARGET || 'http://127.0.0.1:11434/v1/chat/completions';
 const TARGET_MODEL = process.env.MEMORY_BRIDGE_MODEL || '';
 const PUBLIC_URL = String(process.env.MEMORY_BRIDGE_PUBLIC_URL || 'https://bridge.w-i-z-z-lab-studios.com').replace(/\/+$/, '');
+const LOCAL_APP_DATA = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+const SUPERVISOR_URL = String(process.env.WIZZ_SUPERVISOR_URL || 'http://127.0.0.1:8790').replace(/\/+$/, '');
+const SUPERVISOR_CAPABILITY_FILE = path.resolve(String(
+  process.env.WIZZ_SUPERVISOR_CAPABILITY_FILE
+  || path.join(LOCAL_APP_DATA, 'WIZZ', 'supervisor', 'service-capability')
+));
 const OAUTH_CLIENT_ID = process.env.MEMORY_BRIDGE_OAUTH_CLIENT_ID || 'memory-space-grok';
 const OAUTH_REDIRECT_HOSTS = String(process.env.MEMORY_BRIDGE_OAUTH_REDIRECT_HOSTS || 'grok.com,x.ai')
   .split(',').map((value) => value.trim()).filter(Boolean);
@@ -54,8 +61,16 @@ if (!TARGET_MODEL) {
   console.error('MEMORY_BRIDGE_MODEL is required. Example: gemma3:4b');
   process.exit(1);
 }
-if (!PUBLIC_URL.startsWith('https://')) {
-  console.error('MEMORY_BRIDGE_PUBLIC_URL must be HTTPS.');
+function isLoopbackHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost');
+  } catch {
+    return false;
+  }
+}
+if (!PUBLIC_URL.startsWith('https://') && !isLoopbackHttpUrl(PUBLIC_URL)) {
+  console.error('MEMORY_BRIDGE_PUBLIC_URL must be HTTPS, except for loopback HTTP local testing.');
   process.exit(1);
 }
 
@@ -69,11 +84,12 @@ const connections = createConnectionState({ masterToken: ADMIN_TOKEN, publicUrl:
 const workspaces = createWorkspaceRuntime();
 const tenantOauth = new Map();
 
-function corsHeaders(origin) {
+function corsHeaders(origin, allowPrivateNetwork = false) {
   const allowed = origin && ALLOWED_ORIGINS.has(origin);
   return {
     Vary: 'Origin',
     ...(allowed ? { 'Access-Control-Allow-Origin': origin } : {}),
+    ...(allowed && allowPrivateNetwork ? { 'Access-Control-Allow-Private-Network': 'true' } : {}),
     'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization,Content-Type,X-Memory-Bridge-Protocol,MCP-Protocol-Version,Mcp-Method,Mcp-Name',
     'Access-Control-Expose-Headers': 'X-Memory-Bridge-Protocol,MCP-Protocol-Version',
@@ -130,6 +146,51 @@ function jobFeedBaseUrl(connectionId) {
   return connectionId === LEGACY_CONNECTION_ID
     ? `${PUBLIC_URL}/v1/jobs`
     : `${PUBLIC_URL}/c/${encodeURIComponent(connectionId)}/v1/jobs`;
+}
+
+function supervisorOfficeSourceEndpoint() {
+  const url = new URL(SUPERVISOR_URL);
+  if (url.protocol !== 'http:' || (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost')) {
+    throw new Error('WIZZ Supervisor must use a loopback HTTP endpoint');
+  }
+  return `${SUPERVISOR_URL}/v1/office-source`;
+}
+
+async function authoriseOfficeSource(connectionId) {
+  if (connectionId === LEGACY_CONNECTION_ID) {
+    throw new Error('A private Memory Bridge connection is required to authorise Office');
+  }
+  const capability = fs.readFileSync(SUPERVISOR_CAPABILITY_FILE, 'utf8').trim();
+  if (capability.length < 43) throw new Error('WIZZ Supervisor authorization is unavailable');
+  const sourceName = connections.list().find((item) => item.connectionId === connectionId)?.name || BRIDGE_NAME;
+  const response = await fetch(supervisorOfficeSourceEndpoint(), {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${capability}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      connectionId,
+      sourceName,
+      feedUrl: jobFeedBaseUrl(connectionId),
+      feedToken: jobFeedToken(connectionId)
+    }),
+    signal: AbortSignal.timeout(3000)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || result?.authorised !== true) {
+    throw new Error(`WIZZ Supervisor could not authorise Office (HTTP ${response.status})`);
+  }
+  return {
+    authorised: true,
+    supervisor: result.supervisor === 'running' ? 'running' : 'unavailable',
+    memorySource: result.memorySource === 'authorised' ? 'authorised' : 'not-authorised',
+    sourceName: String(result.sourceName || sourceName).slice(0, 120),
+    connectionId: String(result.connectionId || connectionId).slice(0, 96),
+    authorisedAt: result.authorisedAt || null,
+    feedAvailable: result.feedAvailable === true
+  };
 }
 
 async function handleJobFeed({ req, res, origin, connectionId, pathName }) {
@@ -320,6 +381,11 @@ async function runLocalModel(body) {
 }
 
 async function handleApi({ req, res, origin, connectionId, oauth, pathName, mcpPath }) {
+  if (req.method === 'POST' && pathName === '/v1/office/authorize') {
+    await readBody(req);
+    sendJson(res, 200, await authoriseOfficeSource(connectionId), origin);
+    return true;
+  }
   if (req.method === 'POST' && pathName === '/v1/jobs/access') {
     sendJson(res, 200, {
       source: 'memory-space',
@@ -441,7 +507,7 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 403, { error: 'Origin is not allowed' }, origin);
         return;
       }
-      res.writeHead(204, corsHeaders(origin));
+      res.writeHead(204, corsHeaders(origin, req.headers['access-control-request-private-network'] === 'true'));
       res.end();
       return;
     }

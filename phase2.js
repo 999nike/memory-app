@@ -31,6 +31,7 @@
 
   function saveWorkspace(workspace) {
     localStorage.setItem(WORKSPACE_KEY, JSON.stringify(workspace));
+    window.dispatchEvent(new CustomEvent('memory-workspace-changed'));
   }
 
   function loadChatState() {

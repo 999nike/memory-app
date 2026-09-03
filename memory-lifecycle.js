@@ -35,6 +35,7 @@
 
   function saveWorkspace(workspace) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(workspace));
+    window.dispatchEvent(new CustomEvent('memory-workspace-changed'));
   }
 
   function migrateWorkspace() {
