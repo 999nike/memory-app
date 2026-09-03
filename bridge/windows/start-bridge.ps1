@@ -103,8 +103,14 @@ while ($true) {
 
     Write-BridgeLog 'starting Memory Bridge'
     try {
-        & $nodePath $serverPath >> $logPath 2>&1
-        $exitCode = $LASTEXITCODE
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            & $nodePath $serverPath >> $logPath 2>&1
+            $exitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
         Write-BridgeLog "Memory Bridge exited code=$exitCode; retrying in 10 seconds"
     } catch {
         Write-BridgeLog "launcher error: $($_.Exception.Message); retrying in 10 seconds"

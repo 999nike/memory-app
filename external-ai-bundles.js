@@ -151,6 +151,7 @@
       localStorage.setItem(WORKSPACE_KEY, JSON.stringify(workspace));
       localStorage.setItem(GROUP_KEY, JSON.stringify(groupStore));
       localStorage.setItem(CHAT_KEY, JSON.stringify(state));
+      window.dispatchEvent(new CustomEvent('memory-workspace-changed'));
 
       toast(`${created.length} memories approved into ${visualGroup.title}`);
       setTimeout(() => location.reload(), 350);

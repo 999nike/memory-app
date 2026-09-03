@@ -108,7 +108,9 @@ export function rotateConnectionStateMasterToken({ stateFile = resolveStateFile(
 export function createConnectionState({ masterToken, publicUrl, bridgeName = 'Memory Bridge' }) {
   if (!masterToken) throw new Error('Connection state requires the bridge administrator token');
   const publicBase = String(publicUrl || '').replace(/\/+$/, '');
-  if (!publicBase.startsWith('https://')) throw new Error('Connection state requires the bridge public HTTPS URL');
+  const parsedPublicUrl = new URL(publicBase);
+  const localLoopbackUrl = parsedPublicUrl.protocol === 'http:' && (parsedPublicUrl.hostname === '127.0.0.1' || parsedPublicUrl.hostname === 'localhost');
+  if (parsedPublicUrl.protocol !== 'https:' && !localLoopbackUrl) throw new Error('Connection state requires HTTPS except for loopback local testing');
   const stateFile = resolveStateFile();
   const records = new Map();
   let needsMigrationSave = false;

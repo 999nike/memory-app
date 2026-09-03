@@ -145,31 +145,34 @@
     return changed;
   }
 
-  async function copyOfficeFeedConfig(bridge, button) {
+  async function authorizeOffice(bridge, button) {
     if (!ready()) return;
     const dialog = button?.closest('dialog');
-    const original = button?.textContent || 'Office feed';
+    const original = button?.textContent || 'Authorize Office';
     if (button) {
       button.disabled = true;
-      button.textContent = 'Preparing…';
+      button.textContent = 'Authorising...';
     }
     try {
-      const access = await globalThis.MemoryBridge.getOfficeJobFeedAccess(bridge);
-      if (!access?.feedUrl || !access?.token) throw new Error('Memory Bridge returned incomplete Office feed access');
-      const config = `$env:MEMORY_SPACE_JOB_FEED_URL='${access.feedUrl}'\n$env:MEMORY_SPACE_JOB_FEED_TOKEN='${access.token}'`;
-      await navigator.clipboard.writeText(config);
+      const result = await globalThis.MemoryBridge.authorizeOffice(bridge);
+      if (result?.authorised !== true || result?.feedAvailable !== true) {
+        throw new Error('Memory Bridge could not authorise Office');
+      }
       const items = loadBridges();
       const saved = items.find((item) => item.id === bridge.id);
       if (saved) {
-        saved.officeJobFeedEnabled = true;
+        for (const item of items) {
+          item.officeJobFeedEnabled = item.id === bridge.id;
+        }
         saveBridges(items);
       }
       globalThis.MemoryExternalSync?.refresh?.();
-      setBridgeStatus(dialog, bridge.id, 'Office job feed enabled · setup copied', 'success');
-      toast('Office job-feed setup copied');
+      const sourceName = String(result.sourceName || bridge.name || 'Memory Bridge');
+      setBridgeStatus(dialog, bridge.id, `Office access authorised - ${sourceName}`, 'success');
+      toast('Office access authorised');
     } catch (error) {
-      setBridgeStatus(dialog, bridge.id, error?.message || 'Could not prepare Office job feed', 'error');
-      toast(error?.message || 'Could not prepare Office job feed');
+      setBridgeStatus(dialog, bridge.id, error?.message || 'Could not authorise Office', 'error');
+      toast(error?.message || 'Could not authorise Office');
     } finally {
       if (button) {
         button.disabled = false;
@@ -444,7 +447,7 @@
     const officeFeed = event.target.closest('[data-bridge-office-feed]');
     if (officeFeed) {
       const bridge = loadBridges().find((item) => item.id === officeFeed.dataset.bridgeOfficeFeed);
-      if (bridge) copyOfficeFeedConfig(bridge, officeFeed);
+      if (bridge) authorizeOffice(bridge, officeFeed);
       return;
     }
 
@@ -504,7 +507,7 @@
             <button type="button" data-bridge-use="${escapeHtml(bridge.id)}">Use</button>
             <button type="button" data-bridge-share="${escapeHtml(bridge.id)}">Share</button>
             <button type="button" data-bridge-pull="${escapeHtml(bridge.id)}">Pull</button>
-            <button type="button" data-bridge-office-feed="${escapeHtml(bridge.id)}">Office feed</button>
+            <button type="button" data-bridge-office-feed="${escapeHtml(bridge.id)}">Authorize Office</button>
             <button type="button" data-bridge-copy-mcp="${escapeHtml(bridge.id)}">MCP URL</button>
             <button type="button" class="danger" data-bridge-remove="${escapeHtml(bridge.id)}">Remove</button>
           </div>

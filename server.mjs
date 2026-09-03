@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFile, writeFile, mkdir, stat, readdir } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ensureSupervisor } from './supervisor/server.mjs';
 
 const HOST = process.env.UNIVERSAL_SPACE_HOST || '0.0.0.0';
 const PORT = Number(process.env.UNIVERSAL_SPACE_PORT || 4173);
@@ -20,6 +21,8 @@ const GOOGLE_TOKEN_URI = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me/';
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const oauthStates = new Map();
+
+await ensureSupervisor().catch((error) => console.error(`WIZZ Supervisor unavailable: ${error?.message || error}`));
 
 const MIME_TYPES = Object.freeze({
   '.css': 'text/css; charset=utf-8',

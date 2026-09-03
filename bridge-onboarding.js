@@ -38,6 +38,14 @@
     }
   }
 
+  function isAllowedBridgeUrl(value) {
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' || (url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost'));
+    } catch {
+      return false;
+    }
+  }
   function decodePrivateAccessCode(value) {
     const text = String(value || '').trim();
     const prefix = text.startsWith(CODE_PREFIX_V2)
@@ -53,7 +61,7 @@
     const name = String(config?.name || 'My Memory Bridge').trim() || 'My Memory Bridge';
     const version = Number(config?.version);
 
-    if (!baseUrl.startsWith('https://') || !token) {
+    if (!isAllowedBridgeUrl(baseUrl) || !token) {
       throw new Error('That Private Access Code is incomplete or from an unsupported Memory Bridge.');
     }
 
@@ -79,7 +87,7 @@
     if (!name || !baseUrl || !token) {
       throw new Error('Paste your Private Access Code, or use Advanced manual setup.');
     }
-    if (!baseUrl.startsWith('https://')) throw new Error('Advanced setup requires a secure HTTPS connection address.');
+    if (!isAllowedBridgeUrl(baseUrl)) throw new Error('Advanced setup requires HTTPS, except for http://127.0.0.1 or http://localhost local testing.');
     return { name, baseUrl, token };
   }
 

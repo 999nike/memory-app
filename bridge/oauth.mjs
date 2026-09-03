@@ -21,7 +21,9 @@ export function createMemoryBridgeOAuth({
   const issuer = String(publicUrl || '').replace(/\/+$/, '');
   const authorizationCodes = new Map();
 
-  if (!issuer.startsWith('https://')) throw new Error('OAuth publicUrl must be HTTPS');
+  const issuerUrl = new URL(issuer);
+  const localLoopbackIssuer = issuerUrl.protocol === 'http:' && (issuerUrl.hostname === '127.0.0.1' || issuerUrl.hostname === 'localhost');
+  if (issuerUrl.protocol !== 'https:' && !localLoopbackIssuer) throw new Error('OAuth publicUrl must be HTTPS except for loopback local testing');
   if (!pairingToken) throw new Error('OAuth pairingToken is required');
 
   // Private MSB2 issuers already use an unguessable customer-scoped URL and
