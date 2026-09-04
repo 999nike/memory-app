@@ -9,13 +9,13 @@ Read in this order:
 
 Use `docs/operations/UNIVERSAL_SPACE_LOCATIONS_AND_BASELINE_2026-09-01.md` for the folder map and restoration evidence.
 
-## Current direction — 2 September 2026
+## Current direction — 4 September 2026
 
 The user restored their solid application and published it as `0027fcf53a577d4126a1be96b30255b29ccf2178` on `molecular-v2`. That is the application baseline for this work.
 
-Next: accept a structured app/site definition, validate it, bind supported actions, and feed it through the existing adapter registry and graph builder to generate a cluster. Inspect the existing implementation before choosing the smallest patch. The graph already traverses registered definitions; do not build a second generator inside a new engine.
+The Universal Product Push in `docs/APP_CLUSTER_MAPPER_PLAN.md` is the active queue: first-user surface navigation, short cross-app workflow, visible activity, Orb V1, onboarding, startup/install, friend test and release safety. The completed mapper remains the architecture for registered apps; use its existing adapter registry and canonical graph builder rather than making a second generator.
 
-Centre-node/trunk graphics, tissue, spine, glow, fibres, renderer overlays and reference-image matching are removed from the work queue. Existing appearance is accepted for this milestone. Do not resume those tasks or remove runtime graphics files as housekeeping.
+Do not restart centre-node/trunk, tissue, spine, fibre or renderer-overlay redesign. Existing appearance is accepted. Later active-plan visual decoration is limited to selective node/Orb glow, scale and activity/selection polish on the existing system.
 
 Memory and standalone Settings still have established construction/interaction paths. Gmail and Code Space use the generic registry. Do not claim the entire application is already app-agnostic or migrate working Memory/Settings merely to tidy the architecture.
 

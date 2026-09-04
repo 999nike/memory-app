@@ -1,5 +1,5 @@
 UNIVERSAL SPACE - PROJECT RULES
-Updated: 2 September 2026
+Updated: 4 September 2026
 Owner: devmaster / 999nike
 
 READ THIS FIRST. Maintain this file in place; do not create competing copies.
@@ -47,20 +47,19 @@ because an older document calls them accepted.
 CURRENT PRODUCT DIRECTION
 
 Use docs/APP_CLUSTER_MAPPER_PLAN.md as the only active implementation queue:
-app/site description -> validated definition -> adapter/action bindings ->
-existing canonical graph builder -> generated app cluster.
+the Universal Product Push (surface navigation, short cross-app workflow,
+activity visibility, Orb V1, onboarding, startup/install, friend test and
+release safety).
 
-Freeze the restored visual presentation. No centre-node/trunk graphics
-refinement, tissue/spine/fibre work, reference-image matching or pulse-design
-expansion is required to complete the mapper milestone.
+Keep the restored connector organism, canonical graph builder, renderer and
+physics. Do not restart centre-node/trunk, tissue/spine/fibre or neural
+connector redesign. Later visual work is limited to selective node/Orb glow,
+scale and activity/selection decoration on the existing system.
 
-The restored code already supports registered nested app definitions.
-Build the missing reusable input/validation/binding layer on that contract.
+The completed mapper remains the supported adapter/definition architecture.
 Preserve Memory, Settings, Gmail, Code Space, grouping and position behavior.
 
-Git history preserves the old experiments. The user has explicitly authorized
-this documentation cleanup on molecular-v2. A remote documentation commit
-does not mean the HP has pulled it or that the mapper is implemented.
+Git history preserves old experiments. A remote documentation commit does not mean the HP has pulled it or that a listed product step is implemented.
 
 STRICT WORKSPACE RULES
 

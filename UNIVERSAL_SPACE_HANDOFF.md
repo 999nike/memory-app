@@ -1,14 +1,14 @@
 # Universal Space Handoff
 
-Updated: 2 September 2026. Read `UNIVERSAL_SPACE_RULES.txt` first.
+Updated: 4 September 2026. Read `UNIVERSAL_SPACE_RULES.txt` first.
 
 ## Current baseline and task
 
 Application baseline: `0027fcf53a577d4126a1be96b30255b29ccf2178` on `molecular-v2`, restored and uploaded by the user. Their terminal reports a clean local checkout tracking `origin/molecular-v2`.
 
-The active work is the app-adapter / cluster mapper in [docs/APP_CLUSTER_MAPPER_PLAN.md](docs/APP_CLUSTER_MAPPER_PLAN.md). Milestone 1 is implemented in the current working tree: a schema-v1 loader/factory validates bounded JSON-compatible definitions and explicit action bindings, then registers a clearly labelled Settings demo before the existing graph builds. Milestone 2 now uses an `OFFICE` definition with ten fixed first-level spokes through that same loader/factory and canonical graph builder. A hidden Office-owned iframe bridge on `http://127.0.0.1:4176` accepts only `http://127.0.0.1:4173`, reads only bounded display fields from the three Office stores, and never creates graph records. `Open Office` and `New Job` remain explicit user-click actions. Focused checks passed; browser pointer/console verification remains outstanding because the local browser-control runtime could not start. The implementation is not described here as committed or published.
+The active work is the Universal Product Push in [docs/APP_CLUSTER_MAPPER_PLAN.md](docs/APP_CLUSTER_MAPPER_PLAN.md): surface navigation, the short Memory -> Office -> Code Space workflow, visible activity, Orb V1, onboarding, startup/install polish, friend testing and release safety. The completed mapper is retained as architecture/history: its loader/factory and canonical graph traversal remain the supported way Gmail, Code Space and OFFICE participate in the universe. A hidden Office-owned iframe bridge on `http://127.0.0.1:4176` accepts only `http://127.0.0.1:4173`, reads bounded display fields and never creates graph records. `Open Office`, `New Job` and manual Memory collection remain explicit user-click actions.
 
-The user accepts the restored presentation. Middle-node graphics, trunks, tissue, internal spines, fibres and reference matching are removed from the queue. Existing runtime graphics files and the saved image are retained; their presence is not an instruction to resume visual work.
+The user accepts the restored connector organism and visual presentation. Do not restart neural connector, trunk, tissue, spine or fibre redesign. Later polish may selectively add node/Orb glow, scale and activity/selection decoration to the existing system only.
 
 ## Architecture actually present
 
@@ -50,4 +50,4 @@ The previous ledger leaves Code Space placement, repeated overlay open/close, dr
 
 ## Next-session entry
 
-Read `AGENTS.md`, follow its reading order, and continue from the recorded Milestone 2 evidence in `docs/APP_CLUSTER_MAPPER_PLAN.md`. Complete the outstanding normal-reload, interaction and regression checks when browser control is available before marking the remaining Milestone 2 boxes complete. Do not start runtime import/discovery stages. Record actual implementation and test results in `UNIVERSAL_SPACE_LEDGER.md`. Do not infer completion from old chat memory.
+Read `AGENTS.md`, follow its reading order, and continue from the active Product Push in `docs/APP_CLUSTER_MAPPER_PLAN.md`. Use the old mapper browser evidence as regression context; do not resume runtime import/discovery stages unless the active plan changes. Record actual implementation and test results in `UNIVERSAL_SPACE_LEDGER.md`. Do not infer completion from old chat memory.

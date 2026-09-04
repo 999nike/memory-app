@@ -1,5 +1,11 @@
 # Universal Space Ledger
 
+## Product Push documentation checkpoint - 4 September 2026
+
+- `docs/APP_CLUSTER_MAPPER_PLAN.md` is now the sole active Universal Product Push checklist: cluster/button cleanup, the three-decision Memory -> Office -> Code Space workflow, activity visibility, Orb V1, onboarding, startup/install, friend test, release safety and later selective visual decoration.
+- The app-cluster mapper is preserved as completed architecture/history rather than a second active queue. Its adapter registry and canonical graph traversal remain in use.
+- `UNIVERSAL_SPACE_HANDOFF.md`, `AGENTS.md` and the conflicting current-direction wording in `UNIVERSAL_SPACE_RULES.txt` now point to that same active plan. This checkpoint changes documentation only; no runtime source, graph, renderer, physics or Bridge code changed.
+
 ## Current checkpoint — 2 September 2026
 
 - The user restored the solid local application, saved local commit `0214ede` on `restored-solid-20260902`, and published the forward restoration commit `0027fcf53a577d4126a1be96b30255b29ccf2178` to `molecular-v2`.
