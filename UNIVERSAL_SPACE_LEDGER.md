@@ -1,5 +1,12 @@
 # Universal Space Ledger
 
+## Product Push cluster/button cleanup - 4 September 2026
+
+- Memory presentation controls now provide first-level Memories, New Memory, Groups, Search, Settings and Open Memory App surfaces through the existing control layer; no canonical graph-builder, renderer, neural or physics module changed.
+- EMAIL now presents Compose, Inbox, Unread, Starred, Sent, Drafts, Search, Settings and Open Gmail. Starred uses the existing bounded read-only Gmail message route with the `STARRED` label; no OAuth scope changed. Open Gmail is an explicit user click.
+- OFFICE retains its 25 fixed nodes. Its first-level Memory Jobs control is now labelled Collect from Memory and retains the existing explicit `office.memory-jobs.open` collection route. Ledger is retained under the first-level Settings inspector route.
+- Code Space now adds Open Code Space, which reuses the existing explicit Code Space overlay; no terminal, Git or job execution capability changed.
+- Passed: syntax checks for all changed JavaScript, focused control/action presence checks, `git diff --check`, and HTTP 200 checks for the app and changed served assets. Browser-control runtime exited before session creation, so no visual, pointer, browser-console or user-flow result is claimed.
 ## Product Push documentation checkpoint - 4 September 2026
 
 - `docs/APP_CLUSTER_MAPPER_PLAN.md` is now the sole active Universal Product Push checklist: cluster/button cleanup, the three-decision Memory -> Office -> Code Space workflow, activity visibility, Orb V1, onboarding, startup/install, friend test, release safety and later selective visual decoration.

@@ -17,7 +17,8 @@
           { id: 'settings:limits', label: 'Read limits', action: 'settings.limits', view: 'settings' },
           { id: 'settings:refresh', label: 'Refresh', action: 'settings.refresh', view: 'settings' }
         ]
-      }
+      },
+      { id: 'open-code-space', label: 'Open Code Space', action: 'code-space.open', view: 'status' }
     ])
   });
 
@@ -82,7 +83,7 @@
     if (actionId === 'file.open') return status('Code Space File', `${context.state?.kind || 'File'}: ${context.state?.path || 'Unknown path'} (read-only listing; contents are not opened).`);
     if (actionId === 'projects.status') return status('Code Space Projects', 'No project folders were found under the configured workspace root.');
     if (actionId === 'jobs.open') return status('Code Space Jobs', 'Local job activity is not connected yet. This capability is available for future adapter activity.');
-    if (actionId === 'codex.open') {
+    if (actionId === 'codex.open' || actionId === 'code-space.open') {
       const opened = showPanel('Code Space', '<div class="code-space-embed"><iframe src="http://127.0.0.1:8090/" title="Code Space" loading="eager" referrerpolicy="no-referrer"></iframe></div>');
       if (opened) document.querySelector('.app-shell')?.classList.add('detail-overlay');
       return opened;

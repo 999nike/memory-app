@@ -5,12 +5,13 @@
     id: 'email',
     name: 'EMAIL',
     nodes: Object.freeze([
+      { id: 'compose', label: 'Compose', action: 'compose', view: 'message' },
       { id: 'inbox', label: 'Inbox', stateKey: 'inboxCount', stateInLabel: false, action: 'mailbox.open', view: 'message-list', state: { title: 'Inbox', mailbox: 'INBOX' } },
       { id: 'unread', label: 'Unread', stateKey: 'unreadCount', action: 'mailbox.open', view: 'message-list', state: { title: 'Unread', mailbox: 'UNREAD' } },
+      { id: 'starred', label: 'Starred', action: 'mailbox.open', view: 'message-list', state: { title: 'Starred', mailbox: 'STARRED' } },
       { id: 'sent', label: 'Sent', action: 'mailbox.open', view: 'message-list', state: { title: 'Sent', mailbox: 'SENT' } },
       { id: 'drafts', label: 'Drafts', stateKey: 'draftCount', action: 'mailbox.open', view: 'message-list', state: { title: 'Drafts', mailbox: 'DRAFT' } },
       { id: 'search', label: 'Search', action: 'search', view: 'message-list' },
-      { id: 'compose', label: 'Compose', action: 'compose', view: 'message' },
       {
         id: 'settings', label: 'Settings', expandable: true, children: [
           { id: 'settings:account', label: 'Account', action: 'account.open', view: 'settings' },
@@ -20,16 +21,11 @@
           { id: 'settings:disconnect', label: 'Disconnect', action: 'disconnect.open', view: 'settings' }
         ]
       },
-      {
-        id: 'gmail', label: 'Gmail', expandable: true, children: [
-          { id: 'gmail:status', label: 'Status', stateKey: 'connectionState', stateLabel: true, action: 'account.open', view: 'settings' },
-          { id: 'gmail:connect', label: 'Connect', stateKey: 'connectionAction', stateLabel: true, action: 'connect', view: 'settings' }
-        ]
-      }
+      { id: 'open-gmail', label: 'Open Gmail', action: 'gmail.open', view: 'settings' }
     ]),
     actions: Object.freeze([
       'mailbox.open', 'search', 'compose', 'account.open',
-      'connection.open', 'permissions.open', 'sync.open', 'disconnect.open', 'connect'
+      'connection.open', 'permissions.open', 'sync.open', 'disconnect.open', 'connect', 'gmail.open'
     ]),
     views: Object.freeze(['message-list', 'message', 'settings'])
   });
@@ -336,6 +332,9 @@
     }
     if (actionId === 'compose') {
       return showCapability('Compose', 'Compose and send require a later Gmail permission phase. No send permission is currently requested.');
+    }
+    if (actionId === 'gmail.open') {
+      return typeof window.open === 'function' && window.open('https://mail.google.com/', 'gmail') !== null;
     }
     if (actionId === 'account.open') return showAccount('Gmail');
     if (actionId === 'connection.open') return showAccount('Gmail Connection');

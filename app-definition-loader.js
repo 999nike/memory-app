@@ -510,8 +510,8 @@
         Object.freeze({ id: 'dispatch:cancelled', label: 'Cancelled', action: 'office.dispatch.cancelled.open', view: 'office' })
       ]) }),
       Object.freeze({ id: 'projects', label: 'Projects', action: 'office.projects.open', view: 'office' }),
-      Object.freeze({ id: 'memory-jobs', label: 'Memory Jobs', action: 'office.memory-jobs.open', view: 'office' }),
-      Object.freeze({ id: 'ledger', label: 'Ledger', action: 'office.ledger.open', view: 'office' }),
+      Object.freeze({ id: 'memory-jobs', label: 'Collect from Memory', action: 'office.memory-jobs.open', view: 'office' }),
+      Object.freeze({ id: 'settings', label: 'Settings', action: 'office.settings.open', view: 'office' }),
       Object.freeze({ id: 'open-office', label: 'Open Office', action: 'office.open', view: 'office' })
     ])
   });
@@ -540,7 +540,7 @@
     'office.dispatch.cancelled.open': () => openOfficeData('Office Dispatch · Cancelled', 'dispatch', { packageStatus: 'Cancelled' }),
     'office.projects.open': () => openOfficeData('Office Projects', 'projects'),
     'office.memory-jobs.open': () => collectOfficeMemoryJobs(),
-    'office.ledger.open': () => openOfficeData('Office Ledger', 'ledger'),
+    'office.settings.open': () => openOfficeData('Office Settings · Ledger', 'ledger'),
     'office.open': () => openOfficeWindow('/')
   });
 

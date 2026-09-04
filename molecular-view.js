@@ -2,8 +2,13 @@
   'use strict';
 
   const HOME_SCALE = 1.18;
-  const SETTINGS_CONTROLS = [
-    { id: 'settings', label: 'Settings', sectorAngle: 0.10, radius: 30, expandable: true },
+  const MEMORY_CONTROLS = [
+    { id: 'memories', label: 'Memories', sectorAngle: -0.78, radius: 24, action: 'open-memories' },
+    { id: 'new-memory', label: 'New Memory', sectorAngle: -0.42, radius: 24, action: 'add-memory' },
+    { id: 'groups', label: 'Groups', sectorAngle: -0.08, radius: 24, action: 'open-groups' },
+    { id: 'search', label: 'Search', sectorAngle: 0.28, radius: 24, action: 'open-memory-search' },
+    { id: 'settings', label: 'Settings', sectorAngle: 0.62, radius: 30, expandable: true },
+    { id: 'open-memory-app', label: 'Open Memory App', sectorAngle: 0.96, radius: 24, action: 'open-memory-app' },
 
     { id: 'settings:ai-access', parentId: 'settings', label: 'AI Access', radius: 20, expandable: true, orbitScale: 0.96, angleOffset: -0.06 },
     { id: 'settings:memory-bridge', parentId: 'settings', label: 'Memory Bridge', radius: 20, expandable: true, orbitScale: 1.08, angleOffset: 0.05 },
@@ -66,6 +71,16 @@
     const target = document.querySelector(selector);
     if (!target) return false;
     target.click();
+    return true;
+  }
+
+  function openMemoryApp(focusSelector = null) {
+    deactivate();
+    requestAnimationFrame(() => {
+      const target = document.querySelector(focusSelector || '#memoryGrid');
+      target?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+      target?.focus?.();
+    });
     return true;
   }
 
@@ -144,7 +159,11 @@
 
   function handleControlAction(event) {
     const action = String(event.detail?.action || '');
-    if (action === 'open-ai-access') openAiAccess();
+    if (action === 'open-memories') openMemoryApp('#memoryGrid');
+    else if (action === 'open-groups') openMemoryApp('#memoryGraphSurface');
+    else if (action === 'open-memory-search') openMemoryApp('#searchInput');
+    else if (action === 'open-memory-app') openMemoryApp();
+    else if (action === 'open-ai-access') openAiAccess();
     else if (action === 'connect-ai-app') openAiAccess({ connect: true });
     else if (action === 'open-memory-bridge') openMemoryBridge();
     else if (action === 'local-preset-ollama') openLocalModel({ preset: 'ollama', focus: '#connectionModel' });
@@ -218,7 +237,7 @@
     closeToolButton.addEventListener('click', closeToolPanel);
     document.body.appendChild(closeToolButton);
 
-    graphApi().registerPresentationControls(SETTINGS_CONTROLS);
+    graphApi().registerPresentationControls(MEMORY_CONTROLS);
     surface.addEventListener('memory-graph-control-action', handleControlAction);
     surface.addEventListener('memory-graph-home', closeToolPanel);
     surface.addEventListener('pointermove', updateParallax, { passive: true });

@@ -7,7 +7,7 @@ Universal Space itself is the product. The existing connector organism, canonica
 
 ## Active order
 
-- [ ] 1. Cluster/button cleanup
+- [x] 1. Cluster/button cleanup
 - [ ] 2. Three-decision Memory -> Office -> Code Space workflow
 - [ ] 3. Pulses/activity visibility
 - [ ] 4. Orb V1
