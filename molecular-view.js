@@ -2,13 +2,14 @@
   'use strict';
 
   const HOME_SCALE = 1.18;
-  const MEMORY_CONTROLS = [
-    { id: 'memories', label: 'Memories', sectorAngle: -0.78, radius: 24, action: 'open-memories' },
-    { id: 'new-memory', label: 'New Memory', sectorAngle: -0.42, radius: 24, action: 'add-memory' },
-    { id: 'groups', label: 'Groups', sectorAngle: -0.08, radius: 24, action: 'open-groups' },
-    { id: 'search', label: 'Search', sectorAngle: 0.28, radius: 24, action: 'open-memory-search' },
-    { id: 'settings', label: 'Settings', sectorAngle: 0.62, radius: 30, expandable: true },
-    { id: 'open-memory-app', label: 'Open Memory App', sectorAngle: 0.96, radius: 24, action: 'open-memory-app' },
+  const SETTINGS_CONTROLS = [
+    { id: 'settings', label: 'Settings', sectorAngle: 0.10, radius: 30, expandable: true },
+
+    { id: 'settings:memories', parentId: 'settings', label: 'Memories', action: 'open-memories', radius: 20 },
+    { id: 'settings:new-memory', parentId: 'settings', label: 'New Memory', action: 'add-memory', radius: 20 },
+    { id: 'settings:groups', parentId: 'settings', label: 'Groups', action: 'open-groups', radius: 20 },
+    { id: 'settings:search', parentId: 'settings', label: 'Search', action: 'open-memory-search', radius: 20 },
+    { id: 'settings:open-memory-app', parentId: 'settings', label: 'Open Memory App', action: 'open-memory-app', radius: 20 },
 
     { id: 'settings:ai-access', parentId: 'settings', label: 'AI Access', radius: 20, expandable: true, orbitScale: 0.96, angleOffset: -0.06 },
     { id: 'settings:memory-bridge', parentId: 'settings', label: 'Memory Bridge', radius: 20, expandable: true, orbitScale: 1.08, angleOffset: 0.05 },
@@ -237,7 +238,7 @@
     closeToolButton.addEventListener('click', closeToolPanel);
     document.body.appendChild(closeToolButton);
 
-    graphApi().registerPresentationControls(MEMORY_CONTROLS);
+    graphApi().registerPresentationControls(SETTINGS_CONTROLS);
     surface.addEventListener('memory-graph-control-action', handleControlAction);
     surface.addEventListener('memory-graph-home', closeToolPanel);
     surface.addEventListener('pointermove', updateParallax, { passive: true });

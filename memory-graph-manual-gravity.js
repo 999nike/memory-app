@@ -34,10 +34,23 @@
   let memoryDrag = null;
   let canvas = null;
   let surface = null;
+  let startupOverlayLogged = false;
 
   const bodies = new Map();
   const projectedMemories = new Map();
   const projectedGroups = new Map();
+
+  function startupLog(stage, detail = {}) {
+    console.log('[MemoryStartup]', stage, { at: Math.round(performance.now()), ...detail });
+  }
+
+  function groupSummary(groups) {
+    return groups.map((group) => ({
+      id: String(group?.id || ''),
+      title: String(group?.title || ''),
+      members: Array.isArray(group?.members) ? group.members.length : 0
+    }));
+  }
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -364,6 +377,12 @@
       if (!liveIds.has(id)) projectedGroups.delete(id);
     }
     groupProjectionDirty = false;
+    startupLog('manual-gravity.syncProjectedGroups', {
+      graphSpaceId: String(graph?.spaceNode?.id || ''),
+      groups: groupSummary(groups),
+      projectedGroupIds: [...projectedGroups.keys()],
+      bodies: [...bodies.keys()]
+    });
   }
 
   function project(node, graph) {
@@ -895,6 +914,18 @@
     const centreScreen = worldToScreen({ x: Number(lastGraph.centreX || 0), y: Number(lastGraph.centreY || 0) });
     if (!centreScreen) return;
     const scale = matrixScale();
+    if (!startupOverlayLogged) {
+      startupOverlayLogged = true;
+      const groups = groupsForSpace();
+      startupLog('manual-gravity.drawOverlay:first-drawable-frame', {
+        graphSpaceId: String(lastGraph?.spaceNode?.id || ''),
+        canvas: { width: rect.width, height: rect.height },
+        matrix: lastMatrix ? [...lastMatrix] : null,
+        groups: groupSummary(groups),
+        projectedGroupIds: [...projectedGroups.keys()],
+        projectedMemoryIds: [...projectedMemories.keys()]
+      });
+    }
 
     for (const group of groupsForSpace()) {
       const projectedGroup = projectedGroups.get(String(group.id)) || projectBody(group, lastGraph);
@@ -959,6 +990,11 @@
   function mount() {
     surface = document.getElementById('memoryGraphSurface');
     canvas = document.querySelector('.memory-graph-canvas');
+    startupLog('manual-gravity.mount', {
+      surfaceFound: Boolean(surface),
+      canvasFound: Boolean(canvas),
+      groups: groupSummary(groupsForSpace())
+    });
     if (!surface || !canvas) return false;
 
     surface.querySelectorAll('.memory-graph-manual-group-canvas').forEach((legacy) => legacy.remove());
@@ -978,6 +1014,13 @@
 
   window.addEventListener('storage', (event) => {
     if (event.key === GROUP_KEY || event.key === WORKSPACE_KEY) {
+      startupLog('manual-gravity.group-storage-listener', {
+        key: event.key,
+        oldLength: String(event.oldValue || '').length,
+        newLength: String(event.newValue || '').length,
+        graphSpaceId: String(lastGraph?.spaceNode?.id || ''),
+        groupsBeforeReset: groupSummary(groupsForSpace())
+      });
       projectedMemories.clear();
       projectedGroups.clear();
       groupProjectionDirty = true;

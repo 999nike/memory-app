@@ -95,10 +95,11 @@
 
     const font = String(this.font || '');
     const isSpaceLabel = /(?:^|\s)14px\b/.test(font);
-    const isMemoryLabel = /(?:^|\s)11px\b/.test(font);
+    const isNodeLabel = /(?:^|\s)11px\b/.test(font);
+    const isMemoryLabel = isNodeLabel && this.__memoryGraphLabelNode?.kind === 'memory';
 
-    // Only control the labels emitted by memory-graph.js. Any other canvas text
-    // keeps its normal renderer behaviour.
+    // Only cull Memory records emitted by memory-graph.js. App and presentation
+    // control labels share the 11px font but must remain visible navigation.
     if (!isSpaceLabel && !isMemoryLabel) {
       return originalFillText.call(this, text, x, y, ...rest);
     }

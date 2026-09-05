@@ -634,6 +634,9 @@
     els.spaceDialog.showModal();
     requestAnimationFrame(() => els.spaceNameInput.focus());
   });
+  document.getElementById('spatialViewButton')?.addEventListener('click', () => {
+    globalThis.MolecularView?.activate?.();
+  });
   document.getElementById('contextButton').addEventListener('click', showContext);
   document.getElementById('exportButton').addEventListener('click', exportWorkspace);
   document.getElementById('copyContextButton').addEventListener('click', () => {

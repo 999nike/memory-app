@@ -53,6 +53,10 @@
     scale: 1
   };
 
+  function startupLog(stage, detail = {}) {
+    console.log('[MemoryStartup]', stage, { at: Math.round(performance.now()), ...detail });
+  }
+
   function loadWorkspace() {
     try {
       const value = JSON.parse(localStorage.getItem(WORKSPACE_KEY) || 'null');
@@ -138,6 +142,16 @@
     context.clearRect(0, 0, width, height);
 
     const data = activeGraphData();
+    startupLog('memory-graph.rebuildGraph:start', {
+      width,
+      height,
+      existingRoot: liveRoot,
+      data: data ? {
+        spaceId: String(data.space.id),
+        confirmedMemories: data.memories.length,
+        allMemories: data.allMemories.length
+      } : null
+    });
     const count = document.getElementById('memoryGraphCount');
     if (!data) {
       graph = null;
@@ -161,6 +175,12 @@
       graph.centreY = liveRoot.y;
     }
     syncCanonicalGraphCollections();
+    startupLog('memory-graph.rebuildGraph:built', {
+      spaceId: String(graph.spaceNode.id),
+      nodes: graph.nodes.length,
+      memoryNodes: graph.memoryNodes.length,
+      root: { x: graph.spaceNode.x, y: graph.spaceNode.y, vx: graph.spaceNode.vx, vy: graph.spaceNode.vy }
+    });
     for (const node of graph.nodes) {
       if (!node.fixed) containNode(node);
     }
@@ -922,7 +942,9 @@
     context.font = isSpace ? '700 14px Inter, system-ui, sans-serif' : '600 11px Inter, system-ui, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'top';
+    context.__memoryGraphLabelNode = node;
     context.fillText(shortLabel(node.label, isSpace ? 26 : 22), nodeX, nodeY + nodeRadius + 8);
+    context.__memoryGraphLabelNode = null;
     context.restore();
   }
 

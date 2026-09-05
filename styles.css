@@ -502,6 +502,7 @@ h3 { margin-bottom: 6px; font-size: 1rem; }
   .main-panel { padding: 0 14px 44px; }
   .topbar { min-height: 78px; }
   .topbar-actions .ghost-button { display: none; }
+  .topbar-actions .spatial-view-button { display: inline-flex; }
   .topbar-actions .primary-button { padding: 0 12px; }
   .workspace-summary { padding: 18px; display: grid; }
   .summary-stats { justify-content: flex-start; }

@@ -17,7 +17,20 @@
   let inspectorDelete = null;
   let activeInspectorGroupId = null;
   let pointerCandidate = null;
+  let startupGroupsForSpaceCalls = 0;
   const titleHits = new Map();
+
+  function startupLog(stage, detail = {}) {
+    console.log('[MemoryStartup]', stage, { at: Math.round(performance.now()), ...detail });
+  }
+
+  function groupSummary(groups) {
+    return groups.map((group) => ({
+      id: String(group?.id || ''),
+      title: String(group?.title || ''),
+      members: Array.isArray(group?.members) ? group.members.length : 0
+    }));
+  }
 
   function readWorkspace() {
     const raw = localStorage.getItem(WORKSPACE_KEY) || '';
@@ -38,7 +51,8 @@
 
   function readStore() {
     const raw = localStorage.getItem(GROUP_KEY) || '';
-    if (raw === groupRaw && groupCache) return groupCache;
+    const cacheHit = raw === groupRaw && groupCache;
+    if (cacheHit) return groupCache;
     groupRaw = raw;
     try {
       const parsed = JSON.parse(raw || 'null');
@@ -47,6 +61,12 @@
     } catch {
       groupCache = emptyStore();
     }
+    startupLog('manual-groups.readStore', {
+      cacheHit,
+      rawLength: raw.length,
+      spaceIds: Object.keys(groupCache.spaces || {}),
+      groupsBySpace: Object.fromEntries(Object.entries(groupCache.spaces || {}).map(([spaceId, groups]) => [spaceId, Array.isArray(groups) ? groupSummary(groups) : 'not-array']))
+    });
     return groupCache;
   }
 
@@ -71,7 +91,16 @@
     if (!spaceId) return [];
     const store = readStore();
     if (!Array.isArray(store.spaces[spaceId])) store.spaces[spaceId] = [];
-    return store.spaces[spaceId];
+    const groups = store.spaces[spaceId];
+    if (startupGroupsForSpaceCalls < 6) {
+      startupGroupsForSpaceCalls += 1;
+      startupLog('manual-groups.groupsForSpace', {
+        call: startupGroupsForSpaceCalls,
+        spaceId: String(spaceId),
+        groups: groupSummary(groups)
+      });
+    }
+    return groups;
   }
 
   function writeGroups(groups, spaceId = activeSpaceId()) {
@@ -452,6 +481,11 @@
       if (activeInspectorGroupId) renderInspector();
     }
     if (event.key === GROUP_KEY) {
+      startupLog('manual-groups.group-storage-listener', {
+        key: event.key,
+        oldLength: String(event.oldValue || '').length,
+        newLength: String(event.newValue || '').length
+      });
       groupRaw = '';
       groupCache = null;
       titleHits.clear();

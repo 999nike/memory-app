@@ -19,6 +19,10 @@
   let startupResizeObserver = null;
   let startupStableTimer = 0;
 
+  function startupLog(stage, detail = {}) {
+    console.log('[MemoryStartup]', stage, { at: Math.round(performance.now()), ...detail });
+  }
+
   function readJson(key) {
     try {
       return JSON.parse(localStorage.getItem(key) || 'null');
@@ -79,6 +83,7 @@
 
   function dispatchGroupGeometryReset() {
     const raw = localStorage.getItem(GROUP_KEY);
+    startupLog('neural-width.dispatchGroupGeometryReset', { rawLength: String(raw || '').length });
     try {
       window.dispatchEvent(new StorageEvent('storage', {
         key: GROUP_KEY,
@@ -100,6 +105,7 @@
   function finishStartupGeometry() {
     if (startupRebaseDone) return;
     startupRebaseDone = true;
+    startupLog('neural-width.finishStartupGeometry', { startupPhysicsGuard });
     startupResizeObserver?.disconnect();
     startupResizeObserver = null;
     dispatchGroupGeometryReset();
@@ -109,8 +115,10 @@
   function scheduleStartupGeometrySettle() {
     if (!startupPhysicsGuard || startupRebaseDone) return;
     if (startupStableTimer) window.clearTimeout(startupStableTimer);
+    startupLog('neural-width.scheduleStartupGeometrySettle', { replacingTimer: Boolean(startupStableTimer) });
     startupStableTimer = window.setTimeout(() => {
       startupStableTimer = 0;
+      startupLog('neural-width.startupGeometrySettle:220ms-fired');
       finishStartupGeometry();
     }, 220);
   }
@@ -119,9 +127,15 @@
     if (!startupPhysicsGuard || startupRebaseDone) return;
     const surface = document.getElementById('memoryGraphSurface');
     if (!surface) {
+      startupLog('neural-width.watchStartupGeometry:no-surface');
       window.setTimeout(watchStartupGeometry, 80);
       return;
     }
+
+    startupLog('neural-width.watchStartupGeometry:observing-surface', {
+      width: Math.round(surface.getBoundingClientRect().width),
+      height: Math.round(surface.getBoundingClientRect().height)
+    });
 
     surface.addEventListener('pointerdown', unlockStartupPhysics, { once: true, capture: true });
     surface.addEventListener('wheel', unlockStartupPhysics, { once: true, capture: true, passive: true });

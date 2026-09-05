@@ -445,6 +445,16 @@
     return 'The Office Memory collector returned an unknown status.';
   }
 
+  function memoryDispatchSummary(dispatch) {
+    if (dispatch?.status === 'completed') {
+      const sent = Number(dispatch.sent) || 0;
+      return `Sent ${sent} Memory job${sent === 1 ? '' : 's'} to Code Space.`;
+    }
+    if (dispatch?.status === 'no-pending') return 'No collected Memory jobs are waiting.';
+    if (dispatch?.status === 'failed') return `Code Space did not acknowledge the dispatch: ${String(dispatch.reason || 'Dispatch failed.').slice(0, 240)}`;
+    return 'The Office dispatch returned an unknown status.';
+  }
+
   async function collectOfficeMemoryJobs() {
     const titleText = 'Office Memory Jobs';
     officeLoading(titleText);
@@ -455,6 +465,20 @@
       return true;
     } catch (error) {
       officeInspector(titleText, [officeBlock('Office bridge unavailable', 'The Office Memory collector could not be reached.')]);
+      return false;
+    }
+  }
+
+  async function sendOfficeMemoryJobsToCodeSpace() {
+    const titleText = 'Send Memory Jobs to Code Space';
+    officeLoading(titleText);
+    try {
+      const commandResponse = await requestOfficeCommand('memoryJobs.sendToCodeSpace');
+      const dispatch = commandResponse.dispatch;
+      officeInspector(titleText, [officeBlock('Dispatch', memoryDispatchSummary(dispatch))]);
+      return dispatch?.status === 'completed';
+    } catch (error) {
+      officeInspector(titleText, [officeBlock('Office bridge unavailable', 'The Office dispatch could not be reached.')]);
       return false;
     }
   }
@@ -484,6 +508,8 @@
     id: 'office',
     name: 'OFFICE',
     nodes: Object.freeze([
+      Object.freeze({ id: 'memory-jobs', label: 'Collect from Memory', action: 'office.memory-jobs.open', view: 'office' }),
+      Object.freeze({ id: 'send-to-code-space', label: 'Send to Code Space', action: 'office.memory-jobs.send-to-code-space', view: 'office' }),
       Object.freeze({ id: 'dashboard', label: 'Dashboard', action: 'office.dashboard.open', view: 'office' }),
       Object.freeze({ id: 'jobs', label: 'Jobs', expandable: true, action: 'office.jobs.all.open', view: 'office', children: Object.freeze([
         Object.freeze({ id: 'jobs:inbox', label: 'Inbox', action: 'office.jobs.inbox.open', view: 'office' }),
@@ -510,7 +536,6 @@
         Object.freeze({ id: 'dispatch:cancelled', label: 'Cancelled', action: 'office.dispatch.cancelled.open', view: 'office' })
       ]) }),
       Object.freeze({ id: 'projects', label: 'Projects', action: 'office.projects.open', view: 'office' }),
-      Object.freeze({ id: 'memory-jobs', label: 'Collect from Memory', action: 'office.memory-jobs.open', view: 'office' }),
       Object.freeze({ id: 'settings', label: 'Settings', action: 'office.settings.open', view: 'office' }),
       Object.freeze({ id: 'open-office', label: 'Open Office', action: 'office.open', view: 'office' })
     ])
@@ -540,6 +565,7 @@
     'office.dispatch.cancelled.open': () => openOfficeData('Office Dispatch · Cancelled', 'dispatch', { packageStatus: 'Cancelled' }),
     'office.projects.open': () => openOfficeData('Office Projects', 'projects'),
     'office.memory-jobs.open': () => collectOfficeMemoryJobs(),
+    'office.memory-jobs.send-to-code-space': () => sendOfficeMemoryJobsToCodeSpace(),
     'office.settings.open': () => openOfficeData('Office Settings · Ledger', 'ledger'),
     'office.open': () => openOfficeWindow('/')
   });
