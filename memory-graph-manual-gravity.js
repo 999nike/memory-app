@@ -35,6 +35,8 @@
   let canvas = null;
   let surface = null;
   let startupOverlayLogged = false;
+  let startupGroupResetDiagnostics = false;
+  let startupGroupOverlayDiagnosticPending = false;
 
   const bodies = new Map();
   const projectedMemories = new Map();
@@ -50,6 +52,64 @@
       title: String(group?.title || ''),
       members: Array.isArray(group?.members) ? group.members.length : 0
     }));
+  }
+
+  function startupGroupGeometry(groups) {
+    const overlayRect = overlayCanvas?.getBoundingClientRect?.() || null;
+    const surfaceRect = surface?.getBoundingClientRect?.() || null;
+    const bounds = overlayRect
+      ? { left: 0, top: 0, right: overlayRect.width, bottom: overlayRect.height, width: overlayRect.width, height: overlayRect.height }
+      : null;
+    return {
+      overlayBounds: bounds,
+      surfaceBounds: surfaceRect ? {
+        left: surfaceRect.left,
+        top: surfaceRect.top,
+        right: surfaceRect.right,
+        bottom: surfaceRect.bottom,
+        width: surfaceRect.width,
+        height: surfaceRect.height
+      } : null,
+      groups: groups.map((group) => {
+        const id = String(group?.id || '');
+        const body = bodies.get(id) || null;
+        const projected = projectedGroups.get(id) || null;
+        const screen = projected && lastMatrix ? worldToScreen(projected) : null;
+        const insideBounds = Boolean(
+          bounds && screen && Number.isFinite(screen.x) && Number.isFinite(screen.y) &&
+          screen.x >= bounds.left && screen.x <= bounds.right &&
+          screen.y >= bounds.top && screen.y <= bounds.bottom
+        );
+        return {
+          id,
+          title: String(group?.title || ''),
+          body: body ? { x: Number(body.x), y: Number(body.y) } : null,
+          projected: projected ? { x: Number(projected.x), y: Number(projected.y) } : null,
+          screen,
+          insideBounds
+        };
+      })
+    };
+  }
+
+  function flatStartupGroupDiagnostic(groups, detail = {}) {
+    const geometry = startupGroupGeometry(groups);
+    return JSON.stringify({
+      ...detail,
+      overlayBounds: geometry.overlayBounds,
+      surfaceBounds: geometry.surfaceBounds,
+      groups: geometry.groups.map((group) => ({
+        id: group.id,
+        title: group.title,
+        bodyX: group.body?.x ?? null,
+        bodyY: group.body?.y ?? null,
+        projectedX: group.projected?.x ?? null,
+        projectedY: group.projected?.y ?? null,
+        screenX: group.screen?.x ?? null,
+        screenY: group.screen?.y ?? null,
+        insideBounds: group.insideBounds
+      }))
+    });
   }
 
   function clamp(value, min, max) {
@@ -383,6 +443,13 @@
       projectedGroupIds: [...projectedGroups.keys()],
       bodies: [...bodies.keys()]
     });
+    if (startupGroupResetDiagnostics) {
+      console.log('[MemoryStartup] manual-gravity.startup-group-diagnostic:after-syncProjectedGroups', flatStartupGroupDiagnostic(groups, {
+        graphSpaceId: String(graph?.spaceNode?.id || '')
+      }));
+      startupGroupOverlayDiagnosticPending = true;
+      startupGroupResetDiagnostics = false;
+    }
   }
 
   function project(node, graph) {
@@ -902,7 +969,21 @@
     const frameMs = drag ? DRAG_OVERLAY_FRAME_MS : OVERLAY_FRAME_MS;
     if (timestamp - lastOverlayPaint < frameMs) return;
     lastOverlayPaint = timestamp;
-    if (!ensureOverlay() || !lastGraph || !lastMatrix || document.hidden) return;
+    const overlayReady = ensureOverlay();
+    const overlayGate = {
+      ensureOverlay: overlayReady,
+      hasLastGraph: Boolean(lastGraph),
+      hasLastMatrix: Boolean(lastMatrix),
+      documentHidden: document.hidden === true
+    };
+    if (startupGroupOverlayDiagnosticPending) {
+      console.log('[MemoryStartup] manual-gravity.startup-group-diagnostic:before-drawOverlay-gate', flatStartupGroupDiagnostic(groupsForSpace(), {
+        ...overlayGate,
+        graphSpaceId: String(lastGraph?.spaceNode?.id || '')
+      }));
+      startupGroupOverlayDiagnosticPending = false;
+    }
+    if (!overlayGate.ensureOverlay || !overlayGate.hasLastGraph || !overlayGate.hasLastMatrix || overlayGate.documentHidden) return;
 
     if (drag && !rotationActive()) scheduleGraphRedraw(false);
 
@@ -920,7 +1001,14 @@
       startupLog('manual-gravity.drawOverlay:first-drawable-frame', {
         graphSpaceId: String(lastGraph?.spaceNode?.id || ''),
         canvas: { width: rect.width, height: rect.height },
-        matrix: lastMatrix ? [...lastMatrix] : null,
+        matrix: lastMatrix ? {
+          a: Number(lastMatrix.a),
+          b: Number(lastMatrix.b),
+          c: Number(lastMatrix.c),
+          d: Number(lastMatrix.d),
+          e: Number(lastMatrix.e),
+          f: Number(lastMatrix.f)
+        } : null,
         groups: groupSummary(groups),
         projectedGroupIds: [...projectedGroups.keys()],
         projectedMemoryIds: [...projectedMemories.keys()]
@@ -1024,7 +1112,14 @@
       projectedMemories.clear();
       projectedGroups.clear();
       groupProjectionDirty = true;
-      if (event.key === GROUP_KEY) bodies.clear();
+      if (event.key === GROUP_KEY) {
+        bodies.clear();
+        startupGroupResetDiagnostics = true;
+        startupLog('manual-gravity.startup-group-diagnostic:after-bodies-clear', {
+          graphSpaceId: String(lastGraph?.spaceNode?.id || ''),
+          ...startupGroupGeometry(groupsForSpace())
+        });
+      }
       scheduleGraphRedraw(false);
     }
   });

@@ -3,6 +3,7 @@
 
   const records = new Map();
   const activities = new Map();
+  const visualActivities = new Map();
   const refreshControllers = new Map();
   const STATE_EVENT = 'universal-app-state-change';
   const HIERARCHY_EVENT = 'universal-app-hierarchy-change';
@@ -207,6 +208,10 @@
     return [...activities.values()].filter((activity) => activity.appId === id);
   }
 
+  function activityKind(value) {
+    return value === 'job' ? 'job' : 'default';
+  }
+
   function setAppActivity(appId, nodeId, activity = {}) {
     const id = String(appId || '');
     const localId = localNodeId(id, nodeId);
@@ -217,11 +222,12 @@
       appId: id,
       nodeId: localId,
       pending: true,
-      count: Math.max(1, Number(activity.count) || 1)
+      count: Math.max(1, Number(activity.count) || 1),
+      kind: activityKind(activity.kind)
     });
     const key = activityKey(id, localId);
     const current = activities.get(key);
-    if (current?.pending === next.pending && current?.count === next.count) return true;
+    if (current?.pending === next.pending && current?.count === next.count && current?.kind === next.kind) return true;
     activities.set(key, next);
     document.dispatchEvent(new CustomEvent(ACTIVITY_EVENT, { detail: next }));
     return true;
@@ -236,6 +242,47 @@
       detail: { appId: id, nodeId: localId, pending: false, count: 0 }
     }));
     return true;
+  }
+
+  function setVisualActivity(targetId, activity = {}) {
+    const id = String(targetId || '');
+    if (!id) return false;
+    if (activity.pending !== true) return clearVisualActivity(id);
+    const next = Object.freeze({
+      targetId: id,
+      pending: true,
+      count: Math.max(1, Number(activity.count) || 1),
+      kind: activityKind(activity.kind),
+      jobId: activity.jobId ? String(activity.jobId) : null,
+      from: activity.from ? String(activity.from) : null,
+      to: activity.to ? String(activity.to) : null,
+      startedAt: Number(activity.startedAt) || 0,
+      expiresAt: Number(activity.expiresAt) || 0
+    });
+    const current = visualActivities.get(id);
+    if (current?.pending === next.pending && current?.count === next.count && current?.kind === next.kind
+      && current?.jobId === next.jobId && current?.from === next.from && current?.to === next.to
+      && current?.startedAt === next.startedAt && current?.expiresAt === next.expiresAt) return true;
+    visualActivities.set(id, next);
+    document.dispatchEvent(new CustomEvent(ACTIVITY_EVENT, { detail: next }));
+    return true;
+  }
+
+  function clearVisualActivity(targetId) {
+    const id = String(targetId || '');
+    if (!visualActivities.delete(id)) return true;
+    document.dispatchEvent(new CustomEvent(ACTIVITY_EVENT, {
+      detail: { targetId: id, pending: false, count: 0 }
+    }));
+    return true;
+  }
+
+  function getVisualActivity(targetId) {
+    return visualActivities.get(String(targetId || '')) || null;
+  }
+
+  function getVisualActivities() {
+    return [...visualActivities.values()];
   }
 
   globalThis.UniversalAppAdapters = Object.freeze({
@@ -255,6 +302,10 @@
     getAppActivity,
     getAppActivities,
     setAppActivity,
-    clearAppActivity
+    clearAppActivity,
+    setVisualActivity,
+    clearVisualActivity,
+    getVisualActivity,
+    getVisualActivities
   });
 })();

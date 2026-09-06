@@ -903,6 +903,18 @@
     const nodeY = projected.y;
     const nodeRadius = projected.radius;
     const depthAlpha = isSpace ? 1 : Number(projected.alpha || 1);
+    const activityAnchor = node.kind === 'space'
+      ? 'memory-root'
+      : node.appId === 'office' && node.nodeId === 'memory-jobs'
+        ? 'office-memory-jobs'
+        : null;
+    if (activityAnchor) {
+      globalThis.MemoryGraphNeuralFlow?.captureAnchor?.(activityAnchor, context, {
+        x: nodeX,
+        y: nodeY,
+        radius: nodeRadius
+      });
+    }
 
     context.save();
     context.globalAlpha = depthAlpha;

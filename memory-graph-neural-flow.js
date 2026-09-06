@@ -19,6 +19,7 @@
   let ctx = null;
   let frame = 0;
   let lastPaint = 0;
+  const anchors = new Map();
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const distance = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
@@ -85,6 +86,23 @@
       y: (matrix.b * point.x + matrix.d * point.y + matrix.f) / dpr
     });
     return { from: project(start), to: project(end) };
+  }
+
+  function captureAnchor(anchorId, context, point) {
+    const id = String(anchorId || '');
+    if (!id || !isMainGraph(context) || !point) return false;
+    const canvas = context.canvas;
+    if (!ensureLayer(canvas)) return false;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, canvas.width / Math.max(1, rect.width));
+    const matrix = context.getTransform();
+    const scale = Math.max(0.001, Math.hypot(matrix.a, matrix.b) / dpr);
+    anchors.set(id, {
+      x: (matrix.a * Number(point.x) + matrix.c * Number(point.y) + matrix.e) / dpr,
+      y: (matrix.b * Number(point.x) + matrix.d * Number(point.y) + matrix.f) / dpr,
+      radius: Math.max(1, Number(point.radius) || 1) * scale
+    });
+    return true;
   }
 
   function seedFor(from, to) {
@@ -283,6 +301,10 @@
       gradient.addColorStop(0.25, hot ? `rgba(239,184,255,${(alpha * 0.94).toFixed(3)})` : `rgba(214,118,255,${(alpha * 0.84).toFixed(3)})`);
       gradient.addColorStop(0.62, `rgba(178,64,255,${(alpha * 0.48).toFixed(3)})`);
       gradient.addColorStop(1, 'rgba(102,0,255,0)');
+    } else if (palette === 'orange') {
+      gradient.addColorStop(0.25, hot ? `rgba(255,234,164,${(alpha * 0.94).toFixed(3)})` : `rgba(255,177,64,${(alpha * 0.84).toFixed(3)})`);
+      gradient.addColorStop(0.62, `rgba(255,101,20,${(alpha * 0.48).toFixed(3)})`);
+      gradient.addColorStop(1, 'rgba(214,57,0,0)');
     } else {
       gradient.addColorStop(0.25, hot ? `rgba(173,240,255,${(alpha * 0.84).toFixed(3)})` : `rgba(108,222,255,${(alpha * 0.72).toFixed(3)})`);
       gradient.addColorStop(0.62, `rgba(49,144,255,${(alpha * 0.34).toFixed(3)})`);
@@ -305,7 +327,7 @@
     const point = routePoint(curves, metrics, routeProgress);
     const direction = activity ? (reverse ? -1 : 1) : raw < 0.5 ? 1 : -1;
     const radius = (compact ? 8.5 : 11.5) * (activity ? 1.18 : 1);
-    const palette = activity ? 'purple' : 'blue';
+    const palette = options.palette || (activity ? 'purple' : 'blue');
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -373,10 +395,35 @@
     return activity?.pending ? activity : null;
   }
 
-  function drawActivityHeartbeat(point, count, timestamp) {
+  function paletteForActivity(activity) {
+    return activity?.kind === 'job' ? 'orange' : 'purple';
+  }
+
+  function drawActivityHeartbeat(point, count, timestamp, palette = 'purple', minimumRadius = 0) {
     const pulse = 0.5 + Math.sin(timestamp * 0.0042) * 0.5;
     const strength = Math.min(1, 0.42 + Math.log2(Math.max(1, Number(count || 1)) + 1) * 0.12);
-    glow(point, 15 + pulse * 5, strength * (0.24 + pulse * 0.12), false, 'purple');
+    glow(point, Math.max(15 + pulse * 5, minimumRadius), strength * (0.24 + pulse * 0.12), false, palette);
+  }
+
+  function drawVisualActivities(timestamp) {
+    const activities = globalThis.UniversalAppAdapters?.getVisualActivities?.() || [];
+    for (const activity of activities) {
+      if (!activity.pending || (activity.expiresAt && timestamp >= activity.expiresAt)) continue;
+      const palette = paletteForActivity(activity);
+      if (activity.from && activity.to) {
+        const from = anchors.get(activity.from);
+        const to = anchors.get(activity.to);
+        if (!from || !to) continue;
+        drawRoutePulse([controlPoints(from, to, seedFor(from, to), 0.86, 0)], seedFor(from, to), timestamp, 0, false, {
+          activity: true,
+          palette,
+          reverse: false
+        });
+        continue;
+      }
+      const anchor = anchors.get(activity.targetId);
+      if (anchor) drawActivityHeartbeat(anchor, activity.count, timestamp, palette, anchor.radius + 14 + Math.sin(timestamp * 0.0042) * 6);
+    }
   }
 
   function drawNetworkFlow(segments, timestamp, compact = false, activityContext = null) {
@@ -406,6 +453,7 @@
       }
 
       let pendingCount = 0;
+      let pendingPalette = 'purple';
       for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
         const child = children[childIndex];
         const appId = child.activityTarget?.appId;
@@ -419,11 +467,15 @@
         drawRoutePulse(route, child.seed + geometry.seed, timestamp, clusterIndex * 0.17 + childIndex * 0.083, compact, {
           activity: true,
           activityTarget: active.target,
+          palette: paletteForActivity(active.activity),
           reverse: false
         });
-        if (isTarget) pendingCount += active.activity.count;
+        if (isTarget) {
+          pendingCount += active.activity.count;
+          pendingPalette = paletteForActivity(active.activity);
+        }
       }
-      if (pendingCount > 0) drawActivityHeartbeat(centre, pendingCount, timestamp);
+      if (pendingCount > 0) drawActivityHeartbeat(centre, pendingCount, timestamp, pendingPalette);
     }
   }
 
@@ -457,6 +509,7 @@
         const centre = centrePoint(group.segments);
         drawNetworkFlow(group.segments, timestamp, false, centre ? collectActivityContext(group.segments, centre, false) : null);
       }
+      drawVisualActivities(timestamp);
     }
 
     if (!interacting) {
@@ -490,7 +543,10 @@
   };
 
   proto.clearRect = function memoryGraphNeuralFlowClearRect(...args) {
-    if (isMainGraph(this)) mainSegments.length = 0;
+    if (isMainGraph(this)) {
+      mainSegments.length = 0;
+      anchors.clear();
+    }
     if (isManualOverlay(this)) manualSegments.length = 0;
     return previousClearRect.apply(this, args);
   };
@@ -512,6 +568,7 @@
     version: VERSION,
     mainSegmentCount: () => mainSegments.length,
     manualSegmentCount: () => manualSegments.length,
+    captureAnchor,
     redraw() { lastPaint = 0; }
   });
 })();

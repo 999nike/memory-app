@@ -460,6 +460,7 @@
     officeLoading(titleText);
     try {
       const commandResponse = await requestOfficeCommand('memoryJobs.collect');
+      if (commandResponse.collection?.status === 'completed') globalThis.MemoryExternalSync?.refresh?.();
       const jobsResponse = await requestOffice('memory-jobs');
       renderOfficeList(titleText, jobsResponse, [officeBlock('Collection', memoryCollectionSummary(commandResponse.collection))]);
       return true;
