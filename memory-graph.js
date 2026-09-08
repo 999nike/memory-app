@@ -905,6 +905,10 @@
     const depthAlpha = isSpace ? 1 : Number(projected.alpha || 1);
     const activityAnchor = node.kind === 'space'
       ? 'memory-root'
+      : node.appRoot && node.appId === 'office'
+        ? 'office-root'
+        : node.appRoot && node.appId === 'code-space'
+          ? 'code-space-root'
       : node.appId === 'office' && node.nodeId === 'memory-jobs'
         ? 'office-memory-jobs'
         : null;

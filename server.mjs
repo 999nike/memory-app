@@ -16,6 +16,10 @@ const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 const GMAIL_METADATA_SCOPE = 'https://www.googleapis.com/auth/gmail.metadata';
 const GMAIL_MESSAGE_LABELS = new Set(['INBOX', 'UNREAD', 'STARRED', 'SENT', 'DRAFT']);
 const REDIRECT_URI = 'http://localhost:4173/auth/gmail/callback';
+const APPROVED_OAUTH_ORIGINS = new Map([
+  ['localhost:4173', 'http://localhost:4173'],
+  ['127.0.0.1:4173', 'http://127.0.0.1:4173']
+]);
 const GOOGLE_AUTH_URI = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URI = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me/';
@@ -39,6 +43,7 @@ class GmailDisconnectedError extends Error {}
 class GmailAuthError extends Error {}
 class GmailTemporaryError extends Error {}
 let tokenState = null;
+let lastKnownGmailSummary = null;
 
 function sendJson(res, statusCode, value) {
   const body = JSON.stringify(value);
@@ -200,12 +205,13 @@ async function gmailSummary() {
     gmailRequest('labels/UNREAD'),
     gmailRequest('labels/DRAFT')
   ]);
-  return {
+  lastKnownGmailSummary = {
     connected: true,
     inbox: Math.max(0, Number(inbox.messagesTotal || 0)),
     unread: Math.max(0, Number(unread.messagesTotal || 0)),
     drafts: Math.max(0, Number(drafts.messagesTotal || 0))
   };
+  return lastKnownGmailSummary;
 }
 
 function headerValue(message, headerName) {
@@ -268,12 +274,12 @@ async function gmailMessage(messageId, token) {
   };
 }
 
-function localOAuthRequest(req) {
-  try {
-    return new URL(`http://${req.headers.host || ''}`).hostname.toLowerCase() === 'localhost';
-  } catch {
-    return false;
-  }
+function approvedOauthOrigin(req) {
+  return APPROVED_OAUTH_ORIGINS.get(String(req.headers.host || '').toLowerCase()) || null;
+}
+
+function isApprovedOauthOrigin(origin) {
+  return [...APPROVED_OAUTH_ORIGINS.values()].includes(origin);
 }
 
 function pruneOauthStates() {
@@ -284,8 +290,9 @@ function pruneOauthStates() {
 }
 
 async function startGmailAuth(req, res) {
-  if (!localOAuthRequest(req)) {
-    sendJson(res, 400, { error: 'gmail_auth_requires_localhost' });
+  const initiatingOrigin = approvedOauthOrigin(req);
+  if (!initiatingOrigin) {
+    sendJson(res, 400, { error: 'gmail_auth_requires_approved_loopback_origin' });
     return;
   }
   const config = await loadClientConfig();
@@ -293,7 +300,7 @@ async function startGmailAuth(req, res) {
   const state = randomBytes(24).toString('base64url');
   const verifier = randomBytes(48).toString('base64url');
   const challenge = createHash('sha256').update(verifier).digest('base64url');
-  oauthStates.set(state, { verifier, createdAt: Date.now() });
+  oauthStates.set(state, { verifier, initiatingOrigin, createdAt: Date.now() });
 
   const authorization = new URL(config.authUri);
   authorization.search = new URLSearchParams({
@@ -314,7 +321,7 @@ async function finishGmailAuth(requestUrl, res) {
   const state = String(requestUrl.searchParams.get('state') || '');
   const pending = oauthStates.get(state);
   oauthStates.delete(state);
-  if (!pending || Date.now() - pending.createdAt > OAUTH_STATE_TTL_MS) {
+  if (!pending || !isApprovedOauthOrigin(pending.initiatingOrigin) || Date.now() - pending.createdAt > OAUTH_STATE_TTL_MS) {
     sendText(res, 400, 'Gmail authorization state is invalid or expired.');
     return;
   }
@@ -339,7 +346,7 @@ async function finishGmailAuth(requestUrl, res) {
     redirect_uri: REDIRECT_URI
   }, config);
   await writeToken(normalizedToken(response, current));
-  redirect(res, '/?gmail=connected');
+  redirect(res, `${pending.initiatingOrigin}/?gmail=connected`);
 }
 
 async function gmailStatus() {
@@ -440,7 +447,7 @@ async function handleGmailRoute(req, res, requestUrl) {
       if (error instanceof GmailDisconnectedError || error instanceof GmailAuthError) {
         sendJson(res, 200, { connected: false, reauthorize: true, error: 'gmail_reauthorization_required' });
       } else {
-        sendJson(res, 200, { connected: true, stale: true, error: 'gmail_summary_unavailable' });
+        sendJson(res, 200, { ...(lastKnownGmailSummary || { connected: true }), stale: true, error: 'gmail_summary_unavailable' });
       }
     }
     return true;

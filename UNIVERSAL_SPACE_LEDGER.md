@@ -1,5 +1,12 @@
 # Universal Space Ledger
 
+## Memory Settings hierarchy - 8 September 2026
+
+- Restored the prior ten-node Settings top layer. Only the existing `Context` and `Lifecycle` nodes moved: both are now children of `AI Access`, and Context is labelled `AI Context`.
+- Existing actions, deep children, Memory Bridge, Local Model, AI Inbox and Workspace definitions are retained unchanged. Main Memory controls and all non-Settings parent relationships remain unchanged.
+- Files changed: `molecular-view.js`, this ledger. No graph engine, renderer, physics, Memory lifecycle implementation, generic adapter or legacy molecular-engine adapter changed.
+- Passed: `node --check molecular-view.js`; static hierarchy/action audit (the Settings top layer has exactly ten children; AI Access has its existing four controls plus AI Context and Lifecycle); `git diff --check`; and HTTP 200 for the served `molecular-view.js`. No pointer-driven/browser-console verification is claimed.
+
 ## Product Push cluster/button cleanup - 4 September 2026
 
 - Memory presentation controls now provide first-level Memories, New Memory, Groups, Search, Settings and Open Memory App surfaces through the existing control layer; no canonical graph-builder, renderer, neural or physics module changed.

@@ -212,6 +212,14 @@
     return value === 'job' ? 'job' : 'default';
   }
 
+  function activityPalette(value) {
+    return value === 'green' ? 'green' : null;
+  }
+
+  function activityEmphasis(value) {
+    return ['strong', 'steady'].includes(value) ? value : null;
+  }
+
   function setAppActivity(appId, nodeId, activity = {}) {
     const id = String(appId || '');
     const localId = localNodeId(id, nodeId);
@@ -223,11 +231,14 @@
       nodeId: localId,
       pending: true,
       count: Math.max(1, Number(activity.count) || 1),
-      kind: activityKind(activity.kind)
+      kind: activityKind(activity.kind),
+      palette: activityPalette(activity.palette),
+      emphasis: activityEmphasis(activity.emphasis)
     });
     const key = activityKey(id, localId);
     const current = activities.get(key);
-    if (current?.pending === next.pending && current?.count === next.count && current?.kind === next.kind) return true;
+    if (current?.pending === next.pending && current?.count === next.count && current?.kind === next.kind
+      && current?.palette === next.palette && current?.emphasis === next.emphasis) return true;
     activities.set(key, next);
     document.dispatchEvent(new CustomEvent(ACTIVITY_EVENT, { detail: next }));
     return true;
@@ -257,12 +268,14 @@
       from: activity.from ? String(activity.from) : null,
       to: activity.to ? String(activity.to) : null,
       startedAt: Number(activity.startedAt) || 0,
-      expiresAt: Number(activity.expiresAt) || 0
+      expiresAt: Number(activity.expiresAt) || 0,
+      oneShot: activity.oneShot === true
     });
     const current = visualActivities.get(id);
     if (current?.pending === next.pending && current?.count === next.count && current?.kind === next.kind
       && current?.jobId === next.jobId && current?.from === next.from && current?.to === next.to
-      && current?.startedAt === next.startedAt && current?.expiresAt === next.expiresAt) return true;
+      && current?.startedAt === next.startedAt && current?.expiresAt === next.expiresAt
+      && current?.oneShot === next.oneShot) return true;
     visualActivities.set(id, next);
     document.dispatchEvent(new CustomEvent(ACTIVITY_EVENT, { detail: next }));
     return true;

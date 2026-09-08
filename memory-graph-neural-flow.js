@@ -20,6 +20,7 @@
   let frame = 0;
   let lastPaint = 0;
   const anchors = new Map();
+  const arrivedVisualActivities = new Set();
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const distance = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
@@ -297,7 +298,11 @@
   function glow(point, radius, alpha, hot = false, palette = 'blue') {
     const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
     gradient.addColorStop(0, `rgba(255,255,255,${alpha.toFixed(3)})`);
-    if (palette === 'purple') {
+    if (palette === 'green') {
+      gradient.addColorStop(0.25, hot ? `rgba(211,255,193,${(alpha * 0.94).toFixed(3)})` : `rgba(104,245,150,${(alpha * 0.84).toFixed(3)})`);
+      gradient.addColorStop(0.62, `rgba(35,191,103,${(alpha * 0.48).toFixed(3)})`);
+      gradient.addColorStop(1, 'rgba(9,113,60,0)');
+    } else if (palette === 'purple') {
       gradient.addColorStop(0.25, hot ? `rgba(239,184,255,${(alpha * 0.94).toFixed(3)})` : `rgba(214,118,255,${(alpha * 0.84).toFixed(3)})`);
       gradient.addColorStop(0.62, `rgba(178,64,255,${(alpha * 0.48).toFixed(3)})`);
       gradient.addColorStop(1, 'rgba(102,0,255,0)');
@@ -320,13 +325,18 @@
     if (!curves.length) return;
     const metrics = routeMetrics(curves);
     const duration = (compact ? 3000 : 3400) + seed * 1500;
-    const raw = ((timestamp + phase * duration + seed * 1100) % duration) / duration;
+    const raw = Number.isFinite(options.progress)
+      ? clamp(options.progress, 0, 1)
+      : ((timestamp + phase * duration + seed * 1100) % duration) / duration;
     const activity = options.activity === true;
     const reverse = options.reverse !== false;
     const routeProgress = activity ? (reverse ? 1 - raw : raw) : 0.5 - 0.5 * Math.cos(raw * Math.PI * 2);
     const point = routePoint(curves, metrics, routeProgress);
     const direction = activity ? (reverse ? -1 : 1) : raw < 0.5 ? 1 : -1;
-    const radius = (compact ? 8.5 : 11.5) * (activity ? 1.18 : 1);
+    const emphasis = options.emphasis || null;
+    const pulse = emphasis === 'strong' ? 0.52 + 0.48 * (0.5 + Math.sin(timestamp * 0.011) * 0.5) : 1;
+    const intensity = emphasis === 'strong' ? 1.28 * pulse : emphasis === 'steady' ? 0.62 : 1;
+    const radius = (compact ? 8.5 : 11.5) * (activity ? 1.18 : 1) * intensity;
     const palette = options.palette || (activity ? 'purple' : 'blue');
 
     ctx.save();
@@ -396,17 +406,20 @@
   }
 
   function paletteForActivity(activity) {
+    if (activity?.palette === 'green') return 'green';
     return activity?.kind === 'job' ? 'orange' : 'purple';
   }
 
-  function drawActivityHeartbeat(point, count, timestamp, palette = 'purple', minimumRadius = 0) {
-    const pulse = 0.5 + Math.sin(timestamp * 0.0042) * 0.5;
+  function drawActivityHeartbeat(point, count, timestamp, palette = 'purple', minimumRadius = 0, emphasis = null) {
+    const pulse = emphasis === 'steady' ? 0.5 : 0.5 + Math.sin(timestamp * 0.0042) * 0.5;
+    const intensity = emphasis === 'strong' ? 1.28 : emphasis === 'steady' ? 0.62 : 1;
     const strength = Math.min(1, 0.42 + Math.log2(Math.max(1, Number(count || 1)) + 1) * 0.12);
-    glow(point, Math.max(15 + pulse * 5, minimumRadius), strength * (0.24 + pulse * 0.12), false, palette);
+    glow(point, Math.max((15 + pulse * 5) * intensity, minimumRadius), strength * (0.24 + pulse * 0.12) * intensity, false, palette);
   }
 
   function drawVisualActivities(timestamp) {
     const activities = globalThis.UniversalAppAdapters?.getVisualActivities?.() || [];
+    const activeOneShots = new Set();
     for (const activity of activities) {
       if (!activity.pending || (activity.expiresAt && timestamp >= activity.expiresAt)) continue;
       const palette = paletteForActivity(activity);
@@ -414,15 +427,31 @@
         const from = anchors.get(activity.from);
         const to = anchors.get(activity.to);
         if (!from || !to) continue;
-        drawRoutePulse([controlPoints(from, to, seedFor(from, to), 0.86, 0)], seedFor(from, to), timestamp, 0, false, {
+        const seed = seedFor(from, to);
+        const oneShotKey = `${activity.targetId}:${activity.startedAt}`;
+        const oneShot = activity.oneShot === true && activity.startedAt > 0;
+        if (oneShot) activeOneShots.add(oneShotKey);
+        const duration = 3400 + seed * 1500;
+        const progress = oneShot ? clamp((timestamp - activity.startedAt) / duration, 0, 1) : null;
+        drawRoutePulse([controlPoints(from, to, seed, 0.86, 0)], seed, timestamp, 0, false, {
           activity: true,
           palette,
-          reverse: false
+          reverse: false,
+          progress
         });
+        if (oneShot && progress >= 1 && !arrivedVisualActivities.has(oneShotKey)) {
+          arrivedVisualActivities.add(oneShotKey);
+          window.dispatchEvent(new CustomEvent('universal-route-pulse-arrived', {
+            detail: { targetId: activity.targetId, jobId: activity.jobId, from: activity.from, to: activity.to }
+          }));
+        }
         continue;
       }
       const anchor = anchors.get(activity.targetId);
       if (anchor) drawActivityHeartbeat(anchor, activity.count, timestamp, palette, anchor.radius + 14 + Math.sin(timestamp * 0.0042) * 6);
+    }
+    for (const key of arrivedVisualActivities) {
+      if (!activeOneShots.has(key)) arrivedVisualActivities.delete(key);
     }
   }
 
@@ -454,6 +483,7 @@
 
       let pendingCount = 0;
       let pendingPalette = 'purple';
+      let pendingEmphasis = null;
       for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
         const child = children[childIndex];
         const appId = child.activityTarget?.appId;
@@ -468,14 +498,16 @@
           activity: true,
           activityTarget: active.target,
           palette: paletteForActivity(active.activity),
+          emphasis: active.activity.emphasis,
           reverse: false
         });
         if (isTarget) {
           pendingCount += active.activity.count;
           pendingPalette = paletteForActivity(active.activity);
+          pendingEmphasis = active.activity.emphasis;
         }
       }
-      if (pendingCount > 0) drawActivityHeartbeat(centre, pendingCount, timestamp, pendingPalette);
+      if (pendingCount > 0) drawActivityHeartbeat(centre, pendingCount, timestamp, pendingPalette, 0, pendingEmphasis);
     }
   }
 

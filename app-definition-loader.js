@@ -476,6 +476,16 @@
     try {
       const commandResponse = await requestOfficeCommand('memoryJobs.sendToCodeSpace');
       const dispatch = commandResponse.dispatch;
+      if (dispatch?.status === 'completed') {
+        const sent = Math.max(0, Number(dispatch.sent) || 0);
+        const acknowledgedJobs = Array.isArray(dispatch.acknowledgedJobs) ? dispatch.acknowledgedJobs : [];
+        const currentAcknowledgement = sent === 1 && acknowledgedJobs.length === 1 ? acknowledgedJobs[0] : null;
+        const accepted = globalThis.CodeSpaceAdapter?.recordMemoryDispatchAcknowledgements?.(acknowledgedJobs, sent, currentAcknowledgement) ?? 0;
+        if (accepted !== sent || !currentAcknowledgement) {
+          officeInspector(titleText, [officeBlock('Dispatch acknowledgement failed', `Office reported ${sent} sent Memory job${sent === 1 ? '' : 's'}, but Universal accepted ${accepted} matching dispatch acknowledgement${accepted === 1 ? '' : 's'}. Authorise & Start is unavailable for this dispatch.`)]);
+          return false;
+        }
+      }
       officeInspector(titleText, [officeBlock('Dispatch', memoryDispatchSummary(dispatch))]);
       return dispatch?.status === 'completed';
     } catch (error) {

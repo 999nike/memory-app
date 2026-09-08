@@ -14,8 +14,6 @@
     { id: 'settings:ai-access', parentId: 'settings', label: 'AI Access', radius: 20, expandable: true, orbitScale: 0.96, angleOffset: -0.06 },
     { id: 'settings:memory-bridge', parentId: 'settings', label: 'Memory Bridge', radius: 20, expandable: true, orbitScale: 1.08, angleOffset: 0.05 },
     { id: 'settings:local-model', parentId: 'settings', label: 'Local Model', radius: 19, expandable: true, orbitScale: 0.90, angleOffset: -0.04 },
-    { id: 'settings:context', parentId: 'settings', label: 'Context', radius: 19, expandable: true, orbitScale: 1.13, angleOffset: 0.04 },
-    { id: 'settings:lifecycle', parentId: 'settings', label: 'Lifecycle', radius: 19, expandable: true, orbitScale: 0.94, angleOffset: -0.05 },
     { id: 'settings:inbox', parentId: 'settings', label: 'AI Inbox', radius: 19, expandable: true, orbitScale: 1.06, angleOffset: 0.06 },
     { id: 'settings:workspace', parentId: 'settings', label: 'Workspace', radius: 20, expandable: true, orbitScale: 0.88, angleOffset: -0.03 },
 
@@ -23,6 +21,8 @@
     { id: 'settings:ai-access:device', parentId: 'settings:ai-access', label: 'On-device AI', action: 'open-ai-access', radius: 12, orbitScale: 1.06, angleOffset: 0.04 },
     { id: 'settings:ai-access:external', parentId: 'settings:ai-access', label: 'External AI Apps', action: 'open-ai-access', radius: 12, orbitScale: 0.86, angleOffset: -0.02 },
     { id: 'settings:ai-access:connect', parentId: 'settings:ai-access', label: 'Connect AI App', action: 'connect-ai-app', radius: 12, orbitScale: 1.12, angleOffset: 0.05 },
+    { id: 'settings:context', parentId: 'settings:ai-access', label: 'AI Context', radius: 19, expandable: true, orbitScale: 1.13, angleOffset: 0.04 },
+    { id: 'settings:lifecycle', parentId: 'settings:ai-access', label: 'Lifecycle', radius: 19, expandable: true, orbitScale: 0.94, angleOffset: -0.05 },
 
     { id: 'settings:memory-bridge:pair', parentId: 'settings:memory-bridge', label: 'Pair Bridge', action: 'open-memory-bridge', radius: 12, orbitScale: 0.90, angleOffset: -0.05 },
     { id: 'settings:memory-bridge:url', parentId: 'settings:memory-bridge', label: 'HTTPS URL', action: 'open-memory-bridge', radius: 11, orbitScale: 1.06, angleOffset: 0.03 },
