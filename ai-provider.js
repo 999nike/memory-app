@@ -103,6 +103,7 @@
 
         const response = await transportFetch(endpoint, {
           method: 'POST',
+          signal: request.signal,
           headers: {
             'Content-Type': 'application/json',
             ...(config.headers || {})

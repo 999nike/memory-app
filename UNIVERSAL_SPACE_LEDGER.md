@@ -1,5 +1,13 @@
 # Universal Space Ledger
 
+## Orb spherical waveform visual milestone - 9 September 2026
+
+- Replaced only the existing Orb drawing in `memory-graph.js`: dense projected spherical wire mesh, six multistrand blue/green waveform ribbons, dim rear geometry, narrow luminous filaments, sparse particles and orbital fragments. Increased the Orb's visual radius to show the detail; graph physics, layout and camera implementation are unchanged.
+- Continuous Cartesian travelling waves deform the entire surface without longitude seams or pole discontinuities. Rotation and floating remain independent. The existing bounded `setOrbAmplitude` input drives speaking displacement, ribbon waves and brightness and remains suitable for future audio amplitude input.
+- Visual states: breathing idle, attentive listening ripples, faster thinking, directional guiding stretch, brief arrival expansion, full-sphere speaking and decaying error distortion. Drawing uses save/try/finally/restore and clears its final path.
+- Verification: JavaScript syntax passed. Installed headless Chromium loaded the local app at port 4173 after the browser connector reported no available browser. Inspected idle, speaking, thinking and arrival screenshots; captured all seven states. Isolated real-canvas frame comparisons confirmed idle/speaking motion and amplitude changes in all four sphere quadrants. Canvas transform, alpha, shadows, compositing and line-dash restoration passed. Existing Ask Orb UI completed deterministic fallback search, guiding travel, camera focus, target highlight, arrival and return to idle with its text response. No live local-model call or unrelated application testing performed.
+- Existing local edits in `ai-provider.js` and the earlier Orb functionality in `memory-graph.js` were retained. No TTS, microphone, graph renderer or graph camera added.
+
 ## Memory Settings hierarchy - 8 September 2026
 
 - Restored the prior ten-node Settings top layer. Only the existing `Context` and `Lifecycle` nodes moved: both are now children of `AI Access`, and Context is labelled `AI Context`.

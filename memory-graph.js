@@ -47,6 +47,350 @@
   const expandedAppNodeIds = new Set();
   const expansionAnchoredRootIds = new Set();
   let activeControlParentId = null;
+  // Resident visual only: never enters graph collections, hit testing or storage.
+  const orbStates = ['idle', 'listening', 'thinking', 'speaking', 'guiding', 'arrived', 'error'];
+  const orbMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const orb = { state: 'idle', amplitude: 0.5, time: 0, last: 0, frame: 0, mounted: false };
+  const orbGuide = { id: null, start: 0, from: null, position: null, timer: 0, arrived: 0 };
+  let orbRequest = 0, orbAbort = null, orbReply = null, orbErrorTimer = 0;
+
+  async function askOrb(value) {
+    const text = String(value || '').trim();
+    const requestId = ++orbRequest;
+    orbAbort?.abort(); clearTimeout(orbErrorTimer);
+    const controller = new AbortController(); orbAbort = controller;
+    setOrbState('thinking');
+    const say = reply => { if (orbReply) orbReply.textContent = reply; };
+    const fail = reply => {
+      say(reply); setOrbState('error');
+      orbErrorTimer = setTimeout(() => { if (requestId === orbRequest) setOrbState('idle'); }, 1600);
+      return { ok: false, reply };
+    };
+    if (!text || text.length > 500) return fail('Enter a request of 1–500 characters.');
+    say('Finding a safe destination…');
+    let intent = { operation: 'find', query: text }, fallback = false;
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    try {
+      const provider = globalThis.MemoryAI?.getActiveProvider?.();
+      if (!provider?.local || provider.kind !== 'openai-compatible') throw new Error('Local interpreter unavailable');
+      const result = await globalThis.MemoryAI.generate({
+        signal: controller.signal, context: '', history: [],
+        message: 'Interpret a read-only navigation request. Return ONLY JSON with exactly operation (find, guide, or open), query (a short node label, retaining app qualifiers), and reply (short text). Never return IDs, tools, actions, or commands. For unsupported write requests return operation "unsupported". Gmail is labelled EMAIL. Request: ' + JSON.stringify(text)
+      });
+      if (requestId !== orbRequest) return { ok: false, stale: true };
+      let parsed;
+      try { parsed = JSON.parse(result.reply); } catch { return fail('Invalid interpreter response. Try a direct node label.'); }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
+          Object.keys(parsed).sort().join(',') !== 'operation,query,reply' ||
+          !['find', 'guide', 'open'].includes(parsed.operation) ||
+          typeof parsed.query !== 'string' || !parsed.query.trim() || parsed.query.length > 160 ||
+          typeof parsed.reply !== 'string' || parsed.reply.length > 240) {
+        return fail('Unsupported interpreter response. No action taken.');
+      }
+      intent = parsed;
+    } catch {
+      if (requestId !== orbRequest) return { ok: false, stale: true };
+      fallback = true;
+    } finally { clearTimeout(timeout); }
+    if (requestId !== orbRequest) return { ok: false, stale: true };
+    // Only renderer-owned search may supply an ID. Model reply is never executed.
+    const target = orbSearch(intent.query)[0];
+    if (!target || !guideOrbTo(target.id)) return fail('No safe visible node matched. Try its label.');
+    const reply = `${fallback ? 'Local AI unavailable. ' : ''}Guiding to ${target.label}.${intent.operation === 'open' ? ' Opening is disabled; guidance only.' : ''}`;
+    say(reply);
+    return { ok: true, targetId: target.id, fallback, reply };
+  }
+
+  // Positive type allowlist plus an action veto. Never dispatch or expand nodes.
+  function orbSafeNode(id) {
+    return graph?.nodes.find(node => String(node.id) === String(id) && !node.hidden &&
+      !node.action && ['space', 'memory', 'control'].includes(node.kind)) || null;
+  }
+
+  function orbSearch(query) {
+    const text = String(query || '').trim().toLowerCase();
+    if (!text || !graph) return [];
+    const matches = node => {
+      const labels = [String(node.label || node.name || '')];
+      const seen = new Set([node.id]);
+      let parent = graph.nodes.find(item => item.id === node.parentId);
+      while (parent && !seen.has(parent.id)) {
+        seen.add(parent.id); labels.push(String(parent.label || parent.name || ''));
+        parent = graph.nodes.find(item => item.id === parent.parentId);
+      }
+      const path = labels.join(' ').toLowerCase();
+      return text.split(/\s+/).every(word => path.includes(word));
+    };
+    return graph.nodes.filter(node => orbSafeNode(node.id) && matches(node))
+      .sort((a, b) => Number(String(b.label || b.name).toLowerCase() === text) -
+        Number(String(a.label || a.name).toLowerCase() === text) || String(a.id).localeCompare(String(b.id)))
+      .slice(0, 10).map(node => ({ id: String(node.id), label: String(node.label || node.name || '') }));
+  }
+
+  function cancelOrbGuide() {
+    clearTimeout(orbGuide.timer);
+    orbGuide.id = null; orbGuide.arrived = 0;
+  }
+
+  function guideOrbTo(id) {
+    const node = orbSafeNode(id);
+    if (!node) return false;
+    cancelOrbGuide();
+    orbGuide.id = String(node.id);
+    orbGuide.start = performance.now();
+    orbGuide.from = orbGuide.position;
+    orb.state = 'guiding';
+    focusPresentationNode(node, { animate: !orbMotion.matches });
+    orbGuide.timer = setTimeout(() => {
+      if (!orbSafeNode(orbGuide.id)) { cancelOrbGuide(); orb.state = 'idle'; drawGraph(); return; }
+      orb.state = 'arrived'; orbGuide.arrived = performance.now();
+      drawGraph();
+      orbGuide.timer = setTimeout(() => {
+        cancelOrbGuide(); orb.state = 'idle'; drawGraph();
+      }, 1200);
+    }, orbMotion.matches ? 0 : 1000);
+    drawGraph();
+    return true;
+  }
+
+  function setOrbState(state) {
+    if (!orbStates.includes(state)) return false;
+    cancelOrbGuide();
+    orb.state = state;
+    drawGraph();
+    return true;
+  }
+
+  function setOrbAmplitude(value) {
+    const amplitude = Number(value);
+    if (!Number.isFinite(amplitude)) return false;
+    orb.amplitude = Math.max(0, Math.min(1, amplitude));
+    drawGraph();
+    return true;
+  }
+
+  function orbLowDetail() {
+    return (graph?.width || innerWidth) < 640 || (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4;
+  }
+
+  function drawOrb() {
+    if (!document.body.classList.contains('molecular-view-active')) return;
+    const low = orbLowDetail(), t = orbMotion.matches ? 0 : orb.time;
+    const radius = Math.min(low ? 64 : 108, graph.width * .16, graph.height * .20);
+    let x = orbGuide.position?.x ?? graph.width - radius - 24;
+    let y = orbGuide.position?.y ?? radius + 72;
+    if (orbGuide.id) {
+      const target = orbSafeNode(orbGuide.id);
+      if (!target) { cancelOrbGuide(); orb.state = 'idle'; }
+      else {
+        const p = projectPresentationNode(target);
+        const from = orbGuide.from || { x, y };
+        const progress = orbMotion.matches ? 1 : Math.min(1, (performance.now() - orbGuide.start) / 1000);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        x = from.x + (p.screenX + p.screenRadius + radius + 16 - from.x) * eased;
+        y = from.y + (p.screenY - from.y) * eased;
+        context.save();
+        context.strokeStyle = '#7dff41'; context.lineWidth = 2;
+        const pulse = orbGuide.arrived && !orbMotion.matches ? Math.min(1, (performance.now() - orbGuide.arrived) / 1200) : 0;
+        context.globalAlpha = 1 - pulse * .8;
+        context.beginPath(); context.arc(p.screenX, p.screenY, p.screenRadius + 10 + pulse * 24, 0, Math.PI * 2); context.stroke();
+        context.restore();
+      }
+    }
+    orbGuide.position = { x, y };
+    if (!orbGuide.id) y += Math.sin(t * .6) * 3;
+    drawOrbWaveform(x, y, radius, t, low);
+  }
+
+  // Visual signal boundary: a future audio analyser can feed the existing
+  // setOrbAmplitude(0..1) API. Geometry consumes only this bounded envelope.
+  function orbVisualSignal(t) {
+    if (orb.visualState !== orb.state) {
+      orb.visualState = orb.state;
+      orb.visualSince = t;
+    }
+    const age = t - orb.visualSince;
+    const speech = orb.state === 'speaking' ? orb.amplitude : 0;
+    const pulse = orb.state === 'arrived' ? Math.exp(-age * 3) * Math.sin(Math.min(1, age * 2) * Math.PI) : 0;
+    const fault = orb.state === 'error' ? Math.exp(-age * 4) : 0;
+    return {
+      speech, pulse, fault, age,
+      energy: ({ idle: .16, listening: .36, thinking: .65, guiding: .42, arrived: .4, error: .2, speaking: .3 }[orb.state]) + speech * .65 + pulse * .4,
+      strength: ({ idle: .032, listening: .052, thinking: .083, guiding: .06, arrived: .035, error: .032, speaking: .04 }[orb.state]) + speech * .15,
+      speed: orb.state === 'thinking' ? 2.1 : orb.state === 'speaking' ? 1.65 : orb.state === 'listening' ? 1.05 : .65
+    };
+  }
+
+  function drawOrbWaveform(x, y, radius, t, low) {
+    const signal = orbVisualSignal(t), tau = Math.PI * 2;
+    const phase = t * signal.speed;
+    const rotation = t * .105, cr = Math.cos(rotation), sr = Math.sin(rotation);
+    const direction = orbGuide.from ? Math.atan2(y - orbGuide.from.y, x - orbGuide.from.x) : -.3;
+    const dx = Math.cos(direction), dy = Math.sin(direction);
+    // Every mesh vertex samples the same continuous travelling field. Cartesian
+    // harmonics close the longitude seam and remain continuous at both poles.
+    const point = (lat, lon, shell = 1) => {
+      const px = Math.sin(lat) * Math.cos(lon), py = Math.cos(lat), pz = Math.sin(lat) * Math.sin(lon);
+      const wave = .48 * Math.sin(py * 9 + px * 3 - phase * 2.4)
+        + .32 * Math.sin(pz * 8 - py * 4 + phase * 1.7)
+        + .20 * Math.sin(px * 12 + pz * 5 - phase * 3.1);
+      const voice = Math.sin(py * 17 + pz * 5 - t * 7.5) * Math.sin(px * 6 - pz * 4 + t * 2.3);
+      const r = shell * (1 + .012 * Math.sin(t * .8) + signal.strength * wave
+        + signal.speech * .045 * voice + signal.pulse * .12
+        + signal.fault * .065 * Math.sin(py * 31 + px * 19 - t * 19));
+      const rx = px * cr + pz * sr, rz = pz * cr - px * sr;
+      const yy = py * .94 - rz * .342, z = py * .342 + rz * .94;
+      const stretch = orb.state === 'guiding' ? .075 * (rx * dx + yy * dy) : 0;
+      const perspective = 3.8 / (3.8 - z * .35);
+      return { x: (rx + dx * stretch) * radius * r * perspective,
+        y: (yy + dy * stretch) * radius * r * perspective, z, wave };
+    };
+    // Batch paths by depth and colour: thousands of fine segments, few strokes.
+    const mesh = Array.from({ length: 8 }, () => new Path2D());
+    const bands = Array.from({ length: 8 }, () => new Path2D());
+    const segment = (paths, a, b, green) => {
+      const depth = Math.max(0, Math.min(3, Math.floor(((a.z + b.z) * .25 + .5) * 4)));
+      const path = paths[depth * 2 + Number(green)];
+      path.moveTo(a.x, a.y); path.lineTo(b.x, b.y);
+    };
+    const steps = low ? 72 : 128, rings = low ? 24 : 46, meridians = low ? 32 : 64;
+    for (let family = 0; family < 2; family++) {
+      const count = family ? meridians : rings;
+      for (let line = 0; line < count; line++) {
+        let previous;
+        for (let step = 0; step <= steps; step++) {
+          const lat = family ? step / steps * Math.PI : (line + 1) / (rings + 1) * Math.PI;
+          const lon = family ? line / meridians * tau : step / steps * tau;
+          const p = point(lat, lon);
+          if (previous) segment(mesh, previous, p, !family && Math.sin(lat * 6 + phase * .7) > .1);
+          previous = p;
+        }
+      }
+    }
+    // Six ribbon bundles wrap the surface; each fine strand follows the mesh's
+    // displacement, with extra speech modulation travelling along the ribbon.
+    for (let band = 0; band < 6; band++) {
+      for (let strand = -2; strand <= 2; strand++) {
+        let previous;
+        for (let step = 0; step <= steps; step++) {
+          const lon = step / steps * tau;
+          const lat = .38 + band * .47 + strand * .014
+            + (.09 + signal.speech * .055) * Math.sin(lon * 3 + phase * 1.2 + band * .9)
+            + .035 * Math.sin(lon * 7 - phase * 2 + band);
+          const p = point(lat, lon, 1.009);
+          if (previous) segment(bands, previous, p, band % 3 !== 1);
+          previous = p;
+        }
+      }
+    }
+    context.save();
+    try {
+      context.translate(x, y);
+      context.globalAlpha = 1;
+      context.globalCompositeOperation = 'source-over';
+      context.shadowBlur = 0;
+      context.setLineDash([]);
+      const core = context.createRadialGradient(-radius * .18, -radius * .12, 0, 0, 0, radius * 1.1);
+      core.addColorStop(0, 'rgba(0,42,81,.16)');
+      core.addColorStop(.72, 'rgba(0,13,27,.3)');
+      core.addColorStop(1, 'rgba(0,8,16,0)');
+      context.fillStyle = core;
+      context.beginPath(); context.arc(0, 0, radius * 1.1, 0, tau); context.fill();
+      context.globalCompositeOperation = 'lighter';
+      for (let depth = 0; depth < 4; depth++) {
+        for (let green = 0; green < 2; green++) {
+          const color = green ? '125,255,65' : '24,151,255';
+          const alpha = [.055, .12, .36, .65][depth] * (.8 + signal.energy * .45);
+          context.strokeStyle = `rgba(${color},${alpha})`;
+          context.lineWidth = low ? .5 : .55;
+          context.stroke(mesh[depth * 2 + green]);
+          // A narrow bloom beneath an exact filament, never full-sphere blur.
+          context.strokeStyle = `rgba(${color},${alpha * .16})`;
+          context.lineWidth = 3.2 + signal.speech;
+          context.stroke(bands[depth * 2 + green]);
+          context.strokeStyle = `rgba(${green ? '153,255,100' : '67,191,255'},${Math.min(.95, alpha * 1.5)})`;
+          context.lineWidth = .7 + signal.speech * .3;
+          context.stroke(bands[depth * 2 + green]);
+        }
+      }
+      // Sparse tilted orbital fragments and outward state ripples.
+      for (let ring = 0; ring < 3; ring++) {
+        const listening = orb.state === 'listening' ? (t * .35 + ring / 3) % 1 : 0;
+        const r = radius * (1.17 + ring * .08 + listening * .2 + signal.pulse * .18);
+        context.strokeStyle = `rgba(${ring === 1 ? '125,255,65' : '30,154,255'},${(.1 + signal.energy * .09) * (1 - listening)})`;
+        context.lineWidth = .55;
+        context.beginPath();
+        context.ellipse(0, 0, r, r * (.80 + ring * .06), -.4 + ring * .6, t * .12 + ring * 2, t * .12 + ring * 2 + 3.9);
+        context.stroke();
+      }
+      for (let i = 0; i < (low ? 14 : 30); i++) {
+        const lon = i * 2.39996 + t * .07;
+        const p = point(Math.acos(1 - 2 * (i + .5) / (low ? 14 : 30)), lon, 1.12 + .06 * Math.sin(i * 7));
+        context.fillStyle = `rgba(${i % 3 ? '50,169,255' : '150,255,92'},${(.2 + .45 * Math.max(0, p.z)) * (.6 + signal.energy * .4)})`;
+        context.beginPath(); context.arc(p.x, p.y, p.z > .3 ? 1.1 : .65, 0, tau); context.fill();
+      }
+      context.globalCompositeOperation = 'source-over';
+      context.fillStyle = signal.fault > .1 ? '#ffac88' : '#a3e9df';
+      context.font = '11px system-ui, sans-serif'; context.textAlign = 'center';
+      context.fillText(`Orb · ${orb.state}`, 0, radius * 1.38 + 14);
+    } finally {
+      context.restore();
+      // Canvas paths are not part of save/restore; discard our final arc too.
+      context.beginPath();
+    }
+  }
+
+  function mountOrb() {
+    if (orb.mounted) return;
+    orb.mounted = true;
+    const controls = document.createElement('details');
+    controls.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:55;padding:8px;border:1px solid #286359;border-radius:8px;background:#07131de8;color:#a3e9df;font:12px system-ui;max-width:220px';
+    controls.innerHTML = '<summary>Orb dev · simulated</summary><label>State <select aria-label="Orb state">' + orbStates.map(state => `<option>${state}</option>`).join('') + '</select></label><br><label>Speaking amplitude <input aria-label="Orb simulated amplitude" type="range" min="0" max="1" step="0.05" value="0.5"></label>';
+    controls.querySelector('select').addEventListener('change', event => setOrbState(event.target.value));
+    controls.querySelector('input').addEventListener('input', event => setOrbAmplitude(event.target.value));
+    const search = document.createElement('input');
+    search.type = 'search'; search.placeholder = 'Node label'; search.setAttribute('aria-label', 'Orb node search');
+    const guide = document.createElement('button');
+    guide.textContent = 'Guide to first match'; guide.type = 'button';
+    const result = document.createElement('output'); result.setAttribute('aria-live', 'polite');
+    guide.addEventListener('click', () => {
+      const first = orbSearch(search.value)[0];
+      result.textContent = first && guideOrbTo(first.id) ? `Guiding: ${first.label}` : 'No safe visible match';
+    });
+    controls.append(document.createElement('br'), search, guide, result);
+    const request = document.createElement('input');
+    request.placeholder = 'Where is Code Space?'; request.maxLength = 500;
+    request.setAttribute('aria-label', 'Ask Orb');
+    const submit = document.createElement('button'); submit.type = 'button'; submit.textContent = 'Ask Orb';
+    orbReply = document.createElement('output'); orbReply.setAttribute('aria-live', 'polite');
+    const ask = () => askOrb(request.value);
+    submit.addEventListener('click', ask);
+    request.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); ask(); } });
+    controls.append(document.createElement('br'), request, submit, orbReply);
+    document.body.appendChild(controls);
+    const visible = () => document.body.classList.contains('molecular-view-active') && !document.hidden;
+    const animate = now => {
+      orb.frame = 0;
+      if (!visible() || orbMotion.matches) { orb.last = 0; return; }
+      if (!orb.last || now - orb.last >= (orbLowDetail() ? 66 : 33)) {
+        orb.time += orb.last ? Math.min(.1, (now - orb.last) / 1000) : 0;
+        orb.last = now;
+        // Drawing only; the existing simulation remains responsible for physics.
+        if (!animationFrame && !viewTransitionFrame) drawGraph();
+      }
+      orb.frame = requestAnimationFrame(animate);
+    };
+    const sync = () => {
+      controls.hidden = !visible();
+      cancelAnimationFrame(orb.frame); orb.frame = 0; orb.last = 0;
+      drawGraph();
+      if (visible() && !orbMotion.matches) orb.frame = requestAnimationFrame(animate);
+    };
+    new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    orbMotion.addEventListener('change', sync);
+    document.addEventListener('visibilitychange', sync);
+    sync();
+  }
   const view = {
     x: 0,
     y: 0,
@@ -850,6 +1194,7 @@
     }
 
     context.restore();
+    drawOrb();
     surface?.dispatchEvent(new CustomEvent('memory-graph-drawn'));
   }
 
@@ -1959,11 +2304,18 @@
     workspaceObserver?.disconnect();
     observeWorkspaceUi();
     resizeCanvas();
+    mountOrb();
     return true;
   }
 
   globalThis.MemoryGraph = Object.freeze({
     version: VERSION,
+    setOrbState,
+    setOrbAmplitude,
+    orbSearch,
+    askOrb,
+    guideOrbTo,
+    orbGuidanceState: () => ({ state: orb.state, targetId: orbGuide.id, position: orbGuide.position && { ...orbGuide.position } }),
     mount,
     refresh,
     redraw: drawGraph,
