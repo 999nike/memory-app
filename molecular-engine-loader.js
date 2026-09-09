@@ -25,6 +25,7 @@
       './memory-graph-manual-gravity.js?v=2',
       './memory-graph-orb-matrix-guard.js?v=1',
       './memory-graph.js?v=6',
+      './memory-graph-folder-startup-settle.js?v=1',
       './memory-graph-nebula.js?v=1'
     ];
   for (const src of scripts) document.write(`<script src="${src}" defer><\/script>`);
