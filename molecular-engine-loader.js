@@ -23,6 +23,7 @@
       './memory-graph-neural-scaffold.js?v=2',
       './memory-graph-neural-flow.js?v=2',
       './memory-graph-manual-gravity.js?v=2',
+      './memory-graph-orb-matrix-guard.js?v=1',
       './memory-graph.js?v=6',
       './memory-graph-nebula.js?v=1'
     ];
