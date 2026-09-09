@@ -51,13 +51,13 @@
   const orbStates = ['idle', 'listening', 'thinking', 'speaking', 'guiding', 'arrived', 'error'];
   const orbMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const orb = { state: 'idle', amplitude: 0.5, time: 0, last: 0, frame: 0, mounted: false };
-  const orbGuide = { id: null, start: 0, from: null, position: null, timer: 0, arrived: 0, phase: null, viewFrom: null };
+  const orbGuide = { id: null, start: 0, from: null, position: null, timer: 0, arrived: 0, phase: null, viewFrom: null, spatialOwned: false };
   let orbRequest = 0, orbAbort = null, orbReply = null, orbErrorTimer = 0;
 
   const orbVoice = { recognition: null, speaking: false, utterance: null, token: 0, button: null };
 
   function restoreOrbVoiceState() {
-    orb.state = orbGuide.id ? (orbGuide.phase === 'arrived' ? 'arrived'
+    orb.state = orbVoice.speaking ? 'speaking' : orbGuide.id ? (orbGuide.phase === 'arrived' ? 'arrived'
       : orbGuide.phase === 'lock' ? 'thinking' : 'guiding') : 'idle';
     drawGraph();
   }
@@ -109,7 +109,7 @@
       cancelOrbGuide();
       let recognition;
       try { recognition = new Recognition(); } catch {
-        orbReply.textContent = 'Microphone unavailable. Type your request instead.'; return;
+        orbReply.textContent = 'Microphone unavailable. Type your request instead.'; restoreOrbVoiceState(); return;
       }
       orbVoice.recognition = recognition;
       recognition.lang = document.documentElement.lang || navigator.language || 'en-GB';
@@ -191,7 +191,7 @@
     if (requestId !== orbRequest) return { ok: false, stale: true };
     // Only renderer-owned search may supply an ID. Model reply is never executed.
     const target = orbSearch(intent.query)[0];
-    if (!target || !guideOrbTo(target.id)) return fail('No safe visible node matched. Try its label.');
+    if (!target || !guideOrbTo(target.id, requestId)) return fail('No safe visible node matched. Try its label.');
     const reply = `${fallback ? 'Local AI unavailable. ' : ''}Guiding to ${target.label}.${intent.operation === 'open' ? ' Opening is disabled; guidance only.' : ''}`;
     say(reply);
     speakOrbReply(reply, requestId);
@@ -229,8 +229,26 @@
     return t * t * t * (t * (t * 6 - 15) + 10);
   };
 
-  function cancelOrbGuide() {
-    clearTimeout(orbGuide.timer);
+  function resetOrbSpatial(node = orbSafeNode(orbGuide.id)) {
+    if (!orbGuide.spatialOwned) return;
+    const projected = node && projectPresentationNode(node);
+    // Same underlying reset as Escape; completion is not a manual takeover.
+    rotationApi()?.reset?.({ manual: false });
+    orbGuide.spatialOwned = false;
+    syncRotationState();
+    if (node && projected) {
+      focusedNodeId = node.id;
+      focusPresentationNode(node, {
+        redraw: false, exactScale: view.scale,
+        screenX: projected.screenX, screenY: projected.screenY
+      });
+    }
+  }
+
+  function cancelOrbGuide(preserveSpatial = false) {
+    clearTimeout(orbGuide.timer); orbGuide.timer = 0;
+    if (!preserveSpatial) resetOrbSpatial();
+    orbGuide.spatialOwned = false;
     rotationApi()?.cancelCinematic?.();
     if (orbGuide.phase) stopViewTransition();
     orbGuide.id = null; orbGuide.arrived = 0;
@@ -241,18 +259,23 @@
   }
 
   globalThis.addEventListener('orb-spatial-takeover', () => {
-    if (!orbGuide.id) return;
+    ++orbRequest; orbAbort?.abort(); clearTimeout(orbErrorTimer);
     stopOrbVoice();
-    cancelOrbGuide();
+    cancelOrbGuide(true);
     orb.state = 'idle';
   });
 
-  function guideOrbTo(id) {
+  function guideOrbTo(id, requestId = null) {
+    if (requestId !== null && requestId !== orbRequest) return false;
     const node = orbSafeNode(id);
     if (!node) return false;
+    if (requestId === null) {
+      ++orbRequest; orbAbort?.abort(); clearTimeout(orbErrorTimer); stopOrbVoice();
+    }
     cancelOrbGuide();
     stopViewTransition();
     orbGuide.id = String(node.id);
+    focusedNodeId = node.id;
     orbGuide.start = performance.now();
     orbGuide.from = orbGuide.position && { ...orbGuide.position };
     orbGuide.phase = orbMotion.matches ? 'arrived' : 'outbound';
@@ -261,7 +284,7 @@
       focusPresentationNode(node, { animate: false });
       orb.state = 'arrived'; orbGuide.arrived = performance.now();
       orbGuide.timer = setTimeout(() => {
-        cancelOrbGuide(); orb.state = 'idle'; drawGraph();
+        cancelOrbGuide(); restoreOrbVoiceState();
       }, 1000);
     }
     drawGraph();
@@ -284,10 +307,14 @@
       orbGuide.from = orbGuide.position && { ...orbGuide.position };
       if (orbGuide.phase === 'cinematic') {
         orbGuide.viewFrom = { ...view };
-        rotationApi()?.beginCinematic?.(node, graph);
+        orbGuide.spatialOwned = rotationApi()?.beginCinematic?.(node, graph) === true;
       }
       if (orbGuide.phase === 'arrived') orbGuide.arrived = now;
-      if (orbGuide.phase === 'return') { orbGuide.id = null; orbGuide.arrived = 0; }
+      if (orbGuide.phase === 'return') {
+        resetOrbSpatial(node);
+        orbGuide.id = null; orbGuide.arrived = 0;
+        orbGuide.viewFrom = null; orbGuide.midpoint = null;
+      }
     }
     if (orbGuide.phase === 'cinematic') {
       const progress = clamp((now - orbGuide.start) / 3100, 0, 1);
@@ -332,12 +359,18 @@
     if (!document.body.classList.contains('molecular-view-active')) return;
     orb.syncPresentation?.();
     const low = orbLowDetail(), t = orbMotion.matches ? 0 : orb.time;
-    const radius = Math.min(low ? 64 : 112, graph.width * .16, graph.height * .20);
-    // Outer filaments reach 1.33 radii: 112 gives a ~298px desktop presence.
+    const radius = Math.min(graph.width < 640 ? 64 : 146, graph.width * .18, graph.height * .24);
+    // Give the luminous body ~292px desktop presence; outer filaments stay fine.
     const margin = radius * 1.4 + 8;
     const boundX = value => clamp(value, Math.min(margin, graph.width / 2), Math.max(graph.width / 2, graph.width - margin));
-    const boundY = value => clamp(value, Math.min(margin + (low ? 116 : 76), graph.height / 2), Math.max(graph.height / 2, graph.height - margin - 20));
-    const home = { x: boundX(graph.width - margin - 16), y: boundY(margin + 72) };
+    const boundY = value => clamp(value, Math.min(margin + (graph.width < 640 ? 116 : 24), graph.height / 2), Math.max(graph.height / 2, graph.height - margin - 20));
+    const home = { x: boundX(graph.width - margin - 16), y: boundY(margin + 24) };
+    if (orb.card && graph.width >= 640 && canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const top = Math.min(rect.top + home.y + radius * 1.4 + 28, innerHeight - 170);
+      orb.card.style.setProperty('--orb-panel-top', Math.max(90, top) + 'px');
+      orb.card.style.setProperty('--orb-panel-right', Math.max(16, innerWidth - rect.left - home.x - 170) + 'px');
+    }
     let { x, y } = orbGuide.position || home;
     const now = performance.now();
     const from = orbGuide.from || home;
@@ -390,6 +423,7 @@
       mix(home, progress);
       if (progress >= 1) {
         orbGuide.phase = null; orbGuide.from = null; orbGuide.position = null;
+        orbGuide.start = 0; orbGuide.viewFrom = null; orbGuide.midpoint = null;
       }
     } else {
       x = home.x; y = home.y;
@@ -408,14 +442,14 @@
       orb.visualSince = t;
     }
     const age = Math.max(0, t - orb.visualSince);
-    const speech = orb.state === 'speaking' ? orb.amplitude * (orbVoice.speaking ? .35 + .65 * Math.pow(Math.sin(t * 8.3) * Math.cos(t * 3.7), 2) : 1) : 0;
+    const speech = orb.state === 'speaking' ? orb.amplitude * (orbVoice.speaking ? .6 + .4 * Math.pow(Math.sin(t * 8.3) * Math.cos(t * 3.7), 2) : 1) : 0;
     const pulse = orb.state === 'arrived' ? Math.exp(-age * 3) * Math.sin(Math.min(1, age * 2) * Math.PI) : 0;
     const fault = orb.state === 'error' ? Math.exp(-age * 4) : 0;
     return {
       speech, pulse, fault, age,
       energy: (orbGuide.phase === 'lock' ? .35 * Math.sin(clamp((performance.now() - orbGuide.start) / 500, 0, 1) * Math.PI) : 0) + ({ idle: .16, listening: .36, thinking: .65, guiding: .42, arrived: .4, error: .2, speaking: .3 }[orb.state]) + speech * .65 + pulse * .4,
-      strength: ({ idle: .032, listening: .052, thinking: .083, guiding: .06, arrived: .035, error: .032, speaking: .04 }[orb.state]) + speech * .15,
-      speed: orb.state === 'thinking' ? 2.1 : orb.state === 'speaking' ? 1.65 : orb.state === 'listening' ? 1.05 : .65
+      strength: ({ idle: .032, listening: .052, thinking: .083, guiding: .06, arrived: .035, error: .032, speaking: .04 }[orb.state]) + speech * .23,
+      speed: orb.state === 'thinking' ? 2.1 : orb.state === 'speaking' ? 2.05 : orb.state === 'listening' ? 1.05 : .65
     };
   }
 
@@ -434,7 +468,7 @@
         + .20 * Math.sin(px * 12 + pz * 5 - phase * 3.1);
       const voice = Math.sin(py * 17 + pz * 5 - t * 7.5) * Math.sin(px * 6 - pz * 4 + t * 2.3);
       const r = shell * (1 + .012 * Math.sin(t * .8) + signal.strength * wave
-        + signal.speech * .045 * voice + signal.pulse * .12
+        + signal.speech * .075 * voice + signal.pulse * .12
         + signal.fault * .065 * Math.sin(py * 31 + px * 19 - t * 19));
       const rx = px * cr + pz * sr, rz = pz * cr - px * sr;
       const yy = py * .94 - rz * .342, z = py * .342 + rz * .94;
@@ -560,6 +594,7 @@
     orb.mounted = true;
     const card = document.createElement('details');
     card.className = 'orb-card';
+    orb.card = card;
     card.open = !matchMedia('(max-width: 800px)').matches;
     card.innerHTML = '<summary><span class="orb-equaliser" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="orb-card-heading"><strong data-orb-state>Ready</strong><small>Orb &middot; Resident guide</small></span><span class="orb-card-chevron" aria-hidden="true">⌃</span></summary><div class="orb-card-content"><form class="orb-request-form"><label class="orb-input-label" for="orbRequestInput">Ask Orb</label><div class="orb-input-row"><input id="orbRequestInput" aria-label="Ask Orb" placeholder="Where would you like to go?" maxlength="500" autocomplete="off"><button type="submit" aria-label="Send request to Orb">Ask <span aria-hidden="true">↗</span></button></div></form></div>';
     const content = card.querySelector('.orb-card-content');
@@ -781,7 +816,8 @@
     for (const node of graph.nodes) {
       if (!node.fixed) containNode(node);
     }
-    restoreSavedView(savedState?.view, width, height);
+    const restored = restoreSavedView(savedState?.view, width, height);
+    if (!previousSpaceId && (!restored || Math.abs(view.scale - 1) < .01)) frameUniverse();
     if (count) count.textContent = String(graph.memoryNodes.length + 1);
     simulationFrames = 0;
 
@@ -1936,6 +1972,21 @@
     return clusterNodes;
   }
 
+  function frameUniverse() {
+    if (!graph || graph.width <= 800) return;
+    const nodes = graph.nodes.filter(node => !node.hidden && Number.isFinite(node.x) && Number.isFinite(node.y));
+    if (!nodes.length) return;
+    const left = Math.min(...nodes.map(node => node.x - (node.radius || 16) - 24));
+    const right = Math.max(...nodes.map(node => node.x + (node.radius || 16) + 24));
+    const top = Math.min(...nodes.map(node => node.y - (node.radius || 16) - 24));
+    const bottom = Math.max(...nodes.map(node => node.y + (node.radius || 16) + 24));
+    const availableWidth = Math.max(graph.width * .6, graph.width - 370);
+    view.scale = clamp(Math.min(availableWidth / Math.max(1, right - left),
+      graph.height * .8 / Math.max(1, bottom - top)), MIN_SCALE, 1.65);
+    view.x = availableWidth / 2 + 24 - (left + right) / 2 * view.scale;
+    view.y = graph.height * .54 - (top + bottom) / 2 * view.scale;
+  }
+
   function restoreSavedView(savedView, width, height) {
     if (!savedView) return false;
 
@@ -2452,7 +2503,7 @@
     const target = {
       scale,
       x: (options.screenX ?? graph.width / 2) - projected.x * scale,
-      y: graph.height / 2 - projected.y * scale
+      y: (options.screenY ?? graph.height / 2) - projected.y * scale
     };
     if (options.animate) transitionView(target, true);
     else {
@@ -2517,6 +2568,7 @@
     focusedNodeId = null;
     rotationApi()?.reset?.();
     syncRotationState();
+    frameUniverse();
   }
 
   function clamp(value, min, max) {

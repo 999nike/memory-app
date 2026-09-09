@@ -122,8 +122,8 @@
     state.touchRotating = false;
   }
 
-  function reset() {
-    cancelCinematic(true);
+  function reset(options = {}) {
+    cancelCinematic(options.manual !== false);
     spatialBlend = 1;
     state.yaw = 0;
     state.pitch = 0;

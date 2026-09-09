@@ -307,7 +307,7 @@ body.molecular-view-active:has(.app-shell.detail-open) .orb-card { visibility: h
 
 /* Resident interaction surface, independent of the travelling Orb. */
 .orb-card, .universe-stats { position: fixed; z-index: 32; border: 1px solid rgb(76 152 190 / .3); border-radius: 18px; background: linear-gradient(125deg, rgb(9 24 36 / .93), rgb(5 13 21 / .94)); color: #d4e7f3; box-shadow: 0 16px 48px rgb(0 0 0 / .3), inset 0 1px 0 rgb(182 225 255 / .035); backdrop-filter: blur(18px); }
-.orb-card { right: 24px; bottom: max(24px, env(safe-area-inset-bottom)); width: 330px; max-height: min(65dvh, 560px); overflow: auto; }
+.orb-card { right: var(--orb-panel-right, 24px); top: var(--orb-panel-top, 54dvh); bottom: auto; width: 340px; max-height: min(400px, calc(100dvh - var(--orb-panel-top, 54dvh) - 20px)); overflow: auto; }
 .orb-card[hidden], .universe-stats[hidden] { display: none; }
 .orb-card > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 15px; padding: 18px 20px; }
 .orb-card > summary::-webkit-details-marker, .universe-stats > summary::-webkit-details-marker { display: none; }
@@ -357,7 +357,7 @@ body.molecular-view-active:has(.app-shell.detail-open) .orb-card { visibility: h
   body.molecular-view-active #memoryGraphSurface .memory-graph-control-rack { top: 77px; right: 12px; padding: 3px; gap: 4px; }
   body.molecular-view-active #memoryGraphSurface .memory-graph-control-rack button { width: 29px; height: 29px; min-width: 29px; }
   body.molecular-view-active #memoryGraphSurface .memory-graph-group-inspector { top: 126px; }
-  .orb-card { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: min(330px, calc(100vw - 24px)); max-height: 48dvh; border-radius: 15px; }
+  .orb-card { top: auto; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: min(330px, calc(100vw - 24px)); max-height: 48dvh; border-radius: 15px; }
   .orb-card:not([open]) { width: 176px; }.orb-card > summary { padding: 12px 15px; gap: 11px; }.orb-card-heading strong { font-size: 13px; }.orb-card-heading small { font-size: 9px; }
   .orb-card-content { padding: 0 15px 12px; }.orb-input-row input { font-size: 16px; padding: 9px; }.orb-input-row button { font-size: 12px; }
   .universe-stats { left: 12px; bottom: max(12px, env(safe-area-inset-bottom)); min-width: 115px; font-size: 10px; }
