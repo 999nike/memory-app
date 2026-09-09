@@ -1,116 +1,23 @@
 (() => {
   'use strict';
 
-  const VERSION = 11;
-  const WORKSPACE_KEY = 'memory-space-v1';
+  const VERSION = 12;
   const GROUP_KEY = 'memory-graph-folders-v1';
-  const PHYSICS_INTERVAL_MS = 14;
-  const SETTLED_SPEED = 0.035;
+  const GROUP_PREFIX = 'manual-group:';
   const PERSIST_DELAY_MS = 420;
-  const OVERLAY_FRAME_MS = 40;
-  const DRAG_OVERLAY_FRAME_MS = 28;
-  const MIN_GRAPH_SCALE = 0.45;
   const GROUP_DRAG_THRESHOLD = 6;
 
   const baseRotation = globalThis.MemoryGraphRotation || null;
   if (!baseRotation || baseRotation.__manualGravityPhysicsWrapped) return;
 
   let lastGraph = null;
-  let lastMatrix = null;
-  let pendingLabelMemoryId = null;
-  let lastPhysicsAt = 0;
-  let physicsFrameLocked = false;
-  let physicsAwake = false;
-  let groupProjectionDirty = true;
-  let persistTimer = 0;
-  let redrawFrame = 0;
-  let overlayCanvas = null;
-  let overlayContext = null;
-  let bodyCanvas = null;
-  let bodyContext = null;
-  let overlayFrame = 0;
-  let lastOverlayPaint = 0;
-  let drag = null;
-  let memoryDrag = null;
-  let canvas = null;
   let surface = null;
-  let startupOverlayLogged = false;
-  let startupGroupResetDiagnostics = false;
-  let startupGroupOverlayDiagnosticPending = false;
-
-  const bodies = new Map();
-  const projectedMemories = new Map();
-  const projectedGroups = new Map();
-
-  function startupLog(stage, detail = {}) {
-    console.log('[MemoryStartup]', stage, { at: Math.round(performance.now()), ...detail });
-  }
-
-  function groupSummary(groups) {
-    return groups.map((group) => ({
-      id: String(group?.id || ''),
-      title: String(group?.title || ''),
-      members: Array.isArray(group?.members) ? group.members.length : 0
-    }));
-  }
-
-  function startupGroupGeometry(groups) {
-    const overlayRect = overlayCanvas?.getBoundingClientRect?.() || null;
-    const surfaceRect = surface?.getBoundingClientRect?.() || null;
-    const bounds = overlayRect
-      ? { left: 0, top: 0, right: overlayRect.width, bottom: overlayRect.height, width: overlayRect.width, height: overlayRect.height }
-      : null;
-    return {
-      overlayBounds: bounds,
-      surfaceBounds: surfaceRect ? {
-        left: surfaceRect.left,
-        top: surfaceRect.top,
-        right: surfaceRect.right,
-        bottom: surfaceRect.bottom,
-        width: surfaceRect.width,
-        height: surfaceRect.height
-      } : null,
-      groups: groups.map((group) => {
-        const id = String(group?.id || '');
-        const body = bodies.get(id) || null;
-        const projected = projectedGroups.get(id) || null;
-        const screen = projected && lastMatrix ? worldToScreen(projected) : null;
-        const insideBounds = Boolean(
-          bounds && screen && Number.isFinite(screen.x) && Number.isFinite(screen.y) &&
-          screen.x >= bounds.left && screen.x <= bounds.right &&
-          screen.y >= bounds.top && screen.y <= bounds.bottom
-        );
-        return {
-          id,
-          title: String(group?.title || ''),
-          body: body ? { x: Number(body.x), y: Number(body.y) } : null,
-          projected: projected ? { x: Number(projected.x), y: Number(projected.y) } : null,
-          screen,
-          insideBounds
-        };
-      })
-    };
-  }
-
-  function flatStartupGroupDiagnostic(groups, detail = {}) {
-    const geometry = startupGroupGeometry(groups);
-    return JSON.stringify({
-      ...detail,
-      overlayBounds: geometry.overlayBounds,
-      surfaceBounds: geometry.surfaceBounds,
-      groups: geometry.groups.map((group) => ({
-        id: group.id,
-        title: group.title,
-        bodyX: group.body?.x ?? null,
-        bodyY: group.body?.y ?? null,
-        projectedX: group.projected?.x ?? null,
-        projectedY: group.projected?.y ?? null,
-        screenX: group.screen?.x ?? null,
-        screenY: group.screen?.y ?? null,
-        insideBounds: group.insideBounds
-      }))
-    });
-  }
+  let canvas = null;
+  let persistTimer = 0;
+  let lastScheduledSignature = '';
+  let memoryPointer = null;
+  let groupPointer = null;
+  const pendingReleaseIds = new Set();
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -128,55 +35,8 @@
     return groupsApi()?.groupForMemory?.(memoryId) || null;
   }
 
-  function wakePhysics() {
-    physicsAwake = true;
-  }
-
-  function detachMemory(memoryId) {
-    const changed = groupsApi()?.detachMemory?.(memoryId) === true;
-    if (changed) {
-      wakePhysics();
-      markGroupStructureChanged();
-    }
-    return changed;
-  }
-
-  function prepareGroupedMemoryRelease(memoryId) {
-    const id = String(memoryId || '');
-    const graph = lastGraph;
-    const group = groupForMemory(id);
-    const body = group ? bodies.get(String(group.id)) : null;
-    const node = graph?.memoryNodes?.find((item) => String(item.id) === id);
-    if (!id || !group || !body || !node) return false;
-
-    const satellite = satelliteWorld(node, group, body);
-    node.x = Number(satellite.x);
-    node.y = Number(satellite.y);
-    node.vx = 0;
-    node.vy = 0;
-    return true;
-  }
-
-  function addMemoryToGroup(memoryId, groupId) {
-    const changed = groupsApi()?.addMemoryToGroup?.(memoryId, groupId) === true;
-    if (changed) {
-      wakePhysics();
-      markGroupStructureChanged();
-    }
-    return changed;
-  }
-
-  function replaceGroups(groups) {
-    return groupsApi()?.replaceGroups?.(groups) === true;
-  }
-
-  function readWorkspace() {
-    try {
-      const value = JSON.parse(localStorage.getItem(WORKSPACE_KEY) || 'null');
-      return value && Array.isArray(value.spaces) && Array.isArray(value.memories) ? value : null;
-    } catch {
-      return null;
-    }
+  function canonicalGroupId(groupId) {
+    return `${GROUP_PREFIX}${String(groupId || '')}`;
   }
 
   function groupRadius(group) {
@@ -184,892 +44,444 @@
     return 35 + Math.min(21, Math.sqrt(count) * 7.2);
   }
 
-  // Match the compact direct-child geometry used by the canonical app solver.
-  // Folder size/member count remains an internal presentation concern.
-  function normalOrbit(graph, gravityWeight = 1) {
+  function groupOrbit(graph) {
     const parityOrbit = Number(graph?.memoryGroupOrbit);
     if (Number.isFinite(parityOrbit)) return parityOrbit;
     const minSide = Math.max(1, Math.min(Number(graph?.width || 1), Number(graph?.height || 1)));
-    const baseOrbit = Math.max(88, minSide * 0.27);
-    return Math.max(62, baseOrbit / Math.max(0.001, Number(gravityWeight || 1)));
+    return Math.max(72, minSide * 0.20);
   }
 
-  function bodyFromGroup(group, graph) {
-    const id = String(group.id);
-    let body = bodies.get(id);
-    const width = Math.max(1, Number(graph.width || 1));
-    const height = Math.max(1, Number(graph.height || 1));
-
-    if (!body) {
-      const savedX = Number(group.physicsOffsetX);
-      const savedY = Number(group.physicsOffsetY);
-      const hasSaved = Number.isFinite(savedX) && Number.isFinite(savedY);
-      const angle = Number.isFinite(Number(group.angle)) ? Number(group.angle) : 0;
-      const orbit = normalOrbit(graph, 1);
-      body = {
-        id,
-        x: hasSaved ? Number(graph.centreX) + savedX * width : Number(graph.centreX) + Math.cos(angle) * orbit,
-        y: hasSaved ? Number(graph.centreY) + savedY * height : Number(graph.centreY) + Math.sin(angle) * orbit,
-        vx: 0,
-        vy: 0,
-        dragging: false,
-        radius: 35,
-        memberCount: 0,
-        gravityWeight: 1,
-        targetOrbit: orbit
-      };
-      bodies.set(id, body);
-      groupProjectionDirty = true;
-    }
-
-    const nextRadius = groupRadius(group);
-    const nextCount = Array.isArray(group.members) ? group.members.length : 0;
-    if (body.radius !== nextRadius || body.memberCount !== nextCount) groupProjectionDirty = true;
-    body.radius = nextRadius;
-    body.memberCount = nextCount;
-    body.gravityWeight = 1;
-    body.targetOrbit = normalOrbit(graph, body.gravityWeight);
-    return body;
-  }
-
-  function syncBodies(graph) {
-    const groups = groupsForSpace();
-    const liveIds = new Set(groups.map((group) => String(group.id)));
-    for (const id of [...bodies.keys()]) {
-      if (!liveIds.has(id)) bodies.delete(id);
-    }
-    return groups.map((group) => ({ group, body: bodyFromGroup(group, graph) }));
-  }
-
-  function containBody(body, graph) {
-    const margin = Number(body.radius || 35) + 34;
-    const width = Math.max(1, Number(graph.width || 1));
-    const height = Math.max(1, Number(graph.height || 1));
-    const zoomExtent = Math.max(1, 1 / MIN_GRAPH_SCALE);
-    const extraX = Math.max(0, width * (zoomExtent - 1) / 2);
-    const extraY = Math.max(0, height * (zoomExtent - 1) / 2);
-    const minX = margin - extraX;
-    const maxX = width - margin + extraX;
-    const minY = margin - extraY;
-    const maxY = height - margin + extraY;
-
-    if (body.x < minX) {
-      body.x = minX;
-      body.vx *= -0.35;
-    } else if (body.x > maxX) {
-      body.x = maxX;
-      body.vx *= -0.35;
-    }
-    if (body.y < minY) {
-      body.y = minY;
-      body.vy *= -0.35;
-    } else if (body.y > maxY) {
-      body.y = maxY;
-      body.vy *= -0.35;
-    }
-  }
-
-  function groupedMemoryIds() {
-    const ids = new Set();
-    for (const group of groupsForSpace()) {
-      for (const id of group.members || []) ids.add(String(id));
-    }
-    return ids;
-  }
-
-  function lockPhysicsForFrame() {
-    physicsFrameLocked = true;
-    requestAnimationFrame(() => {
-      physicsFrameLocked = false;
-    });
-  }
-
-  function stepPhysics(graph) {
-    if (!physicsAwake) return;
-    const now = performance.now();
-    if (physicsFrameLocked || now - lastPhysicsAt < PHYSICS_INTERVAL_MS) return;
-    lastPhysicsAt = now;
-    lockPhysicsForFrame();
-
-    const entries = syncBodies(graph);
-    if (!entries.length) return;
-    const grouped = groupedMemoryIds();
-    const memories = (graph.nodes || []).filter((node) =>
-      !node.fixed && !node.hidden && !(node.kind === 'memory' && grouped.has(String(node.id)))
-    );
-    let moved = false;
-    let totalSpeed = 0;
-    let simulatedCount = 0;
-
-    for (let i = 0; i < entries.length; i += 1) {
-      const { body } = entries[i];
-      if (body.dragging) continue;
-
-      let fx = 0;
-      let fy = 0;
-      const dx = body.x - Number(graph.centreX || 0);
-      const dy = body.y - Number(graph.centreY || 0);
-      const distance = Math.max(1, Math.hypot(dx, dy));
-      const radialOffset = distance - (body.targetOrbit || normalOrbit(graph, body.gravityWeight));
-      const radialForce = -radialOffset * 0.0019 * Math.max(0.8, body.gravityWeight || 1);
-      fx += (dx / distance) * radialForce;
-      fy += (dy / distance) * radialForce;
-
-      // Group bodies still account for nearby canonical nodes, but the
-      // canonical solver remains the only integrator for those nodes.
-      for (const node of memories) {
-        const pairX = body.x - Number(node.x || 0);
-        const pairY = body.y - Number(node.y || 0);
-        const pairDistanceSq = Math.max(100, pairX * pairX + pairY * pairY);
-        const pairDistance = Math.sqrt(pairDistanceSq);
-        const repulsion = Math.min(0.9, 900 / pairDistanceSq);
-        const pushX = (pairX / pairDistance) * repulsion;
-        const pushY = (pairY / pairDistance) * repulsion;
-        fx += pushX / Math.max(0.85, body.gravityWeight || 1);
-        fy += pushY / Math.max(0.85, body.gravityWeight || 1);
-      }
-
-      for (let j = i + 1; j < entries.length; j += 1) {
-        const other = entries[j].body;
-        const pairX = body.x - other.x;
-        const pairY = body.y - other.y;
-        const pairDistanceSq = Math.max(100, pairX * pairX + pairY * pairY);
-        const pairDistance = Math.sqrt(pairDistanceSq);
-        const repulsion = Math.min(0.9, 900 / pairDistanceSq);
-        const pushX = (pairX / pairDistance) * repulsion;
-        const pushY = (pairY / pairDistance) * repulsion;
-        fx += pushX / Math.max(0.85, body.gravityWeight || 1);
-        fy += pushY / Math.max(0.85, body.gravityWeight || 1);
-        if (!other.dragging) {
-          other.vx -= pushX / Math.max(0.85, other.gravityWeight || 1);
-          other.vy -= pushY / Math.max(0.85, other.gravityWeight || 1);
-        }
-      }
-
-      const beforeX = body.x;
-      const beforeY = body.y;
-      body.vx = (Number(body.vx || 0) + fx) * 0.90;
-      body.vy = (Number(body.vy || 0) + fy) * 0.90;
-      body.x += body.vx;
-      body.y += body.vy;
-      containBody(body, graph);
-      totalSpeed += Math.hypot(body.vx, body.vy);
-      simulatedCount += 1;
-      if (Math.abs(body.x - beforeX) > 0.001 || Math.abs(body.y - beforeY) > 0.001) moved = true;
-    }
-
-    if (moved) {
-      groupProjectionDirty = true;
-      schedulePersist();
-      const averageSpeed = simulatedCount ? totalSpeed / simulatedCount : 0;
-      if (averageSpeed > SETTLED_SPEED) scheduleGraphRedraw(false);
-    }
-  }
-
-  function persistBodies() {
-    if (!lastGraph) return;
-    const width = Math.max(1, Number(lastGraph.width || 1));
-    const height = Math.max(1, Number(lastGraph.height || 1));
-    const centreX = Number(lastGraph.centreX || 0);
-    const centreY = Number(lastGraph.centreY || 0);
-    const groups = groupsForSpace().map((group) => {
-      const body = bodies.get(String(group.id));
-      if (!body) return group;
+  function groupStart(group, graph) {
+    const width = Math.max(1, Number(graph?.width || 1));
+    const height = Math.max(1, Number(graph?.height || 1));
+    const savedX = Number(group?.physicsOffsetX);
+    const savedY = Number(group?.physicsOffsetY);
+    if (Number.isFinite(savedX) && Number.isFinite(savedY)) {
       return {
-        ...group,
-        angle: Math.atan2(body.y - centreY, body.x - centreX),
-        physicsOffsetX: (body.x - centreX) / width,
-        physicsOffsetY: (body.y - centreY) / height
+        x: Number(graph.centreX || 0) + savedX * width,
+        y: Number(graph.centreY || 0) + savedY * height
       };
-    });
-    replaceGroups(groups);
+    }
+    const angle = Number.isFinite(Number(group?.angle)) ? Number(group.angle) : 0;
+    const orbit = groupOrbit(graph);
+    return {
+      x: Number(graph.centreX || 0) + Math.cos(angle) * orbit,
+      y: Number(graph.centreY || 0) + Math.sin(angle) * orbit
+    };
   }
 
-  function schedulePersist() {
-    if (persistTimer) return;
-    persistTimer = window.setTimeout(() => {
-      persistTimer = 0;
-      persistBodies();
-    }, PERSIST_DELAY_MS);
-  }
-
-  function satelliteWorld(node, group, body) {
-    const members = (group.members || []).map(String);
-    const index = Math.max(0, members.indexOf(String(node.id)));
+  function memberLayout(group, node, index) {
+    const members = Array.isArray(group?.members) ? group.members.map(String) : [];
     const count = Math.max(1, members.length);
     const slotsPerRing = 8;
     const ring = Math.floor(index / slotsPerRing);
     const slot = index % slotsPerRing;
     const slotsOnRing = Math.min(slotsPerRing, Math.max(1, count - ring * slotsPerRing));
-    const phase = Number(group.phase || 0);
+    const phase = Number(group?.phase || 0);
     const angle = phase + (slot / slotsOnRing) * Math.PI * 2 + ring * 0.36;
-    const orbit = Number(body.radius || 35) + 19 + ring * 21;
+    const orbit = groupRadius(group) + 20 + ring * 21;
     return {
-      x: body.x + Math.cos(angle) * orbit,
-      y: body.y + Math.sin(angle) * orbit,
-      radius: Math.max(7, Number(node.radius || 12) * 0.60)
+      angle,
+      orbit,
+      radius: Math.max(7, Number(node?.__manualGroupOriginalRadius || node?.radius || 12) * 0.60)
     };
   }
 
-  function projectBody(group, graph = lastGraph) {
-    if (!group || !graph) return null;
-    const body = bodyFromGroup(group, graph);
-    const proxy = {
-      id: `manual-gravity:${group.id}`,
-      kind: 'group',
-      x: body.x,
-      y: body.y,
-      radius: body.radius
-    };
-    return baseRotation.project?.(proxy, graph) || proxy;
+  function restoreUngroupedNode(node) {
+    if (!node?.__manualGroupId) return false;
+    node.parentId = node.__manualGroupOriginalParentId || lastGraph?.spaceNode?.id || node.parentId;
+    node.localOrbit = Number(node.__manualGroupOriginalLocalOrbit || node.localOrbit || 72);
+    node.targetOrbit = Number(node.__manualGroupOriginalTargetOrbit || node.targetOrbit || node.localOrbit || 72);
+    node.radius = Number(node.__manualGroupOriginalRadius || node.radius || 12);
+    node.vx = 0;
+    node.vy = 0;
+    delete node.__manualGroupId;
+    delete node.__manualGroupOriginalParentId;
+    delete node.__manualGroupOriginalLocalOrbit;
+    delete node.__manualGroupOriginalTargetOrbit;
+    delete node.__manualGroupOriginalRadius;
+    return true;
   }
 
-  function syncProjectedGroups(graph) {
+  function groupPositionSignature(graph, groups) {
+    if (!graph) return '';
+    return groups.map((group) => {
+      const node = graph.nodes?.find((item) => item?.__manualGroupCanonical && item.manualGroupId === String(group.id));
+      return node ? `${group.id}:${node.x.toFixed(3)},${node.y.toFixed(3)}` : `${group.id}:missing`;
+    }).join('|');
+  }
+
+  function schedulePersist(graph, groups) {
+    const signature = groupPositionSignature(graph, groups);
+    if (!signature || signature === lastScheduledSignature) return;
+    lastScheduledSignature = signature;
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = window.setTimeout(() => {
+      persistTimer = 0;
+      persistGroupPositions();
+    }, PERSIST_DELAY_MS);
+  }
+
+  function persistGroupPositions() {
+    const graph = lastGraph;
+    const api = groupsApi();
+    if (!graph || !api?.replaceGroups) return false;
+    const width = Math.max(1, Number(graph.width || 1));
+    const height = Math.max(1, Number(graph.height || 1));
+    const centreX = Number(graph.centreX || 0);
+    const centreY = Number(graph.centreY || 0);
     const groups = groupsForSpace();
-    const liveIds = new Set();
+    let changed = false;
+    const next = groups.map((group) => {
+      const node = graph.nodes?.find((item) => item?.__manualGroupCanonical && item.manualGroupId === String(group.id));
+      if (!node) return group;
+      const physicsOffsetX = (Number(node.x) - centreX) / width;
+      const physicsOffsetY = (Number(node.y) - centreY) / height;
+      const angle = Math.atan2(Number(node.y) - centreY, Number(node.x) - centreX);
+      if (Math.abs(Number(group.physicsOffsetX) - physicsOffsetX) > 1e-6 ||
+          Math.abs(Number(group.physicsOffsetY) - physicsOffsetY) > 1e-6 ||
+          Math.abs(Number(group.angle) - angle) > 1e-6) changed = true;
+      return { ...group, physicsOffsetX, physicsOffsetY, angle };
+    });
+    if (changed) api.replaceGroups(next);
+    lastScheduledSignature = groupPositionSignature(graph, next);
+    return changed;
+  }
+
+  function ensureCanonicalGroups(graph) {
+    if (!graph?.spaceNode || !Array.isArray(graph.nodes) || !Array.isArray(graph.memoryNodes)) return false;
+    lastGraph = graph;
+
+    const groups = groupsForSpace();
+    const memberToGroup = new Map();
+    for (const group of groups) {
+      for (const memberId of group.members || []) {
+        const id = String(memberId);
+        if (!pendingReleaseIds.has(id)) memberToGroup.set(id, group);
+      }
+    }
+
+    for (const id of [...pendingReleaseIds]) {
+      if (!groupForMemory(id)) pendingReleaseIds.delete(id);
+    }
+
+    const existingGroups = new Map(
+      (graph.nodes || [])
+        .filter((node) => node?.__manualGroupCanonical)
+        .map((node) => [String(node.manualGroupId || ''), node])
+    );
+    const canonicalGroups = [];
+    const orbit = groupOrbit(graph);
+
     for (const group of groups) {
       const id = String(group.id);
-      liveIds.add(id);
-      const projected = projectBody(group, graph);
-      if (projected) projectedGroups.set(id, projected);
+      let node = existingGroups.get(id);
+      if (!node) {
+        const start = groupStart(group, graph);
+        node = {
+          id: canonicalGroupId(id),
+          manualGroupId: id,
+          kind: 'control',
+          label: String(group.title || 'Group'),
+          x: start.x,
+          y: start.y,
+          vx: 0,
+          vy: 0,
+          radius: groupRadius(group),
+          targetOrbit: orbit,
+          localOrbit: orbit,
+          gravityWeight: 1,
+          parentId: graph.spaceNode.id,
+          clusterRoot: false,
+          action: '',
+          expandable: false,
+          controlDepth: 0,
+          recencyLevel: 0.86,
+          fixed: false,
+          dragging: false,
+          hidden: false,
+          __manualGroupCanonical: true,
+          groupMemberCount: Array.isArray(group.members) ? group.members.length : 0
+        };
+      }
+      node.label = String(group.title || 'Group');
+      node.radius = groupRadius(group);
+      node.targetOrbit = orbit;
+      node.localOrbit = orbit;
+      node.parentId = graph.spaceNode.id;
+      node.groupMemberCount = Array.isArray(group.members) ? group.members.length : 0;
+      node.hidden = false;
+      canonicalGroups.push(node);
     }
-    for (const id of [...projectedGroups.keys()]) {
-      if (!liveIds.has(id)) projectedGroups.delete(id);
+
+    const canonicalByGroupId = new Map(canonicalGroups.map((node) => [String(node.manualGroupId), node]));
+    for (const node of graph.memoryNodes) {
+      const memoryId = String(node.id);
+      const group = memberToGroup.get(memoryId);
+      if (!group) {
+        restoreUngroupedNode(node);
+        continue;
+      }
+      const groupNode = canonicalByGroupId.get(String(group.id));
+      if (!groupNode) continue;
+      const members = (group.members || []).map(String);
+      const index = Math.max(0, members.indexOf(memoryId));
+      const layout = memberLayout(group, node, index);
+      const joining = String(node.__manualGroupId || '') !== String(group.id);
+
+      if (!node.__manualGroupId) {
+        node.__manualGroupOriginalParentId = node.parentId;
+        node.__manualGroupOriginalLocalOrbit = node.localOrbit;
+        node.__manualGroupOriginalTargetOrbit = node.targetOrbit;
+        node.__manualGroupOriginalRadius = node.radius;
+      }
+      node.__manualGroupId = String(group.id);
+      node.parentId = groupNode.id;
+      node.localOrbit = layout.orbit;
+      node.targetOrbit = layout.orbit;
+      node.radius = layout.radius;
+      if (joining) {
+        node.x = groupNode.x + Math.cos(layout.angle) * layout.orbit;
+        node.y = groupNode.y + Math.sin(layout.angle) * layout.orbit;
+        node.vx = 0;
+        node.vy = 0;
+      }
     }
-    groupProjectionDirty = false;
-    startupLog('manual-gravity.syncProjectedGroups', {
-      graphSpaceId: String(graph?.spaceNode?.id || ''),
-      groups: groupSummary(groups),
-      projectedGroupIds: [...projectedGroups.keys()],
-      bodies: [...bodies.keys()]
+
+    const nonGroupNodes = graph.nodes.filter((node) => !node?.__manualGroupCanonical);
+    graph.nodes = [...nonGroupNodes, ...canonicalGroups];
+
+    const groupedIds = new Set(memberToGroup.keys());
+    const baseEdges = (graph.edges || []).filter((edge) => {
+      if (edge?.source?.__manualGroupCanonical || edge?.target?.__manualGroupCanonical) return false;
+      if (edge?.kind === 'space' && edge?.source === graph.spaceNode && groupedIds.has(String(edge?.target?.id || ''))) return false;
+      return true;
     });
-    if (startupGroupResetDiagnostics) {
-      console.log('[MemoryStartup] manual-gravity.startup-group-diagnostic:after-syncProjectedGroups', flatStartupGroupDiagnostic(groups, {
-        graphSpaceId: String(graph?.spaceNode?.id || '')
-      }));
-      startupGroupOverlayDiagnosticPending = true;
-      startupGroupResetDiagnostics = false;
+    const groupEdges = [];
+    for (const group of groups) {
+      const groupNode = canonicalByGroupId.get(String(group.id));
+      if (!groupNode) continue;
+      groupEdges.push({ source: graph.spaceNode, target: groupNode, kind: 'space' });
+      for (const memberId of group.members || []) {
+        if (pendingReleaseIds.has(String(memberId))) continue;
+        const memory = graph.memoryNodes.find((item) => String(item.id) === String(memberId));
+        if (memory) groupEdges.push({ source: groupNode, target: memory, kind: 'space' });
+      }
     }
+    graph.edges = [...baseEdges, ...groupEdges];
+
+    schedulePersist(graph, groups);
+    return true;
   }
 
   function project(node, graph) {
-    if (!node || !graph) return baseRotation.project?.(node, graph) || node;
-
-    if (lastGraph !== graph) {
-      lastGraph = graph;
-      projectedMemories.clear();
-      projectedGroups.clear();
-      groupProjectionDirty = true;
-    } else {
-      lastGraph = graph;
-    }
-
-    stepPhysics(graph);
-    if (groupProjectionDirty) syncProjectedGroups(graph);
-
-    if (node.kind !== 'memory') {
-      pendingLabelMemoryId = null;
-      return baseRotation.project?.(node, graph) || node;
-    }
-
-    pendingLabelMemoryId = String(node.id);
-    const group = groupForMemory(node.id);
-    if (!group) {
-      if (node.__manualGravityGrouped === true) {
-        node.__manualGravityGrouped = false;
-        if (!memoryDrag || String(memoryDrag.memoryId) !== String(node.id)) node.dragging = false;
-      }
-      const projected = baseRotation.project?.(node, graph) || node;
-      projectedMemories.set(String(node.id), projected);
-      return projected;
-    }
-
-    // A grouped memory is represented by its visible satellite position. Keep its
-    // hidden base node out of the normal solver so it cannot repel from a ghost
-    // location while the folder body represents that cluster.
-    node.__manualGravityGrouped = true;
-    if (!memoryDrag || String(memoryDrag.memoryId) !== String(node.id)) {
-      node.dragging = true;
-      node.vx = 0;
-      node.vy = 0;
-    }
-
-    const body = bodyFromGroup(group, graph);
-    const satellite = satelliteWorld(node, group, body);
-    const proxy = {
-      ...node,
-      kind: 'manual-satellite',
-      x: satellite.x,
-      y: satellite.y,
-      radius: satellite.radius
-    };
-    const projected = baseRotation.project?.(proxy, graph) || proxy;
-    projectedMemories.set(String(node.id), projected);
-    return { ...projected, alpha: Math.min(Number(projected.alpha || 1), 0.96) };
-  }
-
-  function normalisedMatrix(context) {
-    const target = context?.canvas;
-    if (!target) return null;
-    const rect = target.getBoundingClientRect();
-    const dpr = Math.max(1, target.width / Math.max(1, rect.width));
-    const matrix = context.getTransform();
+    ensureCanonicalGroups(graph);
+    const projected = baseRotation.project?.(node, graph);
+    if (projected && Number.isFinite(projected.x) && Number.isFinite(projected.y)) return projected;
     return {
-      a: matrix.a / dpr,
-      b: matrix.b / dpr,
-      c: matrix.c / dpr,
-      d: matrix.d / dpr,
-      e: matrix.e / dpr,
-      f: matrix.f / dpr
+      x: Number(node?.x || 0),
+      y: Number(node?.y || 0),
+      radius: Number(node?.radius || 1),
+      depth: 0,
+      alpha: 1,
+      scale: 1
     };
   }
 
-  function worldToScreen(point) {
-    if (!lastMatrix || !point) return null;
-    return {
-      x: lastMatrix.a * point.x + lastMatrix.c * point.y + lastMatrix.e,
-      y: lastMatrix.b * point.x + lastMatrix.d * point.y + lastMatrix.f
-    };
+  function prepareGroupedMemoryRelease(memoryId) {
+    const id = String(memoryId || '');
+    const node = lastGraph?.memoryNodes?.find((item) => String(item.id) === id);
+    if (!id || !node || !groupForMemory(id)) return false;
+    pendingReleaseIds.add(id);
+    restoreUngroupedNode(node);
+    node.vx = 0;
+    node.vy = 0;
+    return true;
   }
 
-  function screenToWorld(point) {
-    if (!lastMatrix || !point) return null;
-    const det = lastMatrix.a * lastMatrix.d - lastMatrix.b * lastMatrix.c;
-    if (!Number.isFinite(det) || Math.abs(det) < 1e-8) return null;
-    const px = point.x - lastMatrix.e;
-    const py = point.y - lastMatrix.f;
-    return {
-      x: (lastMatrix.d * px - lastMatrix.c * py) / det,
-      y: (-lastMatrix.b * px + lastMatrix.a * py) / det
-    };
+  function redrawGraph(wake = false) {
+    if (lastGraph) ensureCanonicalGroups(lastGraph);
+    if (wake) globalThis.MemoryGraph?.wakeSimulation?.();
+    globalThis.MemoryGraph?.redraw?.();
+    globalThis.MemoryGraphNeuralScaffold?.redraw?.();
+    globalThis.MemoryGraphNeuralFlow?.redraw?.();
+    return true;
   }
 
-  function matrixScale() {
-    return lastMatrix ? Math.max(0.1, Math.hypot(lastMatrix.a, lastMatrix.b)) : 1;
-  }
-
-  function queryMatchesMemory(memoryId) {
-    const query = document.getElementById('searchInput')?.value?.trim().toLowerCase() || '';
-    if (!query) return false;
-    const value = readWorkspace();
-    const memory = value?.memories?.find((item) => String(item.id) === String(memoryId));
-    if (!memory) return false;
-    return [memory.title, memory.content, memory.source, memory.type, memory.importance, memory.project, memory.priority]
-      .some((item) => String(item || '').toLowerCase().includes(query));
-  }
-
-  function installCanvasHooks() {
-    const proto = globalThis.CanvasRenderingContext2D?.prototype;
-    if (!proto || proto.__manualGravityPhysicsCanvasHooks) return;
-    Object.defineProperty(proto, '__manualGravityPhysicsCanvasHooks', {
-      value: true,
-      configurable: false,
-      enumerable: false,
-      writable: false
-    });
-
-    const previousFillText = proto.fillText;
-    const previousStroke = proto.stroke;
-
-    proto.fillText = function manualGravityFillText(text, x, y, ...rest) {
-      if (this?.canvas?.classList?.contains('memory-graph-canvas')) {
-        lastMatrix = normalisedMatrix(this) || lastMatrix;
-        if (/(?:^|\s)11px\b/.test(String(this.font || '')) && pendingLabelMemoryId && groupForMemory(pendingLabelMemoryId) && !queryMatchesMemory(pendingLabelMemoryId)) {
-          return undefined;
-        }
-      }
-      return previousFillText.call(this, text, x, y, ...rest);
-    };
-
-    proto.stroke = function manualGravityStroke(...args) {
-      if (this?.canvas?.classList?.contains('memory-graph-canvas')) {
-        const width = Math.max(0.5, Number(this.lineWidth) || 1);
-        const blue = String(this.strokeStyle || '').includes('120, 184, 255');
-        const end = this.__memoryGraphLineEnd;
-        if (blue && width <= 1.6 && end) {
-          for (const group of groupsForSpace()) {
-            for (const memberId of group.members || []) {
-              const projected = projectedMemories.get(String(memberId));
-              if (!projected) continue;
-              if (Math.hypot(Number(end.x) - Number(projected.x), Number(end.y) - Number(projected.y)) <= 1.2) {
-                return undefined;
-              }
-            }
-          }
-        }
-      }
-      return previousStroke.apply(this, args);
-    };
-  }
-
-  function eventPoint(event) {
-    const rect = canvas.getBoundingClientRect();
+  function canvasPoint(event) {
+    const rect = canvas?.getBoundingClientRect?.();
+    if (!rect) return null;
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
 
-  function groupAtScreen(point) {
-    if (!lastGraph || !lastMatrix) return null;
-    const scale = matrixScale();
-    const groups = groupsForSpace();
-    for (let index = groups.length - 1; index >= 0; index -= 1) {
-      const group = groups[index];
-      const projected = projectedGroups.get(String(group.id)) || projectBody(group, lastGraph);
-      const screen = worldToScreen(projected);
+  function presentationState() {
+    return globalThis.MemoryGraph?.presentationState?.() || null;
+  }
+
+  function screenPosition(node) {
+    const state = presentationState();
+    if (!state || !lastGraph || !node) return null;
+    const projected = baseRotation.project?.(node, lastGraph) || node;
+    return {
+      x: Number(state.view?.x || 0) + Number(projected.x || 0) * Number(state.view?.scale || 1),
+      y: Number(state.view?.y || 0) + Number(projected.y || 0) * Number(state.view?.scale || 1),
+      radius: Number(projected.radius || node.radius || 1) * Number(state.view?.scale || 1)
+    };
+  }
+
+  function hitNode(point, predicate) {
+    if (!point || !lastGraph || baseRotation.isActive?.()) return null;
+    const candidates = [...(lastGraph.nodes || [])].filter(predicate).reverse();
+    for (const node of candidates) {
+      const screen = screenPosition(node);
       if (!screen) continue;
-      if (Math.hypot(point.x - screen.x, point.y - screen.y) <= Number(projected.radius || 35) * scale + 12) return group;
+      if (Math.hypot(point.x - screen.x, point.y - screen.y) <= screen.radius + 10) return node;
     }
     return null;
   }
 
-  function memoryAtScreen(point) {
-    const scale = matrixScale();
-    const items = [...projectedMemories.entries()].sort((a, b) => Number(b[1].depth || 0) - Number(a[1].depth || 0));
-    for (const [id, projected] of items) {
-      const screen = worldToScreen(projected);
-      if (!screen) continue;
-      if (Math.hypot(point.x - screen.x, point.y - screen.y) <= Number(projected.radius || 12) * scale + 8) return id;
-    }
-    return null;
+  function groupNodeAt(point) {
+    return hitNode(point, (node) => node?.__manualGroupCanonical === true);
   }
 
-  function rotationActive() {
-    return baseRotation.isActive?.() === true;
+  function memoryNodeAt(point) {
+    return hitNode(point, (node) => node?.kind === 'memory' && !node.hidden);
   }
 
-  function stopGroupEvent(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation?.();
-  }
-
-  function flushNeuralLayers() {
-    globalThis.MemoryGraphNeuralScaffold?.redraw?.();
-    globalThis.MemoryGraphNeuralFlow?.redraw?.();
-  }
-
-  function redrawGraph() {
-    const api = globalThis.MemoryGraph;
-    if (!api) return;
-    if (typeof api.redraw === 'function') {
-      api.redraw();
-    } else if (!rotationActive() && typeof api.resetRotation === 'function') {
-      api.resetRotation();
-    } else {
-      api.refresh?.();
-    }
-    flushNeuralLayers();
-  }
-
-  function redrawOnly() {
-    const api = globalThis.MemoryGraph;
-    if (typeof api?.redraw !== 'function') return false;
-    api.redraw();
-    flushNeuralLayers();
+  function refreshAfterMembershipChange() {
+    ensureCanonicalGroups(lastGraph);
+    globalThis.MemoryGraph?.wakeSimulation?.();
+    globalThis.MemoryGraph?.redraw?.();
     return true;
-  }
-
-  function restartBaseSimulation() {
-    const api = globalThis.MemoryGraph;
-    if (typeof api?.wakeSimulation !== 'function') return false;
-    api.wakeSimulation();
-    flushNeuralLayers();
-    return true;
-  }
-
-  function scheduleGraphRedraw(immediate = false) {
-    if (immediate) {
-      if (redrawFrame) cancelAnimationFrame(redrawFrame);
-      redrawFrame = 0;
-      redrawGraph();
-      return;
-    }
-    if (redrawFrame) return;
-    redrawFrame = requestAnimationFrame(() => {
-      redrawFrame = 0;
-      redrawGraph();
-    });
-  }
-
-  function markGroupStructureChanged() {
-    projectedMemories.clear();
-    projectedGroups.clear();
-    groupProjectionDirty = true;
   }
 
   function installPointerHooks() {
-    if (!surface || !canvas || surface.__manualGravityPhysicsPointerHooks) return;
-    surface.__manualGravityPhysicsPointerHooks = true;
+    if (!surface || !canvas || surface.__canonicalManualGroupPointerHooks) return;
+    surface.__canonicalManualGroupPointerHooks = true;
 
     surface.addEventListener('pointerdown', (event) => {
-      if (event.target !== canvas || event.button !== 0 || rotationActive()) return;
-      const point = eventPoint(event);
-      const group = groupAtScreen(point);
-      if (group) {
-        drag = {
-          pointerId: event.pointerId,
-          groupId: String(group.id),
-          startX: point.x,
-          startY: point.y,
-          moved: false
-        };
-        canvas.setPointerCapture?.(event.pointerId);
-        stopGroupEvent(event);
+      if (event.target !== canvas || event.button !== 0 || baseRotation.isActive?.()) return;
+      const point = canvasPoint(event);
+      const groupNode = groupNodeAt(point);
+      groupPointer = groupNode ? {
+        pointerId: event.pointerId,
+        groupId: String(groupNode.manualGroupId),
+        startX: point.x,
+        startY: point.y,
+        moved: false
+      } : null;
+      if (groupNode) {
+        memoryPointer = null;
         return;
       }
-
-      wakePhysics();
-      const memoryId = memoryAtScreen(point);
-      if (memoryId) {
-        memoryDrag = {
-          pointerId: event.pointerId,
-          memoryId,
-          startX: point.x,
-          startY: point.y,
-          moved: false,
-          startedGrouped: Boolean(groupForMemory(memoryId))
-        };
-      }
-    }, true);
-
-    surface.addEventListener('wheel', wakePhysics, { capture: true, passive: true });
+      const memory = memoryNodeAt(point);
+      memoryPointer = memory ? {
+        pointerId: event.pointerId,
+        memoryId: String(memory.id),
+        startGroupId: String(memory.__manualGroupId || ''),
+        startX: point.x,
+        startY: point.y,
+        moved: false
+      } : null;
+    });
 
     surface.addEventListener('pointermove', (event) => {
-      if (event.target !== canvas) return;
-      const point = eventPoint(event);
-
-      if (drag?.pointerId === event.pointerId) {
-        const group = groupsForSpace().find((item) => String(item.id) === drag.groupId);
-        const body = group ? bodyFromGroup(group, lastGraph) : null;
-        if (!drag.moved && Math.hypot(point.x - drag.startX, point.y - drag.startY) > GROUP_DRAG_THRESHOLD) {
-          drag.moved = true;
-          wakePhysics();
-          if (body) {
-            body.dragging = true;
-            body.vx = 0;
-            body.vy = 0;
-          }
-          canvas.dataset.draggingGroup = 'true';
-          canvas.dataset.interacting = 'true';
-        }
-        if (drag.moved) {
-          const world = screenToWorld(point);
-          if (body && world) {
-            body.x = world.x;
-            body.y = world.y;
-            body.vx = 0;
-            body.vy = 0;
-            containBody(body, lastGraph);
-            groupProjectionDirty = true;
-            schedulePersist();
-            scheduleGraphRedraw(false);
-          }
-        }
-        stopGroupEvent(event);
-        return;
+      const point = canvasPoint(event);
+      if (!point) return;
+      if (groupPointer?.pointerId === event.pointerId &&
+          Math.hypot(point.x - groupPointer.startX, point.y - groupPointer.startY) > GROUP_DRAG_THRESHOLD) {
+        groupPointer.moved = true;
       }
-
-      if (memoryDrag?.pointerId === event.pointerId) {
-        if (!memoryDrag.moved && Math.hypot(point.x - memoryDrag.startX, point.y - memoryDrag.startY) > 6) {
-          memoryDrag.moved = true;
-          if (memoryDrag.startedGrouped) detachMemory(memoryDrag.memoryId);
-        }
+      if (memoryPointer?.pointerId === event.pointerId &&
+          Math.hypot(point.x - memoryPointer.startX, point.y - memoryPointer.startY) > GROUP_DRAG_THRESHOLD) {
+        memoryPointer.moved = true;
       }
-
-      if (!rotationActive()) canvas.dataset.hoverGroup = groupAtScreen(point) ? 'true' : 'false';
-      else canvas.removeAttribute('data-hover-group');
-    }, true);
+    });
 
     surface.addEventListener('pointerup', (event) => {
-      const point = eventPoint(event);
-      if (drag?.pointerId === event.pointerId) {
-        const active = drag;
-        const group = groupsForSpace().find((item) => String(item.id) === drag.groupId);
-        const body = group ? bodyFromGroup(group, lastGraph) : null;
-        if (body && active.moved) {
-          body.dragging = false;
-          body.vx = 0;
-          body.vy = 0;
-          body.targetOrbit = normalOrbit(lastGraph, body.gravityWeight);
+      const point = canvasPoint(event);
+      if (!point) return;
+
+      if (groupPointer?.pointerId === event.pointerId) {
+        const active = groupPointer;
+        groupPointer = null;
+        const hit = groupNodeAt(point);
+        if (!active.moved && hit && String(hit.manualGroupId) === active.groupId) {
+          groupsApi()?.openGroup?.(active.groupId);
+        } else if (active.moved) {
+          schedulePersist(lastGraph, groupsForSpace());
         }
-        drag = null;
-        canvas.removeAttribute('data-dragging-group');
-        canvas.removeAttribute('data-hover-group');
-        canvas.removeAttribute('data-interacting');
-        if (active.moved) {
-          persistBodies();
-          groupProjectionDirty = true;
-          if (!restartBaseSimulation()) scheduleGraphRedraw(true);
-        }
-        try { canvas.releasePointerCapture?.(event.pointerId); } catch {}
-        stopGroupEvent(event);
-        return;
       }
 
-      if (memoryDrag?.pointerId === event.pointerId) {
-        const active = memoryDrag;
-        memoryDrag = null;
-        if (active.moved) {
-          const target = groupAtScreen(point);
-          if (target) {
-            window.setTimeout(() => {
-              if (addMemoryToGroup(active.memoryId, target.id)) scheduleGraphRedraw(true);
-            }, 0);
+      if (memoryPointer?.pointerId === event.pointerId) {
+        const active = memoryPointer;
+        memoryPointer = null;
+        if (!active.moved) return;
+        const target = groupNodeAt(point);
+        const targetId = String(target?.manualGroupId || '');
+        if (targetId && targetId !== active.startGroupId) {
+          if (groupsApi()?.addMemoryToGroup?.(active.memoryId, targetId)) refreshAfterMembershipChange();
+          return;
+        }
+        if (!targetId && active.startGroupId) {
+          if (prepareGroupedMemoryRelease(active.memoryId) && groupsApi()?.detachMemory?.(active.memoryId)) {
+            refreshAfterMembershipChange();
           }
         }
       }
-    }, true);
+    });
 
     surface.addEventListener('pointercancel', (event) => {
-      if (drag?.pointerId === event.pointerId) {
-        const active = drag;
-        const group = groupsForSpace().find((item) => String(item.id) === drag.groupId);
-        const body = group ? bodyFromGroup(group, lastGraph) : null;
-        if (body && active.moved) {
-          body.dragging = false;
-          body.vx = 0;
-          body.vy = 0;
-          body.targetOrbit = normalOrbit(lastGraph, body.gravityWeight);
-        }
-        drag = null;
-        canvas.removeAttribute('data-dragging-group');
-        canvas.removeAttribute('data-hover-group');
-        canvas.removeAttribute('data-interacting');
-        if (active.moved) {
-          groupProjectionDirty = true;
-          if (!restartBaseSimulation()) scheduleGraphRedraw(false);
-        }
+      if (groupPointer?.pointerId === event.pointerId) groupPointer = null;
+      if (memoryPointer?.pointerId === event.pointerId) memoryPointer = null;
+    });
+  }
+
+  function installCanvasLabelHook() {
+    const proto = globalThis.CanvasRenderingContext2D?.prototype;
+    if (!proto || proto.__canonicalManualGroupLabelHook) return;
+    Object.defineProperty(proto, '__canonicalManualGroupLabelHook', { value: true });
+    const previousFillText = proto.fillText;
+
+    proto.fillText = function canonicalManualGroupFillText(text, x, y, ...rest) {
+      const node = this?.__memoryGraphLabelNode;
+      if (!this?.canvas?.classList?.contains('memory-graph-canvas') || !node?.__manualGroupCanonical) {
+        return previousFillText.call(this, text, x, y, ...rest);
       }
-      if (memoryDrag?.pointerId === event.pointerId) memoryDrag = null;
-    }, true);
-  }
-
-  function ensureOverlay() {
-    if (!surface) return false;
-
-    if (!overlayCanvas || !overlayCanvas.isConnected) {
-      overlayCanvas = document.createElement('canvas');
-      overlayCanvas.className = 'memory-graph-manual-gravity-canvas';
-      overlayCanvas.setAttribute('aria-hidden', 'true');
-      surface.appendChild(overlayCanvas);
-      overlayContext = overlayCanvas.getContext('2d');
-    }
-    if (!bodyCanvas || !bodyCanvas.isConnected) {
-      bodyCanvas = document.createElement('canvas');
-      bodyCanvas.className = 'memory-graph-manual-gravity-body-canvas';
-      bodyCanvas.setAttribute('aria-hidden', 'true');
-      surface.appendChild(bodyCanvas);
-      bodyContext = bodyCanvas.getContext('2d');
-    }
-    if (!overlayContext || !bodyContext) return false;
-
-    const rect = surface.getBoundingClientRect();
-    const width = Math.max(1, Math.round(rect.width));
-    const height = Math.max(1, Math.round(rect.height));
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    if (overlayCanvas.width !== Math.round(width * dpr) || overlayCanvas.height !== Math.round(height * dpr)) {
-      overlayCanvas.width = Math.round(width * dpr);
-      overlayCanvas.height = Math.round(height * dpr);
-      overlayContext.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-    if (bodyCanvas.width !== Math.round(width * dpr) || bodyCanvas.height !== Math.round(height * dpr)) {
-      bodyCanvas.width = Math.round(width * dpr);
-      bodyCanvas.height = Math.round(height * dpr);
-      bodyContext.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-    overlayCanvas.style.width = `${width}px`;
-    overlayCanvas.style.height = `${height}px`;
-    bodyCanvas.style.width = `${width}px`;
-    bodyCanvas.style.height = `${height}px`;
-    return true;
-  }
-
-  function traceLightning(ctx, from, to, seed, timestamp, widthScale = 1) {
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    const px = -dy / length;
-    const py = dx / length;
-    const points = [{ x: from.x, y: from.y }];
-    const count = clamp(Math.round(length / 25), 4, 12);
-    const bucket = Math.floor((timestamp + seed * 700) / 105);
-    for (let index = 1; index < count; index += 1) {
-      const t = index / count;
-      const wave = Math.sin(seed * 91.7 + bucket * 17.3 + index * 13.1) * Math.sin(Math.PI * t);
-      const amp = clamp(length * 0.034, 2.3, 8.5) * wave;
-      points.push({ x: from.x + dx * t + px * amp, y: from.y + dy * t + py * amp });
-    }
-    points.push({ x: to.x, y: to.y });
-
-    const stroke = (lineWidth, colour) => {
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, points[0].y);
-      for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y);
-      ctx.lineWidth = lineWidth * widthScale;
-      ctx.strokeStyle = colour;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.stroke();
+      const projected = lastGraph ? (baseRotation.project?.(node, lastGraph) || node) : node;
+      const px = Number(projected.x || node.x || x);
+      const py = Number(projected.y || node.y || y);
+      const radius = Number(projected.radius || node.radius || 35);
+      this.save();
+      try {
+        this.globalAlpha = Number(projected.alpha || 1);
+        this.textAlign = 'center';
+        this.textBaseline = 'middle';
+        this.fillStyle = 'rgba(242, 244, 247, 0.96)';
+        this.font = `800 ${clamp(radius * 0.28, 11, 15)}px Inter, system-ui, sans-serif`;
+        const title = String(node.label || 'Group');
+        previousFillText.call(this, title.length > 15 ? `${title.slice(0, 14).trim()}…` : title, px, py - 3);
+        this.fillStyle = 'rgba(199, 255, 86, 0.86)';
+        this.font = '750 10px Inter, system-ui, sans-serif';
+        const count = Number(node.groupMemberCount || 0);
+        previousFillText.call(this, `${count} ${count === 1 ? 'memory' : 'memories'}`, px, py + Math.min(17, radius * 0.36));
+        return undefined;
+      } finally {
+        this.restore();
+      }
     };
-    stroke(4.0, 'rgba(55, 139, 255, 0.10)');
-    stroke(1.9, 'rgba(120, 184, 255, 0.40)');
-    stroke(0.75, 'rgba(241, 251, 255, 0.88)');
-  }
-
-  function drawGroupBubble(ctx, group, screen, radius, timestamp) {
-    const pulse = 0.5 + Math.sin(timestamp * 0.002 + Number(group.phase || 0)) * 0.5;
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(screen.x, screen.y, radius + 1.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#030d0a';
-    ctx.fill();
-    const glow = ctx.createRadialGradient(screen.x, screen.y, radius * 0.25, screen.x, screen.y, radius * 1.65);
-    glow.addColorStop(0, `rgba(120, 184, 255, ${(0.12 + pulse * 0.035).toFixed(3)})`);
-    glow.addColorStop(0.42, 'rgba(199, 255, 86, 0.10)');
-    glow.addColorStop(1, 'rgba(199, 255, 86, 0)');
-    ctx.beginPath();
-    ctx.arc(screen.x, screen.y, radius * 1.65, 0, Math.PI * 2);
-    ctx.fillStyle = glow;
-    ctx.fill();
-
-    const sphere = ctx.createRadialGradient(screen.x - radius * 0.28, screen.y - radius * 0.34, 1, screen.x, screen.y, radius * 1.08);
-    sphere.addColorStop(0, 'rgba(111, 174, 128, 0.58)');
-    sphere.addColorStop(0.24, 'rgba(43, 91, 53, 0.92)');
-    sphere.addColorStop(0.60, 'rgba(12, 34, 23, 0.98)');
-    sphere.addColorStop(1, 'rgba(3, 13, 10, 1)');
-    ctx.beginPath();
-    ctx.arc(screen.x, screen.y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = sphere;
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(screen.x, screen.y, radius * 0.98, 0, Math.PI * 2);
-    ctx.lineWidth = Math.max(2, radius * 0.08);
-    ctx.strokeStyle = 'rgba(199, 255, 86, 0.86)';
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(screen.x, screen.y, radius * 0.72, 0, Math.PI * 2);
-    ctx.lineWidth = Math.max(1, radius * 0.026);
-    ctx.strokeStyle = 'rgba(120, 184, 255, 0.32)';
-    ctx.stroke();
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(242, 244, 247, 0.96)';
-    ctx.font = `800 ${clamp(radius * 0.28, 11, 15)}px Inter, system-ui, sans-serif`;
-    const title = String(group.title || 'Group');
-    ctx.fillText(title.length > 15 ? `${title.slice(0, 14).trim()}…` : title, screen.x, screen.y - 3);
-    ctx.fillStyle = 'rgba(199, 255, 86, 0.84)';
-    ctx.font = '750 10px Inter, system-ui, sans-serif';
-    const count = Array.isArray(group.members) ? group.members.length : 0;
-    ctx.fillText(`${count} ${count === 1 ? 'memory' : 'memories'}`, screen.x, screen.y + Math.min(17, radius * 0.36));
-    ctx.restore();
-  }
-
-  function drawOverlay(timestamp) {
-    overlayFrame = requestAnimationFrame(drawOverlay);
-    const frameMs = drag ? DRAG_OVERLAY_FRAME_MS : OVERLAY_FRAME_MS;
-    if (timestamp - lastOverlayPaint < frameMs) return;
-    lastOverlayPaint = timestamp;
-    const overlayReady = ensureOverlay();
-    const overlayGate = {
-      ensureOverlay: overlayReady,
-      hasLastGraph: Boolean(lastGraph),
-      hasLastMatrix: Boolean(lastMatrix),
-      documentHidden: document.hidden === true
-    };
-    if (startupGroupOverlayDiagnosticPending) {
-      console.log('[MemoryStartup] manual-gravity.startup-group-diagnostic:before-drawOverlay-gate', flatStartupGroupDiagnostic(groupsForSpace(), {
-        ...overlayGate,
-        graphSpaceId: String(lastGraph?.spaceNode?.id || '')
-      }));
-      startupGroupOverlayDiagnosticPending = false;
-    }
-    if (!overlayGate.ensureOverlay || !overlayGate.hasLastGraph || !overlayGate.hasLastMatrix || overlayGate.documentHidden) return;
-
-    if (drag && !rotationActive()) scheduleGraphRedraw(false);
-
-    const rect = overlayCanvas.getBoundingClientRect();
-    if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;
-    overlayContext.clearRect(0, 0, rect.width, rect.height);
-    bodyContext.clearRect(0, 0, rect.width, rect.height);
-
-    const centreScreen = worldToScreen({ x: Number(lastGraph.centreX || 0), y: Number(lastGraph.centreY || 0) });
-    if (!centreScreen) return;
-    const scale = matrixScale();
-    if (!startupOverlayLogged) {
-      startupOverlayLogged = true;
-      const groups = groupsForSpace();
-      startupLog('manual-gravity.drawOverlay:first-drawable-frame', {
-        graphSpaceId: String(lastGraph?.spaceNode?.id || ''),
-        canvas: { width: rect.width, height: rect.height },
-        matrix: lastMatrix ? {
-          a: Number(lastMatrix.a),
-          b: Number(lastMatrix.b),
-          c: Number(lastMatrix.c),
-          d: Number(lastMatrix.d),
-          e: Number(lastMatrix.e),
-          f: Number(lastMatrix.f)
-        } : null,
-        groups: groupSummary(groups),
-        projectedGroupIds: [...projectedGroups.keys()],
-        projectedMemoryIds: [...projectedMemories.keys()]
-      });
-    }
-
-    for (const group of groupsForSpace()) {
-      const projectedGroup = projectedGroups.get(String(group.id)) || projectBody(group, lastGraph);
-      const groupScreen = worldToScreen(projectedGroup);
-      if (!groupScreen) continue;
-      const radius = Number(projectedGroup.radius || groupRadius(group)) * scale;
-      const seed = Math.abs(Math.sin(String(group.id).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) * 0.17));
-      traceLightning(overlayContext, centreScreen, groupScreen, seed, timestamp, 1.05);
-
-      for (let index = 0; index < (group.members || []).length; index += 1) {
-        const projectedMemory = projectedMemories.get(String(group.members[index]));
-        const memoryScreen = worldToScreen(projectedMemory);
-        if (memoryScreen) traceLightning(overlayContext, groupScreen, memoryScreen, seed + index * 0.193, timestamp, 0.72);
-      }
-
-      drawGroupBubble(bodyContext, group, groupScreen, radius, timestamp);
-    }
-  }
-
-  function installStyles() {
-    if (document.getElementById('manualGravityPhysicsStyles')) return;
-    const style = document.createElement('style');
-    style.id = 'manualGravityPhysicsStyles';
-    style.textContent = `
-      .memory-graph-manual-gravity-canvas {
-        position:absolute;
-        inset:0;
-        z-index:1;
-        width:100%;
-        height:100%;
-        pointer-events:none;
-      }
-      .memory-graph-manual-gravity-body-canvas {
-        position:absolute;
-        inset:0;
-        z-index:3;
-        width:100%;
-        height:100%;
-        pointer-events:none;
-      }
-      .memory-graph-canvas[data-hover-group="true"] { cursor:move !important; }
-      .memory-graph-canvas[data-dragging-group="true"] { cursor:grabbing !important; }
-    `;
-    document.head.appendChild(style);
   }
 
   const wrappedRotation = Object.freeze({
     ...baseRotation,
     __manualGravityPhysicsWrapped: true,
-    version: `${baseRotation.version || 1}+gravity${VERSION}`,
+    version: `${baseRotation.version || 1}+canonical-groups${VERSION}`,
     project,
     snapshot() {
       return {
         ...(baseRotation.snapshot?.() || {}),
-        manualGravityPhysicsVersion: VERSION,
-        manualGravityBodies: bodies.size
+        canonicalManualGroupsVersion: VERSION,
+        canonicalManualGroups: groupsForSpace().length
       };
     }
   });
@@ -1077,23 +489,16 @@
 
   function mount() {
     surface = document.getElementById('memoryGraphSurface');
-    canvas = document.querySelector('.memory-graph-canvas');
-    startupLog('manual-gravity.mount', {
-      surfaceFound: Boolean(surface),
-      canvasFound: Boolean(canvas),
-      groups: groupSummary(groupsForSpace())
-    });
+    canvas = surface?.querySelector('.memory-graph-canvas') || null;
     if (!surface || !canvas) return false;
-
-    surface.querySelectorAll('.memory-graph-manual-group-canvas').forEach((legacy) => legacy.remove());
-    installStyles();
+    surface.querySelectorAll('.memory-graph-manual-gravity-canvas,.memory-graph-manual-gravity-body-canvas,.memory-graph-manual-group-canvas')
+      .forEach((element) => element.remove());
     installPointerHooks();
-    ensureOverlay();
-    if (!overlayFrame) overlayFrame = requestAnimationFrame(drawOverlay);
+    globalThis.MemoryGraph?.redraw?.();
     return true;
   }
 
-  installCanvasHooks();
+  installCanvasLabelHook();
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => requestAnimationFrame(mount), { once: true });
   } else {
@@ -1101,37 +506,19 @@
   }
 
   window.addEventListener('storage', (event) => {
-    if (event.key === GROUP_KEY || event.key === WORKSPACE_KEY) {
-      startupLog('manual-gravity.group-storage-listener', {
-        key: event.key,
-        oldLength: String(event.oldValue || '').length,
-        newLength: String(event.newValue || '').length,
-        graphSpaceId: String(lastGraph?.spaceNode?.id || ''),
-        groupsBeforeReset: groupSummary(groupsForSpace())
-      });
-      projectedMemories.clear();
-      projectedGroups.clear();
-      groupProjectionDirty = true;
-      if (event.key === GROUP_KEY) {
-        bodies.clear();
-        startupGroupResetDiagnostics = true;
-        startupLog('manual-gravity.startup-group-diagnostic:after-bodies-clear', {
-          graphSpaceId: String(lastGraph?.spaceNode?.id || ''),
-          ...startupGroupGeometry(groupsForSpace())
-        });
-      }
-      scheduleGraphRedraw(false);
-    }
+    if (event.key !== GROUP_KEY) return;
+    lastScheduledSignature = '';
+    redrawGraph(true);
   });
 
   globalThis.MemoryGraphManualGravity = Object.freeze({
     version: VERSION,
-    bodyCount: () => bodies.size,
+    bodyCount: () => groupsForSpace().length,
     isGroupedMemory: (memoryId) => Boolean(groupForMemory(memoryId)),
     prepareGroupedMemoryRelease,
-    persist: persistBodies,
-    redraw: () => scheduleGraphRedraw(true),
-    redrawOnly,
-    wake: wakePhysics
+    persist: persistGroupPositions,
+    redraw: () => redrawGraph(true),
+    redrawOnly: () => redrawGraph(false),
+    wake: () => redrawGraph(true)
   });
 })();
