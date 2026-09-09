@@ -177,8 +177,11 @@
     if (!document.body.classList.contains('molecular-view-active')) return;
     const low = orbLowDetail(), t = orbMotion.matches ? 0 : orb.time;
     const radius = Math.min(low ? 64 : 108, graph.width * .16, graph.height * .20);
-    let x = orbGuide.position?.x ?? graph.width - radius - 24;
-    let y = orbGuide.position?.y ?? radius + 72;
+    const margin = radius * 1.4 + 8;
+    const boundX = value => Math.max(margin, Math.min(graph.width - margin, value));
+    const boundY = value => Math.max(margin, Math.min(graph.height - margin - 20, value));
+    let x = boundX(orbGuide.position?.x ?? graph.width - radius - 24);
+    let y = boundY(orbGuide.position?.y ?? radius + 72);
     if (orbGuide.id) {
       const target = orbSafeNode(orbGuide.id);
       if (!target) { cancelOrbGuide(); orb.state = 'idle'; }
@@ -187,13 +190,23 @@
         const from = orbGuide.from || { x, y };
         const progress = orbMotion.matches ? 1 : Math.min(1, (performance.now() - orbGuide.start) / 1000);
         const eased = 1 - Math.pow(1 - progress, 3);
-        x = from.x + (p.screenX + p.screenRadius + radius + 16 - from.x) * eased;
-        y = from.y + (p.screenY - from.y) * eased;
+        x = boundX(from.x + (p.screenX + p.screenRadius + radius + 16 - from.x) * eased);
+        y = boundY(from.y + (p.screenY - from.y) * eased);
         context.save();
         context.strokeStyle = '#7dff41'; context.lineWidth = 2;
-        const pulse = orbGuide.arrived && !orbMotion.matches ? Math.min(1, (performance.now() - orbGuide.arrived) / 1200) : 0;
-        context.globalAlpha = 1 - pulse * .8;
-        context.beginPath(); context.arc(p.screenX, p.screenY, p.screenRadius + 10 + pulse * 24, 0, Math.PI * 2); context.stroke();
+        const pulse = orbGuide.arrived && !orbMotion.matches ? Math.min(1, (performance.now() - orbGuide.arrived) / 650) : 0;
+        context.globalAlpha = orbGuide.arrived ? .65 : 1;
+        context.beginPath(); context.arc(p.screenX, p.screenY, p.screenRadius + 10, 0, Math.PI * 2); context.stroke();
+        if (pulse > 0 && pulse < 1) {
+          // One narrow wavefront leaves the Orb toward the destination; no loop.
+          const angle = Math.atan2(p.screenY - y, p.screenX - x);
+          const reach = Math.max(radius, Math.hypot(p.screenX - x, p.screenY - y) - p.screenRadius);
+          context.globalAlpha = Math.sin(pulse * Math.PI) * .85;
+          context.strokeStyle = '#88eaff'; context.lineWidth = 1.5;
+          context.beginPath();
+          context.arc(x, y, radius * .88 + (reach - radius * .88) * pulse, angle - .32 * (1 - pulse * .6), angle + .32 * (1 - pulse * .6));
+          context.stroke();
+        }
         context.restore();
       }
     }
@@ -209,7 +222,7 @@
       orb.visualState = orb.state;
       orb.visualSince = t;
     }
-    const age = t - orb.visualSince;
+    const age = Math.max(0, t - orb.visualSince);
     const speech = orb.state === 'speaking' ? orb.amplitude : 0;
     const pulse = orb.state === 'arrived' ? Math.exp(-age * 3) * Math.sin(Math.min(1, age * 2) * Math.PI) : 0;
     const fault = orb.state === 'error' ? Math.exp(-age * 4) : 0;
@@ -240,7 +253,7 @@
         + signal.fault * .065 * Math.sin(py * 31 + px * 19 - t * 19));
       const rx = px * cr + pz * sr, rz = pz * cr - px * sr;
       const yy = py * .94 - rz * .342, z = py * .342 + rz * .94;
-      const stretch = orb.state === 'guiding' ? .075 * (rx * dx + yy * dy) : 0;
+      const stretch = orb.state === 'guiding' ? .11 * (1 - Math.exp(-signal.age * 8)) * (rx * dx + yy * dy) : 0;
       const perspective = 3.8 / (3.8 - z * .35);
       return { x: (rx + dx * stretch) * radius * r * perspective,
         y: (yy + dy * stretch) * radius * r * perspective, z, wave };
@@ -248,10 +261,17 @@
     // Batch paths by depth and colour: thousands of fine segments, few strokes.
     const mesh = Array.from({ length: 8 }, () => new Path2D());
     const bands = Array.from({ length: 8 }, () => new Path2D());
+    const highlights = Array.from({ length: 8 }, () => new Path2D());
     const segment = (paths, a, b, green) => {
       const depth = Math.max(0, Math.min(3, Math.floor(((a.z + b.z) * .25 + .5) * 4)));
       const path = paths[depth * 2 + Number(green)];
       path.moveTo(a.x, a.y); path.lineTo(b.x, b.y);
+      // A compact travelling crest catches selected filaments, not whole rings.
+      const crest = Math.sin((a.x * .65 + a.y * .4) / radius * 5 + a.z * 4 - phase * 2.5);
+      if (depth >= 2 && crest > (paths === bands ? .72 : .975)) {
+        const light = highlights[depth * 2 + Number(green)];
+        light.moveTo(a.x, a.y); light.lineTo(b.x, b.y);
+      }
     };
     const steps = low ? 72 : 128, rings = low ? 24 : 46, meridians = low ? 32 : 64;
     for (let family = 0; family < 2; family++) {
@@ -274,7 +294,7 @@
         let previous;
         for (let step = 0; step <= steps; step++) {
           const lon = step / steps * tau;
-          const lat = .38 + band * .47 + strand * .014
+          const lat = .38 + band * .47 + strand * .014 * (1 + .45 * Math.sin(lon * 3 - phase * 1.6 + band))
             + (.09 + signal.speech * .055) * Math.sin(lon * 3 + phase * 1.2 + band * .9)
             + .035 * Math.sin(lon * 7 - phase * 2 + band);
           const p = point(lat, lon, 1.009);
@@ -297,17 +317,27 @@
       context.fillStyle = core;
       context.beginPath(); context.arc(0, 0, radius * 1.1, 0, tau); context.fill();
       context.globalCompositeOperation = 'lighter';
+      // Interior light is confined beneath the crisp shell, with no blur pass.
+      const energy = context.createRadialGradient(-radius * .22, radius * .08, radius * .03, 0, 0, radius * .94);
+      energy.addColorStop(0, `rgba(12,111,255,${.12 + signal.energy * .12})`);
+      energy.addColorStop(.45, `rgba(5,65,191,${.07 + signal.energy * .06})`);
+      energy.addColorStop(1, 'rgba(0,30,100,0)');
+      context.fillStyle = energy;
+      context.beginPath(); context.arc(0, 0, radius * .94, 0, tau); context.fill();
       for (let depth = 0; depth < 4; depth++) {
         for (let green = 0; green < 2; green++) {
           const color = green ? '125,255,65' : '24,151,255';
-          const alpha = [.055, .12, .36, .65][depth] * (.8 + signal.energy * .45);
+          const alpha = [.035, .085, .28, .62][depth] * (.8 + signal.energy * .45);
           context.strokeStyle = `rgba(${color},${alpha})`;
-          context.lineWidth = low ? .5 : .55;
+          context.lineWidth = (low ? .42 : .46) + depth * .045;
           context.stroke(mesh[depth * 2 + green]);
           // A narrow bloom beneath an exact filament, never full-sphere blur.
           context.strokeStyle = `rgba(${color},${alpha * .16})`;
-          context.lineWidth = 3.2 + signal.speech;
+          context.lineWidth = 2.4 + signal.speech;
           context.stroke(bands[depth * 2 + green]);
+          context.strokeStyle = `rgba(${signal.fault > .1 ? '255,167,119' : green ? '192,255,156' : '139,225,255'},${(.18 + signal.energy * .38) * (depth / 3)})`;
+          context.lineWidth = .75 + signal.speech * .35;
+          context.stroke(highlights[depth * 2 + green]);
           context.strokeStyle = `rgba(${green ? '153,255,100' : '67,191,255'},${Math.min(.95, alpha * 1.5)})`;
           context.lineWidth = .7 + signal.speech * .3;
           context.stroke(bands[depth * 2 + green]);
