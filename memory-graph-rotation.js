@@ -176,10 +176,12 @@
     const x = root.x - graph.centreX, y = root.y - graph.centreY;
     const z = pseudoDepth(root, graph);
     const desired = Math.atan2(-x, z);
+    const delta = normaliseAngle(desired - state.yaw);
+    const direction = Math.abs(delta) > .05 ? Math.sign(delta) : (hashUnit(root.id) < .5 ? -1 : 1);
     cinematic = {
       yaw: state.yaw, pitch: state.pitch, blend: state.active ? spatialBlend : 0,
-      delta: clamp(normaliseAngle(desired - state.yaw), -.87, .87),
-      targetPitch: clamp(Math.atan2(y, Math.hypot(x, z)), -.32, .32)
+      delta: direction * clamp(Math.abs(delta), .95, 1.7),
+      targetPitch: clamp(Math.atan2(y, Math.hypot(x, z)), -.38, .38)
     };
     spatialBlend = cinematic.blend;
     state.active = true;

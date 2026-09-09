@@ -270,17 +270,17 @@ body.molecular-view-active .molecular-hud strong { font-size: 18px; font-weight:
 body.molecular-view-active .molecular-hud span { margin-top: 8px; font-size: 8px; letter-spacing: .32em; color: #7691a5; }
 body.molecular-view-active #memoryGraphSurface {
   background:
-    radial-gradient(ellipse 44% 13% at 24% 69%, rgb(24 107 158 / .24), transparent 74%),
-    radial-gradient(ellipse 21% 34% at 39% 48%, rgb(24 68 132 / .16), transparent 72%),
-    radial-gradient(ellipse 31% 12% at 53% 76%, rgb(68 111 71 / .12), transparent 76%),
-    radial-gradient(ellipse 27% 35% at 84% 28%, rgb(8 68 83 / .14), transparent 72%),
-    radial-gradient(ellipse 24% 44% at 75% 58%, rgb(14 66 56 / .12), transparent 75%),
+    radial-gradient(ellipse 44% 13% at 24% 69%, rgb(31 127 191 / .46), transparent 74%),
+    radial-gradient(ellipse 21% 34% at 39% 48%, rgb(33 88 173 / .31), transparent 72%),
+    radial-gradient(ellipse 31% 12% at 53% 76%, rgb(70 153 98 / .27), transparent 76%),
+    radial-gradient(ellipse 27% 35% at 84% 28%, rgb(16 107 117 / .27), transparent 72%),
+    radial-gradient(ellipse 24% 44% at 75% 58%, rgb(23 97 70 / .22), transparent 75%),
     radial-gradient(ellipse 50% 30% at 54% 46%, rgb(13 39 77 / .2), transparent 72%),
     radial-gradient(ellipse 14% 35% at 15% 40%, rgb(19 58 98 / .13), transparent 80%),
     linear-gradient(145deg, #030a12, #050d19 47%, #03090e 78%);
 }
 body.molecular-view-active #memoryGraphSurface::before {
-  opacity: .64;
+  opacity: .80;
   pointer-events: none;
   background-image:
     radial-gradient(circle at 72% 21%, #d4efff 0 .8px, #5396c54a 1.2px, transparent 4px),
@@ -290,10 +290,10 @@ body.molecular-view-active #memoryGraphSurface::before {
     radial-gradient(circle at 78% 48%, #366885 0 .6px, transparent 1px),
     radial-gradient(circle at 46% 83%, #3b7869 0 .7px, transparent 1.4px),
     radial-gradient(circle at 23% 62%, #abcbe3 0 .65px, #3a6b922c 1px, transparent 3px);
-  background-size: 733px 607px, 137px 179px, 241px 227px, 89px 113px, 193px 151px, 307px 271px, 521px 419px;
+  background-size: 733px 607px, 119px 157px, 211px 199px, 83px 107px, 193px 151px, 307px 271px, 521px 419px;
 }
 body.molecular-view-active #memoryGraphSurface::after {
-  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .22;
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .38;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.008 .018' numOctaves='3' seed='24'/%3E%3CfeColorMatrix values='0 0 0 0 .12 0 0 0 0 .4 0 0 0 0 .68 0 0 0 1 0'/%3E%3C/filter%3E%3Cpath fill='%23133355' filter='url(%23n)' d='M0 0h900v900H0z'/%3E%3C/svg%3E") center / cover;
   /* Static fractal texture, shaped into separate cloud banks; no live filter animation. */
   mask-image:
@@ -302,11 +302,11 @@ body.molecular-view-active #memoryGraphSurface::after {
     radial-gradient(ellipse 33% 18% at 69% 79%, #000 4%, transparent 83%);
 }
 body.molecular-view-active #memoryGraphSurface[data-atmosphere-detail="low"]::after {
-  opacity: .12;
+  opacity: .23;
 }
 @media (max-width: 800px) {
-  body.molecular-view-active #memoryGraphSurface::after { opacity: .12; }
-  body.molecular-view-active #memoryGraphSurface::before { opacity: .48; }
+  body.molecular-view-active #memoryGraphSurface::after { opacity: .23; }
+  body.molecular-view-active #memoryGraphSurface::before { opacity: .60; }
 }
 @media (prefers-reduced-motion: reduce) {
   body.molecular-view-active #memoryGraphSurface::before { transform: none; transition: none; }

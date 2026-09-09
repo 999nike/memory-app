@@ -230,8 +230,8 @@
     return t * t * t * (t * (t * 6 - 15) + 10);
   };
 
-  function resetOrbSpatial(node = orbSafeNode(orbGuide.id)) {
-    if (!orbGuide.spatialOwned) return;
+  function resetOrbSpatial(node = orbSafeNode(orbGuide.id), force = false) {
+    if (!orbGuide.spatialOwned && !force) return;
     const projected = node && projectPresentationNode(node);
     // Same underlying reset as Escape; completion is not a manual takeover.
     rotationApi()?.reset?.({ manual: false });
@@ -257,6 +257,7 @@
     orbGuide.start = performance.now();
     orbGuide.from = orbGuide.position && { ...orbGuide.position };
     orbGuide.viewFrom = null; orbGuide.midpoint = null;
+    orbGuide.beaconId = null; orbGuide.beaconUntil = 0;
   }
 
   globalThis.addEventListener('orb-spatial-takeover', () => {
@@ -286,57 +287,118 @@
     if (orbMotion.matches) {
       focusPresentationNode(node, { animate: false });
       orb.state = 'arrived'; orbGuide.arrived = performance.now();
-      orbGuide.timer = setTimeout(() => {
-        cancelOrbGuide(); frameUniverse(); restoreOrbVoiceState();
-      }, 1000);
     }
     drawGraph();
     return true;
   }
 
-  // Advance before graph projection so both the graph and Orb see the same view.
+  function acknowledgeOrbTarget(node) {
+    if (!node || orbGuide.phase !== 'arrived' || String(node.id) !== orbGuide.id) return false;
+    resetOrbSpatial(node, true);
+    cancelOrbGuide();
+    focusedNodeId = node.id;
+    orbGuide.beaconId = String(node.id);
+    orbGuide.beaconUntil = performance.now() + 1800;
+    orbGuide.timer = setTimeout(() => {
+      orbGuide.beaconId = null; orbGuide.timer = 0; drawGraph();
+    }, 1800);
+    if (!orbVoice.speaking) orb.state = 'idle';
+    return true;
+  }
+
+  // One draw clock: establish the whole universe, then the family, then the node.
   function updateOrbCinematic(now) {
     if (!orbGuide.id) return;
     const node = orbSafeNode(orbGuide.id);
     if (!node) { cancelOrbGuide(); orb.state = 'idle'; return; }
-    if (orbMotion.matches) return;
-    const elapsed = now - orbGuide.start;
-    const durations = { outbound: 1050, lock: 500, cinematic: 3100, final: 950, arrived: 1000 };
-    if (elapsed >= durations[orbGuide.phase]) {
-      const next = { outbound: 'lock', lock: 'cinematic', cinematic: 'final', final: 'arrived', arrived: 'return' };
-      if (orbGuide.phase === 'cinematic') rotationApi()?.advanceCinematic?.(1);
+    if (orbMotion.matches || orbGuide.phase === 'arrived') return;
+    const durations = { outbound: 850, lock: 550, overview: 2800, cinematic: 3600, final: 1100 };
+    if (now - orbGuide.start >= durations[orbGuide.phase]) {
+      const next = { outbound: 'lock', lock: 'overview', overview: 'cinematic', cinematic: 'final', final: 'arrived' };
+      if (orbGuide.phase === 'cinematic') {
+        rotationApi()?.advanceCinematic?.(1);
+        frameOrbDestination(node, 1);
+      }
       orbGuide.phase = next[orbGuide.phase];
       orbGuide.start = now;
       orbGuide.from = orbGuide.position && { ...orbGuide.position };
-      if (orbGuide.phase === 'cinematic') {
+      if (orbGuide.phase === 'overview') {
         orbGuide.viewFrom = { ...view };
         orbGuide.spatialOwned = rotationApi()?.beginCinematic?.(node, graph) === true;
       }
       if (orbGuide.phase === 'arrived') orbGuide.arrived = now;
-      if (orbGuide.phase === 'return') {
-        resetOrbSpatial(node);
-        orbGuide.id = null; orbGuide.arrived = 0;
-        orbGuide.viewFrom = null; orbGuide.midpoint = null;
-        frameUniverse({ animate: true, duration: 1050 });
-      }
     }
-    if (orbGuide.phase === 'cinematic') {
-      const progress = clamp((now - orbGuide.start) / 3100, 0, 1);
-      rotationApi()?.advanceCinematic?.(orbEase(progress));
-      const root = rotationApi()?.familyRoot?.(node, graph) || node;
-      // Family first, then the canonical destination; retain surrounding structure.
-      const family = projectPresentationNode(root), target = projectPresentationNode(node);
-      const precise = orbEase((progress - .4) / .6);
-      const scale = clamp(Math.max(orbGuide.viewFrom.scale, 1.08), MIN_SCALE, 1.4);
-      focusPresentationNode(node, {
-        redraw: false, from: orbGuide.viewFrom, progress: orbEase(progress), exactScale: scale,
-        screenX: graph.width * (orbGuide.from?.x >= graph.width / 2 ? .36 : .64),
-        projected: { x: family.x + (target.x - family.x) * precise,
-          y: family.y + (target.y - family.y) * precise }
-      });
+    if (orbGuide.phase === 'overview') {
+      const progress = clamp((now - orbGuide.start) / 2800, 0, 1);
+      rotationApi()?.advanceCinematic?.(.5 * orbEase(progress));
+      const whole = frameUniverse({ targetOnly: true, maxScale: 1.5, padding: 1.10 });
+      const eased = orbEase(progress);
+      if (whole) for (const key of ['x', 'y', 'scale']) {
+        view[key] = orbGuide.viewFrom[key] + (whole[key] - orbGuide.viewFrom[key]) * eased;
+      }
+    } else if (orbGuide.phase === 'cinematic') {
+      const progress = clamp((now - orbGuide.start) / 3600, 0, 1);
+      rotationApi()?.advanceCinematic?.(.5 + .5 * orbEase(progress));
+      frameOrbDestination(node, progress);
     }
     if (!orbVoice.speaking) orb.state = orbGuide.phase === 'lock' ? 'thinking'
-      : orbGuide.phase === 'arrived' ? 'arrived' : orbGuide.phase === 'return' ? 'idle' : 'guiding';
+      : orbGuide.phase === 'arrived' ? 'arrived' : 'guiding';
+  }
+
+  function frameOrbDestination(node, progress) {
+    let root = rotationApi()?.familyRoot?.(node, graph) || node;
+    const parent = graph.nodes.find(item => String(item.id) === String(root.parentId));
+    if (root.kind === 'memory' && parent?.kind === 'space') root = parent;
+    const whole = frameUniverse({ targetOnly: true, maxScale: 1.5, padding: 1.10 });
+    const family = frameUniverse({ targetOnly: true, nodes: clusterNodesFor(root), maxScale: 1.8, padding: 1.12 });
+    if (!whole || !family) return;
+    const intoFamily = orbEase(progress / .65);
+    const precise = orbEase((progress - .55) / .45);
+    const from = {};
+    for (const key of ['x', 'y', 'scale']) from[key] = whole[key] + (family[key] - whole[key]) * intoFamily;
+    // Preserve cluster context even when the exact destination is a tiny child.
+    focusPresentationNode(node, {
+      redraw: false, from, progress: precise,
+      exactScale: clamp(family.scale * 1.12, MIN_SCALE, 1.9),
+      screenX: (homeComposition().left + homeComposition().graphRight) / 2
+    });
+  }
+
+  function drawOrbBeacon(node, now, source = null, radius = 0) {
+    const p = projectPresentationNode(node);
+    const arrived = orbGuide.phase === 'arrived' || orbGuide.beaconId === String(node.id);
+    const age = orbMotion.matches ? 0 : (now - (orbGuide.arrived || orbGuide.start)) / 1000;
+    const pulse = orbMotion.matches ? .65 : .5 + .5 * Math.sin(age * Math.PI * 1.25);
+    const inner = p.screenRadius + 9, outer = inner + (arrived ? 64 : 26);
+    context.save();
+    context.globalCompositeOperation = 'lighter';
+    const glow = context.createRadialGradient(p.screenX, p.screenY, p.screenRadius * .7, p.screenX, p.screenY, outer);
+    glow.addColorStop(0, `rgba(123,255,92,${arrived ? .22 + pulse * .16 : .08})`);
+    glow.addColorStop(.42, `rgba(35,164,255,${arrived ? .18 + pulse * .14 : .05})`);
+    glow.addColorStop(1, 'rgba(35,164,255,0)');
+    context.fillStyle = glow;
+    context.beginPath(); context.arc(p.screenX, p.screenY, outer, 0, Math.PI * 2); context.fill();
+    for (let i = 0; i < (arrived ? 3 : 1); i++) {
+      const wave = orbMotion.matches ? i / 3 : (age * .38 + i / 3) % 1;
+      context.strokeStyle = i % 2 ? '#60ceff' : '#a2ff70';
+      context.globalAlpha = arrived ? (.85 - wave * .65) : .5;
+      context.lineWidth = i === 0 ? 2.5 : 1.5;
+      context.beginPath(); context.arc(p.screenX, p.screenY, inner + wave * (arrived ? 42 : 10), 0, Math.PI * 2); context.stroke();
+    }
+    if (source && arrived && !orbMotion.matches) {
+      const dx = p.screenX - source.x, dy = p.screenY - source.y;
+      const distance = Math.hypot(dx, dy), angle = Math.atan2(dy, dx);
+      const wave = (age * .55) % 1;
+      if (distance > radius + p.screenRadius) {
+        context.globalAlpha = Math.sin(wave * Math.PI) * .75;
+        context.strokeStyle = '#83e6ff'; context.lineWidth = 2;
+        context.beginPath();
+        context.arc(source.x, source.y, radius + (distance - p.screenRadius - radius) * wave,
+          angle - .16, angle + .16);
+        context.stroke();
+      }
+    }
+    context.restore(); context.beginPath();
   }
 
   function setOrbState(state) {
@@ -420,12 +482,15 @@
         const beside = (fitting.length ? fitting : candidates).reduce((best, q) =>
           Math.hypot(q.x - from.x, q.y - from.y) < Math.hypot(best.x - from.x, best.y - from.y) ? q : best);
         if (orbGuide.phase === 'outbound') {
-          if (!orbGuide.midpoint) orbGuide.midpoint = {
-            x: from.x + (beside.x - from.x) * .48, y: from.y + (beside.y - from.y) * .48
-          };
-          mix(orbGuide.midpoint, (now - orbGuide.start) / 1050);
+          if (!orbGuide.midpoint) {
+            const distance = Math.max(1, Math.hypot(beside.x - from.x, beside.y - from.y));
+            const travel = Math.min(90, distance * .35);
+            orbGuide.midpoint = { x: from.x + (beside.x - from.x) / distance * travel,
+              y: from.y + (beside.y - from.y) / distance * travel };
+          }
+          mix(orbGuide.midpoint, (now - orbGuide.start) / 850);
         } else if (orbGuide.phase === 'final' || orbGuide.phase === 'arrived') {
-          const progress = orbGuide.phase === 'arrived' ? 1 : orbEase((now - orbGuide.start) / 950);
+          const progress = orbGuide.phase === 'arrived' ? 1 : orbEase((now - orbGuide.start) / 1100);
           const startAngle = Math.atan2(from.y - p.screenY, from.x - p.screenX);
           const endAngle = Math.atan2(beside.y - p.screenY, beside.x - p.screenX);
           const turn = Math.atan2(Math.sin(endAngle - startAngle), Math.cos(endAngle - startAngle));
@@ -435,12 +500,7 @@
           x = p.screenX + Math.cos(angle) * distance;
           y = p.screenY + Math.sin(angle) * distance;
         }
-        context.save();
-        const pulse = orbGuide.arrived && !orbMotion.matches ? Math.sin(clamp((now - orbGuide.arrived) / 1000, 0, 1) * Math.PI) : 0;
-        context.strokeStyle = '#7dff41'; context.lineWidth = 2;
-        context.globalAlpha = .55 + pulse * .4;
-        context.beginPath(); context.arc(p.screenX, p.screenY, p.screenRadius + 10 + pulse * 8, 0, Math.PI * 2); context.stroke();
-        context.restore();
+        drawOrbBeacon(target, now, { x, y }, radius);
       }
     } else if (orbGuide.phase === 'return' && !orbMotion.matches) {
       const progress = (now - orbGuide.start) / 1050;
@@ -455,6 +515,8 @@
     }
     if (orbGuide.phase) orbGuide.position = { x, y };
     else { orbGuide.position = null; y += Math.sin(t * .6) * 3; }
+    const lingering = orbGuide.beaconId && orbSafeNode(orbGuide.beaconId);
+    if (lingering && now < orbGuide.beaconUntil) drawOrbBeacon(lingering, now);
     drawOrbWaveform(x, y, radius, t, low);
   }
 
@@ -560,14 +622,21 @@
       context.fillStyle = core;
       context.beginPath(); context.arc(0, 0, radius * 1.1, 0, tau); context.fill();
       context.globalCompositeOperation = 'lighter';
-      // A faint edge aura leaves the waveform crisp, without a canvas blur pass.
+      // Layered blue/green edge light leaves the waveform crisp, without a blur pass.
       const aura = context.createRadialGradient(0, 0, radius * .88, 0, 0, radius * 1.48);
       aura.addColorStop(0, 'rgba(15,115,207,0)');
-      aura.addColorStop(.35, `rgba(20,142,235,${.025 + signal.speech * .045})`);
-      aura.addColorStop(.66, `rgba(90,210,136,${.012 + signal.speech * .018})`);
+      aura.addColorStop(.35, `rgba(20,142,235,${.095 + signal.speech * .12})`);
+      aura.addColorStop(.66, `rgba(90,210,136,${.055 + signal.speech * .07})`);
       aura.addColorStop(1, 'rgba(15,115,207,0)');
       context.fillStyle = aura;
       context.beginPath(); context.arc(0, 0, radius * 1.48, 0, tau); context.fill();
+      const corona = context.createRadialGradient(-radius * .2, radius * .08, radius * .92, 0, 0, radius * 1.7);
+      corona.addColorStop(0, 'rgba(43,133,255,0)');
+      corona.addColorStop(.26, `rgba(40,154,255,${.035 + signal.speech * .07})`);
+      corona.addColorStop(.55, `rgba(115,238,91,${.025 + signal.speech * .045})`);
+      corona.addColorStop(1, 'rgba(25,113,193,0)');
+      context.fillStyle = corona;
+      context.beginPath(); context.arc(0, 0, radius * 1.7, 0, tau); context.fill();
       // Interior light is confined beneath the crisp shell, with no blur pass.
       const energy = context.createRadialGradient(-radius * .22, radius * .08, radius * .03, 0, 0, radius * .94);
       energy.addColorStop(0, `rgba(12,111,255,${.12 + signal.energy * .12})`);
@@ -583,10 +652,10 @@
           context.lineWidth = (low ? .42 : .46) + depth * .045;
           context.stroke(mesh[depth * 2 + green]);
           // A narrow bloom beneath an exact filament, never full-sphere blur.
-          context.strokeStyle = `rgba(${color},${alpha * .16})`;
+          context.strokeStyle = `rgba(${color},${alpha * (.22 + signal.speech * .12)})`;
           context.lineWidth = 2.4 + signal.speech;
           context.stroke(bands[depth * 2 + green]);
-          context.strokeStyle = `rgba(${signal.fault > .1 ? '255,167,119' : green ? '192,255,156' : '139,225,255'},${(.18 + signal.energy * .38) * (depth / 3)})`;
+          context.strokeStyle = `rgba(${signal.fault > .1 ? '255,167,119' : green ? '192,255,156' : '139,225,255'},${(.25 + signal.energy * .42 + signal.speech * .3) * (depth / 3)})`;
           context.lineWidth = .75 + signal.speech * .35;
           context.stroke(highlights[depth * 2 + green]);
           context.strokeStyle = `rgba(${green ? '153,255,100' : '67,191,255'},${Math.min(.95, alpha * 1.5)})`;
@@ -598,29 +667,29 @@
       for (let ring = 0; ring < 3; ring++) {
         const listening = orb.state === 'listening' ? (t * .35 + ring / 3) % 1 : 0;
         const r = radius * (1.17 + ring * .08 + listening * .2 + signal.pulse * .18);
-        context.strokeStyle = `rgba(${ring === 1 ? '125,255,65' : '30,154,255'},${(.1 + signal.energy * .09) * (1 - listening)})`;
+        context.strokeStyle = `rgba(${ring === 1 ? '125,255,65' : '30,154,255'},${(.18 + signal.energy * .12 + signal.speech * .16) * (1 - listening)})`;
         context.lineWidth = .55;
         context.beginPath();
         context.ellipse(0, 0, r, r * (.80 + ring * .06), -.4 + ring * .6, t * .12 + ring * 2, t * .12 + ring * 2 + 3.9);
         context.stroke();
       }
       // Fixed-count deterministic motes: no emitters, history buffers or extra RAF.
-      const moteCount = low ? 10 : 28;
+      const moteCount = low ? 14 : 42;
       for (let i = 0; i < moteCount; i++) {
         const lon = i * 2.39996 + t * (.045 + (i % 3) * .012);
         const p = point(Math.acos(1 - 2 * (i + .5) / moteCount), lon,
           1.2 + .18 * (.5 + .5 * Math.sin(i * 7 + t * .24)));
         const shimmer = .65 + .35 * Math.sin(i * 4.7 + t * 1.1);
-        const alpha = (.16 + .32 * Math.max(0, p.z)) * shimmer * (.7 + signal.speech * .8);
+        const alpha = (.3 + .42 * Math.max(0, p.z)) * shimmer * (.85 + signal.speech * .7);
         const color = i % 3 ? '67,184,255' : '157,255,117';
         context.fillStyle = `rgba(${color},${alpha})`;
-        const size = p.z > .3 ? 1.15 : .65;
+        const size = p.z > .3 ? 1.6 : .85;
         context.beginPath(); context.arc(p.x, p.y, size, 0, tau); context.fill();
         if (!low && p.z > .3 && i % 4 === 0) {
-          context.fillStyle = `rgba(${color},${alpha * .09})`;
+          context.fillStyle = `rgba(${color},${alpha * .17})`;
           context.beginPath(); context.arc(p.x, p.y, size * 3.4, 0, tau); context.fill();
           // Short tangential sparks become visible during speech, never fireworks.
-          context.strokeStyle = `rgba(${color},${alpha * signal.speech * .65})`;
+          context.strokeStyle = `rgba(${color},${alpha * (.2 + signal.speech * .75)})`;
           context.lineWidth = .65;
           const length = 2 + signal.speech * 7;
           context.beginPath(); context.moveTo(p.x, p.y);
@@ -1788,7 +1857,7 @@
             : node?.kind === 'control'
               ? (rotated ? 'control-inspect' : 'control')
               : 'pan',
-        node: node?.clusterRoot || node?.kind === 'memory' || node?.kind === 'control' ? node : null,
+        node: node?.clusterRoot || ['space', 'memory', 'control'].includes(node?.kind) ? node : null,
         clusterNodes: node?.clusterRoot ? [node] : [],
         nodeStartX: node?.clusterRoot ? node.x : null,
         nodeStartY: node?.clusterRoot ? node.y : null,
@@ -1924,14 +1993,16 @@
       startSimulation();
     }
 
-    if (mode === 'home' && !pointerState.moved) {
+    const acknowledged = event.type !== 'pointercancel' && !pointerState.moved &&
+      acknowledgeOrbTarget(selectedNode);
+    if (mode === 'home' && !pointerState.moved && !acknowledged) {
       collapsePresentationControls();
       if (document.body.classList.contains('molecular-view-active')) focusHome({ animate: true });
       else focusSpace({ animate: true });
       surface?.dispatchEvent(new CustomEvent('memory-graph-home'));
     }
 
-    if (mode === 'cluster' && !pointerState.moved && selectedNode?.kind === 'space') {
+    if (mode === 'cluster' && !pointerState.moved && selectedNode?.kind === 'space' && !acknowledged) {
       collapsePresentationControls();
       if (document.body.classList.contains('molecular-view-active')) focusHome({ animate: true });
       else focusSpace({ animate: true });
@@ -2070,7 +2141,7 @@
   function frameUniverse(options = {}) {
     if (!graph) return false;
     const area = homeComposition();
-    const nodes = graph.nodes.filter(node => !node.hidden && Number.isFinite(node.x) && Number.isFinite(node.y));
+    const nodes = (options.nodes || graph.nodes).filter(node => !node.hidden && Number.isFinite(node.x) && Number.isFinite(node.y));
     if (!nodes.length) return false;
     let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
     for (const node of nodes) {
@@ -2084,13 +2155,14 @@
     }
     const width = Math.max(160, area.graphRight - area.left - 16);
     const height = Math.max(160, area.bottom - area.top);
-    const scale = clamp(Math.min(width / Math.max(1, right - left),
-      height / Math.max(1, bottom - top)), MIN_SCALE, area.desktop ? MAX_SCALE : 1.3);
+    const scale = clamp(Math.min(width / Math.max(1, (right - left) * (options.padding || 1)),
+      height / Math.max(1, (bottom - top) * (options.padding || 1))), MIN_SCALE, options.maxScale || (area.desktop ? MAX_SCALE : 1.3));
     const target = {
       scale,
       x: (area.left + area.graphRight) / 2 - (left + right) / 2 * scale,
       y: (area.top + area.bottom) / 2 - (top + bottom) / 2 * scale
     };
+    if (options.targetOnly) return target;
     homePresentation = true;
     if (options.animate && !orbMotion.matches) transitionView(target, true, options.duration);
     else { stopViewTransition(); Object.assign(view, target); }
