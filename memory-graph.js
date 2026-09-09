@@ -51,12 +51,108 @@
   const orbStates = ['idle', 'listening', 'thinking', 'speaking', 'guiding', 'arrived', 'error'];
   const orbMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const orb = { state: 'idle', amplitude: 0.5, time: 0, last: 0, frame: 0, mounted: false };
-  const orbGuide = { id: null, start: 0, from: null, position: null, timer: 0, arrived: 0 };
+  const orbGuide = { id: null, start: 0, from: null, position: null, timer: 0, arrived: 0, phase: null, viewFrom: null };
   let orbRequest = 0, orbAbort = null, orbReply = null, orbErrorTimer = 0;
+
+  const orbVoice = { recognition: null, speaking: false, utterance: null, token: 0, button: null };
+
+  function restoreOrbVoiceState() {
+    orb.state = orbGuide.id ? (orbGuide.phase === 'arrived' ? 'arrived'
+      : orbGuide.phase === 'lock' ? 'thinking' : 'guiding') : 'idle';
+    drawGraph();
+  }
+
+  function stopOrbVoice() {
+    orbVoice.token++;
+    const recognition = orbVoice.recognition;
+    orbVoice.recognition = null;
+    try { recognition?.abort(); } catch { /* Already ended. */ }
+    if (orbVoice.utterance) globalThis.speechSynthesis?.cancel();
+    orbVoice.utterance = null; orbVoice.speaking = false;
+    orbVoice.button?.setAttribute('aria-pressed', 'false');
+  }
+
+  function speakOrbReply(reply, requestId) {
+    if (!globalThis.speechSynthesis || !globalThis.SpeechSynthesisUtterance) return;
+    const token = orbVoice.token;
+    const utterance = new SpeechSynthesisUtterance(reply);
+    orbVoice.utterance = utterance;
+    utterance.rate = .95;
+    utterance.onstart = () => {
+      if (token !== orbVoice.token || requestId !== orbRequest) return;
+      orbVoice.speaking = true; orb.state = 'speaking'; drawGraph();
+    };
+    const finish = () => {
+      if (token !== orbVoice.token || requestId !== orbRequest) return;
+      orbVoice.speaking = false; orbVoice.utterance = null;
+      restoreOrbVoiceState();
+    };
+    utterance.onend = finish; utterance.onerror = finish;
+    try { speechSynthesis.speak(utterance); } catch { finish(); }
+  }
+
+  function mountOrbMicrophone(card, input) {
+    const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
+    if (!Recognition) return;
+    const button = document.createElement('button');
+    button.type = 'button'; button.textContent = 'Mic';
+    button.setAttribute('aria-label', 'Speak to Orb');
+    button.setAttribute('aria-pressed', 'false');
+    orbVoice.button = button;
+    card.querySelector('.orb-input-row').append(button);
+    button.addEventListener('click', () => {
+      if (orbVoice.recognition) {
+        stopOrbVoice(); restoreOrbVoiceState(); return;
+      }
+      stopOrbVoice();
+      ++orbRequest; orbAbort?.abort(); clearTimeout(orbErrorTimer);
+      cancelOrbGuide();
+      let recognition;
+      try { recognition = new Recognition(); } catch {
+        orbReply.textContent = 'Microphone unavailable. Type your request instead.'; return;
+      }
+      orbVoice.recognition = recognition;
+      recognition.lang = document.documentElement.lang || navigator.language || 'en-GB';
+      recognition.continuous = false; recognition.interimResults = false;
+      let accepted = false;
+      const current = () => orbVoice.recognition === recognition;
+      recognition.onstart = () => {
+        if (!current()) return;
+        orb.state = 'listening'; button.setAttribute('aria-pressed', 'true');
+        orbReply.textContent = 'Listening...'; drawGraph();
+      };
+      recognition.onresult = event => {
+        if (!current() || accepted) return;
+        const transcript = Array.from(event.results).filter(result => result.isFinal)
+          .map(result => result[0].transcript).join(' ').trim();
+        if (!transcript) return;
+        accepted = true; input.value = transcript;
+        askOrb(transcript);
+      };
+      recognition.onerror = () => {
+        if (!current()) return;
+        orbReply.textContent = 'Microphone unavailable. Type your request instead.';
+        stopOrbVoice(); restoreOrbVoiceState();
+      };
+      recognition.onend = () => {
+        if (!current()) return;
+        orbVoice.recognition = null; button.setAttribute('aria-pressed', 'false');
+        if (!accepted) {
+          orbReply.textContent = 'No speech received. Try again or type your request.';
+          restoreOrbVoiceState();
+        }
+      };
+      try { recognition.start(); } catch {
+        orbReply.textContent = 'Microphone unavailable. Type your request instead.';
+        stopOrbVoice(); restoreOrbVoiceState();
+      }
+    });
+  }
 
   async function askOrb(value) {
     const text = String(value || '').trim();
     const requestId = ++orbRequest;
+    stopOrbVoice();
     orbAbort?.abort(); clearTimeout(orbErrorTimer);
     const controller = new AbortController(); orbAbort = controller;
     setOrbState('thinking');
@@ -98,6 +194,7 @@
     if (!target || !guideOrbTo(target.id)) return fail('No safe visible node matched. Try its label.');
     const reply = `${fallback ? 'Local AI unavailable. ' : ''}Guiding to ${target.label}.${intent.operation === 'open' ? ' Opening is disabled; guidance only.' : ''}`;
     say(reply);
+    speakOrbReply(reply, requestId);
     return { ok: true, targetId: target.id, fallback, reply };
   }
 
@@ -127,30 +224,88 @@
       .slice(0, 10).map(node => ({ id: String(node.id), label: String(node.label || node.name || '') }));
   }
 
+  const orbEase = value => {
+    const t = clamp(value, 0, 1);
+    return t * t * t * (t * (t * 6 - 15) + 10);
+  };
+
   function cancelOrbGuide() {
     clearTimeout(orbGuide.timer);
+    rotationApi()?.cancelCinematic?.();
+    if (orbGuide.phase) stopViewTransition();
     orbGuide.id = null; orbGuide.arrived = 0;
+    orbGuide.phase = orbGuide.position && !orbMotion.matches ? 'return' : null;
+    orbGuide.start = performance.now();
+    orbGuide.from = orbGuide.position && { ...orbGuide.position };
+    orbGuide.viewFrom = null; orbGuide.midpoint = null;
   }
+
+  globalThis.addEventListener('orb-spatial-takeover', () => {
+    if (!orbGuide.id) return;
+    stopOrbVoice();
+    cancelOrbGuide();
+    orb.state = 'idle';
+  });
 
   function guideOrbTo(id) {
     const node = orbSafeNode(id);
     if (!node) return false;
     cancelOrbGuide();
+    stopViewTransition();
     orbGuide.id = String(node.id);
     orbGuide.start = performance.now();
-    orbGuide.from = orbGuide.position;
+    orbGuide.from = orbGuide.position && { ...orbGuide.position };
+    orbGuide.phase = orbMotion.matches ? 'arrived' : 'outbound';
     orb.state = 'guiding';
-    focusPresentationNode(node, { animate: !orbMotion.matches });
-    orbGuide.timer = setTimeout(() => {
-      if (!orbSafeNode(orbGuide.id)) { cancelOrbGuide(); orb.state = 'idle'; drawGraph(); return; }
+    if (orbMotion.matches) {
+      focusPresentationNode(node, { animate: false });
       orb.state = 'arrived'; orbGuide.arrived = performance.now();
-      drawGraph();
       orbGuide.timer = setTimeout(() => {
         cancelOrbGuide(); orb.state = 'idle'; drawGraph();
-      }, 1200);
-    }, orbMotion.matches ? 0 : 1000);
+      }, 1000);
+    }
     drawGraph();
     return true;
+  }
+
+  // Advance before graph projection so both the graph and Orb see the same view.
+  function updateOrbCinematic(now) {
+    if (!orbGuide.id) return;
+    const node = orbSafeNode(orbGuide.id);
+    if (!node) { cancelOrbGuide(); orb.state = 'idle'; return; }
+    if (orbMotion.matches) return;
+    const elapsed = now - orbGuide.start;
+    const durations = { outbound: 1050, lock: 500, cinematic: 3100, final: 950, arrived: 1000 };
+    if (elapsed >= durations[orbGuide.phase]) {
+      const next = { outbound: 'lock', lock: 'cinematic', cinematic: 'final', final: 'arrived', arrived: 'return' };
+      if (orbGuide.phase === 'cinematic') rotationApi()?.advanceCinematic?.(1);
+      orbGuide.phase = next[orbGuide.phase];
+      orbGuide.start = now;
+      orbGuide.from = orbGuide.position && { ...orbGuide.position };
+      if (orbGuide.phase === 'cinematic') {
+        orbGuide.viewFrom = { ...view };
+        rotationApi()?.beginCinematic?.(node, graph);
+      }
+      if (orbGuide.phase === 'arrived') orbGuide.arrived = now;
+      if (orbGuide.phase === 'return') { orbGuide.id = null; orbGuide.arrived = 0; }
+    }
+    if (orbGuide.phase === 'cinematic') {
+      const progress = clamp((now - orbGuide.start) / 3100, 0, 1);
+      rotationApi()?.advanceCinematic?.(orbEase(progress));
+      const root = rotationApi()?.familyRoot?.(node, graph) || node;
+      // Family first, then the canonical destination; retain surrounding structure.
+      const family = projectPresentationNode(root), target = projectPresentationNode(node);
+      const precise = orbEase((progress - .4) / .6);
+      const scale = clamp(Math.max(orbGuide.viewFrom.scale, 1.08), MIN_SCALE, 1.4);
+      focusPresentationNode(node, {
+        redraw: false, from: orbGuide.viewFrom, progress: orbEase(progress), exactScale: scale,
+        screenX: graph.width * (orbGuide.from?.x >= graph.width / 2 ? .36 : .64),
+        projected: { x: family.x + (target.x - family.x) * precise,
+          y: family.y + (target.y - family.y) * precise }
+      });
+    }
+    if (!orbVoice.speaking) orb.state = orbGuide.phase === 'lock' ? 'thinking'
+      : orbGuide.phase === 'arrived' ? 'arrived' : orbGuide.phase === 'return' ? 'idle' : 'guiding';
   }
 
   function setOrbState(state) {
@@ -177,42 +332,71 @@
     if (!document.body.classList.contains('molecular-view-active')) return;
     orb.syncPresentation?.();
     const low = orbLowDetail(), t = orbMotion.matches ? 0 : orb.time;
-    const radius = Math.min(low ? 64 : 108, graph.width * .16, graph.height * .20);
+    const radius = Math.min(low ? 64 : 112, graph.width * .16, graph.height * .20);
+    // Outer filaments reach 1.33 radii: 112 gives a ~298px desktop presence.
     const margin = radius * 1.4 + 8;
-    const boundX = value => Math.max(margin, Math.min(graph.width - margin, value));
-    const boundY = value => Math.max(Math.min(margin + (low ? 116 : 76), graph.height / 2), Math.min(graph.height - margin - 20, value));
-    let x = boundX(orbGuide.position?.x ?? graph.width - radius - 24);
-    let y = boundY(orbGuide.position?.y ?? radius + 72);
+    const boundX = value => clamp(value, Math.min(margin, graph.width / 2), Math.max(graph.width / 2, graph.width - margin));
+    const boundY = value => clamp(value, Math.min(margin + (low ? 116 : 76), graph.height / 2), Math.max(graph.height / 2, graph.height - margin - 20));
+    const home = { x: boundX(graph.width - margin - 16), y: boundY(margin + 72) };
+    let { x, y } = orbGuide.position || home;
+    const now = performance.now();
+    const from = orbGuide.from || home;
+    const mix = (destination, progress) => {
+      const eased = orbEase(progress);
+      x = from.x + (destination.x - from.x) * eased;
+      y = from.y + (destination.y - from.y) * eased;
+    };
     if (orbGuide.id) {
       const target = orbSafeNode(orbGuide.id);
-      if (!target) { cancelOrbGuide(); orb.state = 'idle'; }
-      else {
+      if (target) {
         const p = projectPresentationNode(target);
-        const from = orbGuide.from || { x, y };
-        const progress = orbMotion.matches ? 1 : Math.min(1, (performance.now() - orbGuide.start) / 1000);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        x = boundX(from.x + (p.screenX + p.screenRadius + radius + 16 - from.x) * eased);
-        y = boundY(from.y + (p.screenY - from.y) * eased);
-        context.save();
-        context.strokeStyle = '#7dff41'; context.lineWidth = 2;
-        const pulse = orbGuide.arrived && !orbMotion.matches ? Math.min(1, (performance.now() - orbGuide.arrived) / 650) : 0;
-        context.globalAlpha = orbGuide.arrived ? .65 : 1;
-        context.beginPath(); context.arc(p.screenX, p.screenY, p.screenRadius + 10, 0, Math.PI * 2); context.stroke();
-        if (pulse > 0 && pulse < 1) {
-          // One narrow wavefront leaves the Orb toward the destination; no loop.
-          const angle = Math.atan2(p.screenY - y, p.screenX - x);
-          const reach = Math.max(radius, Math.hypot(p.screenX - x, p.screenY - y) - p.screenRadius);
-          context.globalAlpha = Math.sin(pulse * Math.PI) * .85;
-          context.strokeStyle = '#88eaff'; context.lineWidth = 1.5;
-          context.beginPath();
-          context.arc(x, y, radius * .88 + (reach - radius * .88) * pulse, angle - .32 * (1 - pulse * .6), angle + .32 * (1 - pulse * .6));
-          context.stroke();
+        const clearance = p.screenRadius + radius * 1.4 + 22;
+        const candidates = [
+          { x: p.screenX + clearance, y: p.screenY },
+          { x: p.screenX - clearance, y: p.screenY },
+          { x: p.screenX, y: p.screenY - clearance },
+          { x: p.screenX, y: p.screenY + clearance }
+        ];
+        // Choose a fitting side before flight; never clamp the Orb into the node.
+        const fitting = candidates.filter(q => q.x >= margin && q.x <= graph.width - margin &&
+          q.y >= margin && q.y <= graph.height - margin);
+        const beside = (fitting.length ? fitting : candidates).reduce((best, q) =>
+          Math.hypot(q.x - from.x, q.y - from.y) < Math.hypot(best.x - from.x, best.y - from.y) ? q : best);
+        if (orbGuide.phase === 'outbound') {
+          if (!orbGuide.midpoint) orbGuide.midpoint = {
+            x: from.x + (beside.x - from.x) * .48, y: from.y + (beside.y - from.y) * .48
+          };
+          mix(orbGuide.midpoint, (now - orbGuide.start) / 1050);
+        } else if (orbGuide.phase === 'final' || orbGuide.phase === 'arrived') {
+          const progress = orbGuide.phase === 'arrived' ? 1 : orbEase((now - orbGuide.start) / 950);
+          const startAngle = Math.atan2(from.y - p.screenY, from.x - p.screenX);
+          const endAngle = Math.atan2(beside.y - p.screenY, beside.x - p.screenX);
+          const turn = Math.atan2(Math.sin(endAngle - startAngle), Math.cos(endAngle - startAngle));
+          const startDistance = Math.hypot(from.x - p.screenX, from.y - p.screenY);
+          const distance = startDistance + (clearance - startDistance) * progress;
+          const angle = startAngle + turn * progress;
+          x = p.screenX + Math.cos(angle) * distance;
+          y = p.screenY + Math.sin(angle) * distance;
         }
+        context.save();
+        const pulse = orbGuide.arrived && !orbMotion.matches ? Math.sin(clamp((now - orbGuide.arrived) / 1000, 0, 1) * Math.PI) : 0;
+        context.strokeStyle = '#7dff41'; context.lineWidth = 2;
+        context.globalAlpha = .55 + pulse * .4;
+        context.beginPath(); context.arc(p.screenX, p.screenY, p.screenRadius + 10 + pulse * 8, 0, Math.PI * 2); context.stroke();
         context.restore();
       }
+    } else if (orbGuide.phase === 'return' && !orbMotion.matches) {
+      const progress = (now - orbGuide.start) / 1050;
+      mix(home, progress);
+      if (progress >= 1) {
+        orbGuide.phase = null; orbGuide.from = null; orbGuide.position = null;
+      }
+    } else {
+      x = home.x; y = home.y;
+      orbGuide.phase = null;
     }
-    orbGuide.position = { x, y };
-    if (!orbGuide.id) y += Math.sin(t * .6) * 3;
+    if (orbGuide.phase) orbGuide.position = { x, y };
+    else { orbGuide.position = null; y += Math.sin(t * .6) * 3; }
     drawOrbWaveform(x, y, radius, t, low);
   }
 
@@ -224,12 +408,12 @@
       orb.visualSince = t;
     }
     const age = Math.max(0, t - orb.visualSince);
-    const speech = orb.state === 'speaking' ? orb.amplitude : 0;
+    const speech = orb.state === 'speaking' ? orb.amplitude * (orbVoice.speaking ? .35 + .65 * Math.pow(Math.sin(t * 8.3) * Math.cos(t * 3.7), 2) : 1) : 0;
     const pulse = orb.state === 'arrived' ? Math.exp(-age * 3) * Math.sin(Math.min(1, age * 2) * Math.PI) : 0;
     const fault = orb.state === 'error' ? Math.exp(-age * 4) : 0;
     return {
       speech, pulse, fault, age,
-      energy: ({ idle: .16, listening: .36, thinking: .65, guiding: .42, arrived: .4, error: .2, speaking: .3 }[orb.state]) + speech * .65 + pulse * .4,
+      energy: (orbGuide.phase === 'lock' ? .35 * Math.sin(clamp((performance.now() - orbGuide.start) / 500, 0, 1) * Math.PI) : 0) + ({ idle: .16, listening: .36, thinking: .65, guiding: .42, arrived: .4, error: .2, speaking: .3 }[orb.state]) + speech * .65 + pulse * .4,
       strength: ({ idle: .032, listening: .052, thinking: .083, guiding: .06, arrived: .035, error: .032, speaking: .04 }[orb.state]) + speech * .15,
       speed: orb.state === 'thinking' ? 2.1 : orb.state === 'speaking' ? 1.65 : orb.state === 'listening' ? 1.05 : .65
     };
@@ -399,6 +583,7 @@
     orbReply.className = 'orb-reply';
     orbReply.textContent = 'Find a memory, an app, or a place in your universe.';
     card.querySelector('form').addEventListener('submit', event => { event.preventDefault(); askOrb(request.value); });
+    mountOrbMicrophone(card, request);
     content.append(orbReply, controls);
     const stats = document.createElement('details');
     stats.className = 'universe-stats';
@@ -445,7 +630,17 @@
       if (visible() && !orbMotion.matches) orb.frame = requestAnimationFrame(animate);
     };
     new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class'] });
-    orbMotion.addEventListener('change', sync);
+    orbMotion.addEventListener('change', () => {
+      if (orbMotion.matches) {
+        const target = orbSafeNode(orbGuide.id);
+        cancelOrbGuide();
+        if (target) {
+          focusPresentationNode(target, { animate: false });
+          guideOrbTo(target.id);
+        } else if (!orbVoice.speaking) orb.state = 'idle';
+      }
+      sync();
+    });
     document.addEventListener('visibilitychange', sync);
     sync();
   }
@@ -1231,6 +1426,7 @@
 
   function drawGraph() {
     if (!graph || !context) return;
+    updateOrbCinematic(performance.now());
     context.clearRect(0, 0, graph.width, graph.height);
     syncRotationState();
 
@@ -1900,6 +2096,7 @@
     const projected = projectedNode({
       id: String(node.id || 'presentation-node'),
       kind: node.kind || 'memory',
+      parentId: node.parentId,
       x: Number(node.x || graph.centreX),
       y: Number(node.y || graph.centreY),
       radius: Number(node.radius || 16)
@@ -2249,19 +2446,22 @@
 
   function focusPresentationNode(node, options = {}) {
     if (!graph || !node) return false;
-    const projected = projectPresentationNode(node);
+    const projected = options.projected || projectPresentationNode(node);
     if (!projected) return false;
-    const scale = clamp(Math.max(view.scale, Number(options.scale) || 1.08), MIN_SCALE, MAX_SCALE);
+    const scale = options.exactScale ?? clamp(Math.max(view.scale, Number(options.scale) || 1.08), MIN_SCALE, MAX_SCALE);
     const target = {
       scale,
-      x: graph.width / 2 - projected.x * scale,
+      x: (options.screenX ?? graph.width / 2) - projected.x * scale,
       y: graph.height / 2 - projected.y * scale
     };
     if (options.animate) transitionView(target, true);
     else {
       stopViewTransition();
-      Object.assign(view, target);
-      drawGraph();
+      if (options.from) {
+        const progress = clamp(options.progress, 0, 1);
+        for (const key of ['x', 'y', 'scale']) view[key] = options.from[key] + (target[key] - options.from[key]) * progress;
+      } else Object.assign(view, target);
+      if (options.redraw !== false) drawGraph();
     }
     return true;
   }

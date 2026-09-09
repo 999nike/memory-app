@@ -71,8 +71,17 @@
     );
   }
 
+  let cinematic = null;
+  let spatialBlend = 1;
+
+  function cancelCinematic(manual = false) {
+    cinematic = null;
+    if (manual) globalThis.dispatchEvent(new Event('orb-spatial-takeover'));
+  }
+
   function begin() {
     if (!desktopSupported()) return false;
+    cancelCinematic(true);
     state.rotating = true;
     return true;
   }
@@ -92,6 +101,7 @@
 
   function beginTouch() {
     if (!touchSupported()) return false;
+    cancelCinematic(true);
     state.touchRotating = true;
     return true;
   }
@@ -113,6 +123,8 @@
   }
 
   function reset() {
+    cancelCinematic(true);
+    spatialBlend = 1;
     state.yaw = 0;
     state.pitch = 0;
     state.active = false;
@@ -121,7 +133,7 @@
   }
 
   function isActive() {
-    return Boolean(state.active && visualSupported());
+    return Boolean(state.active);
   }
 
   function isRotating() {
@@ -131,17 +143,58 @@
     );
   }
 
+  function familyPath(node, graph) {
+    const path = [], seen = new Set();
+    let current = graph?.nodes?.find(item => String(item.id) === String(node?.id)) || node;
+    while (current && current.kind !== 'space' && !seen.has(String(current.id))) {
+      path.push(current); seen.add(String(current.id));
+      current = graph?.nodes?.find(item => String(item.id) === String(current.parentId));
+    }
+    return path;
+  }
+
   function pseudoDepth(node, graph) {
     if (!node || node.kind === 'space' || !graph) return 0;
+    const path = familyPath(node, graph);
+    const root = path[path.length - 1] || node;
+    const shell = Math.max(120, Math.min(graph.width, graph.height) * .46);
+    const radial = clamp(Math.hypot(root.x - graph.centreX, root.y - graph.centreY) / shell, 0, .97);
+    const broad = (hashUnit(root.id) >= .5 ? 1 : -1) *
+      Math.sqrt(Math.max(.04, 1 - radial * radial)) * shell * .72;
+    let offset = 0;
+    // Bounded ancestry offsets retain family depth even in deep trees.
+    path.slice(0, -1).reverse().forEach((child, depth) => {
+      offset += (hashUnit(child.id + ':depth') - .5) * shell * .07 * Math.pow(.55, depth);
+    });
+    return broad + offset;
+  }
 
-    const dx = Number(node.x || 0) - Number(graph.centreX || 0);
-    const dy = Number(node.y || 0) - Number(graph.centreY || 0);
-    const shellRadius = Math.max(120, Math.min(Number(graph.width || 1), Number(graph.height || 1)) * 0.46);
-    const radial = clamp(Math.hypot(dx, dy) / shellRadius, 0, 0.97);
-    const hemisphere = hashUnit(node.id) >= 0.5 ? 1 : -1;
-    const shellDepth = Math.sqrt(Math.max(0.04, 1 - radial * radial)) * shellRadius * 0.72;
-    const jitter = (hashUnit(`${node.id}:depth`) - 0.5) * shellRadius * 0.18;
-    return hemisphere * shellDepth + jitter;
+  function beginCinematic(node, graph) {
+    cancelCinematic();
+    if (!node || !graph || isRotating()) return false;
+    const root = familyPath(node, graph).at(-1) || node;
+    const x = root.x - graph.centreX, y = root.y - graph.centreY;
+    const z = pseudoDepth(root, graph);
+    const desired = Math.atan2(-x, z);
+    cinematic = {
+      yaw: state.yaw, pitch: state.pitch, blend: state.active ? spatialBlend : 0,
+      delta: clamp(normaliseAngle(desired - state.yaw), -.87, .87),
+      targetPitch: clamp(Math.atan2(y, Math.hypot(x, z)), -.32, .32)
+    };
+    spatialBlend = cinematic.blend;
+    state.active = true;
+    return true;
+  }
+
+  // The resident guide's draw loop supplies eased progress.
+  function advanceCinematic(progress) {
+    if (!cinematic) return false;
+    const t = clamp(progress, 0, 1);
+    state.yaw = normaliseAngle(cinematic.yaw + cinematic.delta * t);
+    state.pitch = cinematic.pitch + (cinematic.targetPitch - cinematic.pitch) * t;
+    spatialBlend = cinematic.blend + (1 - cinematic.blend) * t;
+    if (t === 1) cinematic = null;
+    return true;
   }
 
   function project(node, graph) {
@@ -177,12 +230,12 @@
     const alpha = clamp(0.68 + (perspective - 0.82) * 1.45, 0.62, 1);
 
     return {
-      x: centreX + xYaw * perspective,
-      y: centreY + yPitch * perspective,
-      radius: Number(node.radius || 1) * perspective,
-      depth: zPitch,
-      alpha,
-      scale: perspective
+      x: fallback.x + (centreX + xYaw * perspective - fallback.x) * spatialBlend,
+      y: fallback.y + (centreY + yPitch * perspective - fallback.y) * spatialBlend,
+      radius: fallback.radius * (1 + (perspective - 1) * spatialBlend),
+      depth: zPitch * spatialBlend,
+      alpha: 1 + (alpha - 1) * spatialBlend,
+      scale: 1 + (perspective - 1) * spatialBlend
     };
   }
 
@@ -212,6 +265,10 @@
     isActive,
     isRotating,
     project,
-    snapshot
+    snapshot,
+    familyRoot: (node, graph) => familyPath(node, graph).at(-1) || node,
+    beginCinematic,
+    advanceCinematic,
+    cancelCinematic
   });
 })();
