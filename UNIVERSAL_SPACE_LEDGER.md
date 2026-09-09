@@ -1,5 +1,13 @@
 # Universal Space Ledger
 
+## Universal Space presentation shell - 9 September 2026
+
+- Based on `f535013`, added a translucent desktop header, quiet tool rail, stronger Universal Space title, procedural stars/clouds and subtle label contrast. Canvas dimensions remain the full viewport; no graph layout, camera or coordinate changes were used to accommodate the chrome.
+- Replaced the visible Orb development box with a collapsible glass Ask Orb card. Existing `askOrb()` remains the submit handler; state and amplitude drive the card indicator and header status. Simulation controls remain inside closed Developer tools. A collapsible Universe panel reads actual graph node, memory and connection counts. Mobile omits the rail and starts with the Orb card collapsed.
+- Existing Memories, Search, AI Chat, Add Memory, Context and AI Access surfaces are reused. The existing Orb renderer is unchanged; its screen-space clearance accommodates the new header and controls.
+- Verification: Chromium at 1440x1000 and mobile-emulated 390x844, plus a 320px overflow check. Inspected shell/card/chat screenshots; tested Memories and Search round trips, chat open/close, Add Memory/Context/AI Access opening, Ask Orb fallback guidance and arrival with live state labels, action-node exclusion, mobile pan and two-finger pinch (scale 1.18 -> 1.652), reduced-motion indicator suppression and actual statistics. No runtime exceptions occurred. No live model response is claimed.
+- Source comparison with `f535013`: 102 graph functions unchanged, including graph builders, storage/persistence, physics, search/safety/navigation and Orb waveform rendering. Settings IDs, parents and radii unchanged. Only Orb presentation mounting/clearance and label shadow changed inside `memory-graph.js`; shell work is in `molecular-view.js` and `molecular-view.css`. Folder architecture, memberships, adapters, providers, Bridge and neural scaffold/flow files were not changed.
+
 ## Orb spherical waveform visual milestone - 9 September 2026
 
 - Replaced only the existing Orb drawing in `memory-graph.js`: dense projected spherical wire mesh, six multistrand blue/green waveform ribbons, dim rear geometry, narrow luminous filaments, sparse particles and orbital fragments. Increased the Orb's visual radius to show the detail; graph physics, layout and camera implementation are unchanged.

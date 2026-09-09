@@ -236,3 +236,134 @@ body.molecular-labels-minimal .molecular-control-node.is-child .molecular-node-l
   .molecular-control-node,
   #memoryGraphSurface::before { transition: none; }
 }
+
+/* Finished shell. The full-screen graph surface and its coordinate space stay intact. */
+.universe-header, .universe-rail { display: none; }
+body.molecular-view-active { --universe-line: rgb(107 171 218 / .19); --universe-muted: #8196aa; }
+body.molecular-view-active .universe-header {
+  position: fixed; inset: 0 0 auto; height: 72px; z-index: 35;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  padding: 0 28px 0 22px; border-bottom: 1px solid var(--universe-line);
+  background: linear-gradient(110deg, rgb(8 17 26 / .95), rgb(4 11 18 / .86));
+  backdrop-filter: blur(18px); box-shadow: 0 6px 32px rgb(0 0 0 / .12);
+}
+.universe-brand { display: flex; align-items: center; gap: 13px; flex-shrink: 0; }
+.universe-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: #b8fa60; color: #10210a; font-size: 24px; font-weight: 850; box-shadow: inset 0 1px 0 #e3ffb9, 0 0 20px rgb(151 241 61 / .09); }
+.universe-brand strong { display: block; font-size: 18px; font-weight: 650; letter-spacing: -.04em; color: #edf5fc; }
+.universe-brand small { display: block; margin-top: 4px; font-size: 8px; letter-spacing: .34em; color: #8196aa; }
+.universe-header nav { display: flex; gap: 9px; }
+.universe-header button, .universe-rail button { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 42px; padding: 0 16px; color: #aec0cf; background: transparent; border: 1px solid transparent; border-radius: 12px; cursor: pointer; font: 500 12px system-ui, sans-serif; }
+.universe-header button:hover, .universe-rail button:hover { color: #eef9ff; background: rgb(37 92 125 / .16); border-color: var(--universe-line); }
+.universe-header button[aria-current="page"] { color: #e6f5ff; border-color: rgb(72 173 236 / .44); background: linear-gradient(135deg, rgb(22 90 132 / .32), rgb(8 29 43 / .6)); box-shadow: inset 0 -2px 12px rgb(31 162 247 / .07); }
+.universe-header .universe-resident { text-align: left; gap: 10px; padding: 0 3px; }
+.universe-resident strong { display: block; font-size: 11px; font-weight: 550; }
+.universe-resident small { display: block; color: #718b9f; font-size: 10px; margin-top: 4px; }
+.resident-dot { display: inline-block; flex: 0 0 auto; width: 6px; height: 6px; background: #7dff85; border-radius: 50%; box-shadow: 0 0 9px rgb(80 241 160 / .35); }
+.universe-resident[data-state="thinking"] .resident-dot, .universe-resident[data-state="guiding"] .resident-dot { background: #60c5ff; }
+.universe-resident[data-state="error"] .resident-dot { background: #ffb68a; }
+body.molecular-view-active .universe-rail { position: fixed; top: 72px; bottom: 0; left: 0; width: 62px; z-index: 30; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 24px 0; border-right: 1px solid rgb(107 171 218 / .13); background: rgb(4 12 19 / .65); backdrop-filter: blur(12px); }
+.universe-rail button { width: 42px; padding: 0; }
+.rail-caption { color: #5e788b; font-size: 8px; letter-spacing: .16em; margin-bottom: 20px; }
+.rail-foot { margin-top: auto; color: #375d70; font-size: 20px; }
+body.molecular-view-active .molecular-hud { top: 98px; left: 90px; }
+body.molecular-view-active .molecular-hud strong { font-size: 18px; font-weight: 550; letter-spacing: -.035em; }
+body.molecular-view-active .molecular-hud span { margin-top: 8px; font-size: 8px; letter-spacing: .32em; color: #7691a5; }
+body.molecular-view-active #memoryGraphSurface {
+  background:
+    radial-gradient(ellipse 42% 15% at 24% 69%, rgb(10 69 113 / .18), transparent 74%),
+    radial-gradient(ellipse 24% 44% at 75% 58%, rgb(14 66 56 / .12), transparent 75%),
+    radial-gradient(ellipse 50% 30% at 54% 46%, rgb(13 39 77 / .2), transparent 72%),
+    radial-gradient(ellipse 14% 35% at 15% 40%, rgb(19 58 98 / .13), transparent 80%),
+    linear-gradient(145deg, #030a12, #050d19 47%, #03090e 78%);
+}
+body.molecular-view-active #memoryGraphSurface::before {
+  opacity: .56;
+  background-image:
+    radial-gradient(circle at 17% 29%, #9fcde5 0 .55px, transparent 1px),
+    radial-gradient(circle at 63% 74%, #578ca9 0 .65px, transparent 1.2px),
+    radial-gradient(circle at 38% 15%, #8cadbe 0 .4px, transparent .9px),
+    radial-gradient(circle at 78% 48%, #366885 0 .6px, transparent 1px),
+    radial-gradient(circle at 46% 83%, #3b7869 0 .7px, transparent 1.4px),
+    radial-gradient(circle at 23% 62%, #abcbe3 0 .65px, #3a6b922c 1px, transparent 3px);
+  background-size: 137px 179px, 241px 227px, 89px 113px, 193px 151px, 307px 271px, 521px 419px;
+}
+body.molecular-view-active #memoryGraphSurface::after {
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .13;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.008 .018' numOctaves='3' seed='24'/%3E%3CfeColorMatrix values='0 0 0 0 .12 0 0 0 0 .4 0 0 0 0 .68 0 0 0 1 0'/%3E%3C/filter%3E%3Cpath fill='%23133355' filter='url(%23n)' d='M0 0h900v900H0z'/%3E%3C/svg%3E") center / cover;
+  mask-image: linear-gradient(147deg, transparent 15%, #000 36%, transparent 48%, #000 59%, transparent 76%);
+}
+body.molecular-view-active #memoryGraphSurface .memory-graph-control-rack { top: 91px; right: 24px; padding: 5px; border: 1px solid var(--universe-line); border-radius: 14px; background: rgb(6 16 26 / .7); }
+body.molecular-view-active #memoryGraphSurface .memory-graph-control-button,
+body.molecular-view-active #memoryGraphSurface .memory-graph-group-add { border-radius: 10px; width: 32px; height: 32px; min-width: 32px; box-shadow: none; }
+body.molecular-view-active #memoryGraphSurface .memory-graph-group-inspector { top: 146px; }
+body.molecular-view-active .detail-panel { top: 84px; }
+body.molecular-view-active .molecular-close-tool { top: 87px; right: 24px; }
+body.molecular-view-active .phase2-chat-pane.molecular-tool-open { top: 136px; border-radius: 18px; }
+body.molecular-view-active .phase2-chat-pane.molecular-chat-open .chat-messages,
+body.molecular-view-active .phase2-chat-pane.molecular-chat-open .chat-form { display: flex; }
+body.molecular-view-active .phase2-chat-pane.molecular-chat-open .chat-messages { flex-direction: column; }
+body.molecular-view-active:has(.molecular-tool-open) .orb-card,
+body.molecular-view-active:has(.app-shell.detail-open) .orb-card { visibility: hidden; }
+
+/* Resident interaction surface, independent of the travelling Orb. */
+.orb-card, .universe-stats { position: fixed; z-index: 32; border: 1px solid rgb(76 152 190 / .3); border-radius: 18px; background: linear-gradient(125deg, rgb(9 24 36 / .93), rgb(5 13 21 / .94)); color: #d4e7f3; box-shadow: 0 16px 48px rgb(0 0 0 / .3), inset 0 1px 0 rgb(182 225 255 / .035); backdrop-filter: blur(18px); }
+.orb-card { right: 24px; bottom: max(24px, env(safe-area-inset-bottom)); width: 330px; max-height: min(65dvh, 560px); overflow: auto; }
+.orb-card[hidden], .universe-stats[hidden] { display: none; }
+.orb-card > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 15px; padding: 18px 20px; }
+.orb-card > summary::-webkit-details-marker, .universe-stats > summary::-webkit-details-marker { display: none; }
+.orb-card-heading { flex: 1; }
+.orb-card-heading strong { display: block; font-size: 15px; font-weight: 550; letter-spacing: -.02em; }
+.orb-card-heading small { display: block; margin-top: 5px; color: #8099ac; font-size: 11px; }
+.orb-card-chevron { color: #7394ab; font-size: 17px; transform: rotate(180deg); }
+.orb-card[open] .orb-card-chevron { transform: none; }
+.orb-equaliser { height: 29px; width: 31px; display: flex; align-items: center; gap: 3px; color: #a3f263; }
+.orb-equaliser i { width: 3px; height: 13px; border-radius: 4px; background: currentColor; transform-origin: center; }
+.orb-equaliser i:nth-child(2), .orb-equaliser i:nth-child(4) { height: 22px; animation-delay: -.4s; }
+.orb-equaliser i:nth-child(3) { height: 29px; animation-delay: -.7s; }
+.orb-card[data-state="thinking"] .orb-equaliser, .orb-card[data-state="guiding"] .orb-equaliser { color: #5fc8ff; }
+.orb-card[data-state="error"] .orb-equaliser { color: #ffb68a; }
+.orb-card:is([data-state="thinking"], [data-state="speaking"], [data-state="listening"], [data-state="guiding"]) .orb-equaliser i { animation: orb-meter 1.2s ease-in-out infinite alternate; }
+.orb-card .orb-equaliser i:nth-child(2n) { animation-delay: -.6s; }
+.orb-card .orb-equaliser i:nth-child(3) { animation-delay: -.9s; }
+@keyframes orb-meter { from { transform: scaleY(.35); } to { transform: scaleY(var(--orb-amplitude, 1)); } }
+.orb-card-content { padding: 0 20px 14px; }
+.orb-input-label { display: block; color: #9fb6c6; font-size: 10px; margin-bottom: 8px; }
+.orb-input-row { display: flex; gap: 8px; }
+.orb-input-row input { width: 100%; min-width: 0; padding: 11px 12px; border: 1px solid rgb(104 159 198 / .23); border-radius: 10px; background: rgb(2 9 16 / .55); color: #e4f2ff; font: 12px system-ui, sans-serif; }
+.orb-input-row input::placeholder { color: #6f879b; }
+.orb-input-row button { border: 1px solid rgb(113 206 254 / .37); border-radius: 10px; padding: 0 12px; background: rgb(22 69 98 / .54); color: #c8eaff; font: 550 12px system-ui, sans-serif; white-space: nowrap; cursor: pointer; }
+.orb-input-row button:hover { background: rgb(27 89 124 / .7); }
+.orb-reply { display: block; margin-top: 11px; color: #8ca6ba; font: 11px/1.65 system-ui, sans-serif; overflow-wrap: anywhere; }
+.orb-debug { margin-top: 13px; padding-top: 9px; border-top: 1px solid rgb(99 148 181 / .12); color: #718b9f; font: 10px/1.5 system-ui, sans-serif; }
+.orb-debug summary { cursor: pointer; }
+.orb-debug label { display: grid; gap: 5px; margin-top: 10px; }
+.orb-debug input, .orb-debug select, .orb-debug button { max-width: 100%; font-size: 11px; }
+.universe-stats { left: 90px; bottom: 24px; min-width: 160px; font-size: 11px; border-color: rgb(107 171 218 / .16); border-radius: 13px; }
+.universe-stats > summary { display: flex; align-items: center; gap: 10px; padding: 13px 15px; list-style: none; cursor: pointer; color: #8ea9bc; }
+.universe-stats > summary span:last-child { margin-left: auto; }
+.universe-stats dl { margin: 0; padding: 0 15px 14px; }
+.universe-stats dl div { display: flex; justify-content: space-between; gap: 30px; padding-top: 9px; }
+.universe-stats dt { color: #7e96a9; }.universe-stats dd { margin: 0; font-variant-numeric: tabular-nums; }
+.universe-header button:focus-visible, .universe-rail button:focus-visible, .orb-card summary:focus-visible, .orb-card input:focus-visible, .orb-card button:focus-visible, .universe-stats summary:focus-visible { outline: 2px solid #6dccff; outline-offset: 3px; }
+@media (max-width: 1050px) and (min-width: 801px) { .universe-header nav { gap: 0; }.universe-header nav button { padding: 0 10px; }.universe-resident small { display: none; } }
+@media (max-width: 800px) {
+  body.molecular-view-active .universe-header { height: 62px; padding: env(safe-area-inset-top) 14px 0; gap: 8px; }
+  .universe-mark { width: 30px; height: 30px; border-radius: 9px; font-size: 20px; }
+  .universe-brand { gap: 8px; }.universe-brand strong { font-size: 13px; }.universe-brand small { font-size: 6px; letter-spacing: .2em; }
+  .universe-header nav { gap: 0; }.universe-header nav button { min-height: 40px; width: 35px; padding: 0; border-radius: 10px; }
+  .universe-header nav button span, .universe-header .universe-resident, body.molecular-view-active .universe-rail { display: none; }
+  body.molecular-view-active .molecular-hud { top: 81px; left: 17px; }.molecular-hud strong { font-size: 14px !important; }
+  body.molecular-view-active .molecular-hud span { display: block; font-size: 7px; margin-top: 5px; }
+  body.molecular-view-active #memoryGraphSurface .memory-graph-control-rack { top: 77px; right: 12px; padding: 3px; gap: 4px; }
+  body.molecular-view-active #memoryGraphSurface .memory-graph-control-rack button { width: 29px; height: 29px; min-width: 29px; }
+  body.molecular-view-active #memoryGraphSurface .memory-graph-group-inspector { top: 126px; }
+  .orb-card { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: min(330px, calc(100vw - 24px)); max-height: 48dvh; border-radius: 15px; }
+  .orb-card:not([open]) { width: 176px; }.orb-card > summary { padding: 12px 15px; gap: 11px; }.orb-card-heading strong { font-size: 13px; }.orb-card-heading small { font-size: 9px; }
+  .orb-card-content { padding: 0 15px 12px; }.orb-input-row input { font-size: 16px; padding: 9px; }.orb-input-row button { font-size: 12px; }
+  .universe-stats { left: 12px; bottom: max(12px, env(safe-area-inset-bottom)); min-width: 115px; font-size: 10px; }
+  body:has(.orb-card[open]) .universe-stats { display: none; }
+  body.molecular-view-active .detail-panel, body.molecular-view-active .phase2-chat-pane.molecular-tool-open { top: auto; }
+  body.molecular-view-active .molecular-close-tool { top: 76px; right: 13px; }
+}
+@media (prefers-reduced-motion: reduce) { .orb-card .orb-equaliser i { animation: none !important; } }
+body.molecular-view-active .phase2-chat-pane.molecular-chat-open .chat-form { display: grid; }

@@ -175,11 +175,12 @@
 
   function drawOrb() {
     if (!document.body.classList.contains('molecular-view-active')) return;
+    orb.syncPresentation?.();
     const low = orbLowDetail(), t = orbMotion.matches ? 0 : orb.time;
     const radius = Math.min(low ? 64 : 108, graph.width * .16, graph.height * .20);
     const margin = radius * 1.4 + 8;
     const boundX = value => Math.max(margin, Math.min(graph.width - margin, value));
-    const boundY = value => Math.max(margin, Math.min(graph.height - margin - 20, value));
+    const boundY = value => Math.max(Math.min(margin + (low ? 116 : 76), graph.height / 2), Math.min(graph.height - margin - 20, value));
     let x = boundX(orbGuide.position?.x ?? graph.width - radius - 24);
     let y = boundY(orbGuide.position?.y ?? radius + 72);
     if (orbGuide.id) {
@@ -373,9 +374,14 @@
   function mountOrb() {
     if (orb.mounted) return;
     orb.mounted = true;
+    const card = document.createElement('details');
+    card.className = 'orb-card';
+    card.open = !matchMedia('(max-width: 800px)').matches;
+    card.innerHTML = '<summary><span class="orb-equaliser" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="orb-card-heading"><strong data-orb-state>Ready</strong><small>Orb &middot; Resident guide</small></span><span class="orb-card-chevron" aria-hidden="true">⌃</span></summary><div class="orb-card-content"><form class="orb-request-form"><label class="orb-input-label" for="orbRequestInput">Ask Orb</label><div class="orb-input-row"><input id="orbRequestInput" aria-label="Ask Orb" placeholder="Where would you like to go?" maxlength="500" autocomplete="off"><button type="submit" aria-label="Send request to Orb">Ask <span aria-hidden="true">↗</span></button></div></form></div>';
+    const content = card.querySelector('.orb-card-content');
     const controls = document.createElement('details');
-    controls.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:55;padding:8px;border:1px solid #286359;border-radius:8px;background:#07131de8;color:#a3e9df;font:12px system-ui;max-width:220px';
-    controls.innerHTML = '<summary>Orb dev · simulated</summary><label>State <select aria-label="Orb state">' + orbStates.map(state => `<option>${state}</option>`).join('') + '</select></label><br><label>Speaking amplitude <input aria-label="Orb simulated amplitude" type="range" min="0" max="1" step="0.05" value="0.5"></label>';
+    controls.className = 'orb-debug';
+    controls.innerHTML = '<summary>Developer tools</summary><label>Visual state <select aria-label="Orb state">' + orbStates.map(state => `<option>${state}</option>`).join('') + '</select></label><label>Simulated amplitude <input aria-label="Orb simulated amplitude" type="range" min="0" max="1" step="0.05" value="0.5"></label>';
     controls.querySelector('select').addEventListener('change', event => setOrbState(event.target.value));
     controls.querySelector('input').addEventListener('input', event => setOrbAmplitude(event.target.value));
     const search = document.createElement('input');
@@ -388,16 +394,38 @@
       result.textContent = first && guideOrbTo(first.id) ? `Guiding: ${first.label}` : 'No safe visible match';
     });
     controls.append(document.createElement('br'), search, guide, result);
-    const request = document.createElement('input');
-    request.placeholder = 'Where is Code Space?'; request.maxLength = 500;
-    request.setAttribute('aria-label', 'Ask Orb');
-    const submit = document.createElement('button'); submit.type = 'button'; submit.textContent = 'Ask Orb';
+    const request = card.querySelector('#orbRequestInput');
     orbReply = document.createElement('output'); orbReply.setAttribute('aria-live', 'polite');
-    const ask = () => askOrb(request.value);
-    submit.addEventListener('click', ask);
-    request.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); ask(); } });
-    controls.append(document.createElement('br'), request, submit, orbReply);
-    document.body.appendChild(controls);
+    orbReply.className = 'orb-reply';
+    orbReply.textContent = 'Find a memory, an app, or a place in your universe.';
+    card.querySelector('form').addEventListener('submit', event => { event.preventDefault(); askOrb(request.value); });
+    content.append(orbReply, controls);
+    const stats = document.createElement('details');
+    stats.className = 'universe-stats';
+    stats.innerHTML = '<summary><span class="resident-dot" aria-hidden="true"></span> Universe <span aria-hidden="true">＋</span></summary><dl><div><dt>Visible nodes</dt><dd></dd></div><div><dt>Memories</dt><dd></dd></div><div><dt>Connections</dt><dd></dd></div></dl>';
+    const values = stats.querySelectorAll('dd');
+    const stateLabel = card.querySelector('[data-orb-state]');
+    let shownState = '', shownAmplitude = -1, statsAt = -Infinity;
+    orb.syncPresentation = () => {
+      if (shownState !== orb.state) {
+        shownState = orb.state;
+        card.dataset.state = orb.state;
+        stateLabel.textContent = ({ idle: 'Ready', listening: 'Listening', thinking: 'Thinking', guiding: 'Guiding', arrived: 'Arrived', speaking: 'Speaking', error: 'Try again' })[orb.state];
+        controls.querySelector('select').value = orb.state;
+        document.dispatchEvent(new CustomEvent('orb-presentation-state', { detail: { state: orb.state, label: stateLabel.textContent } }));
+      }
+      if (shownAmplitude !== orb.amplitude) {
+        shownAmplitude = orb.amplitude;
+        card.style.setProperty('--orb-amplitude', .35 + orb.amplitude * .65);
+      }
+      if (graph && performance.now() - statsAt > 1000) {
+        statsAt = performance.now();
+        values[0].textContent = graph.nodes.filter(node => !node.hidden).length;
+        values[1].textContent = graph.memoryNodes.length;
+        values[2].textContent = graph.edges.filter(edge => !edge.source.hidden && !edge.target.hidden).length;
+      }
+    };
+    document.body.append(card, stats);
     const visible = () => document.body.classList.contains('molecular-view-active') && !document.hidden;
     const animate = now => {
       orb.frame = 0;
@@ -411,7 +439,7 @@
       orb.frame = requestAnimationFrame(animate);
     };
     const sync = () => {
-      controls.hidden = !visible();
+      card.hidden = stats.hidden = !visible();
       cancelAnimationFrame(orb.frame); orb.frame = 0; orb.last = 0;
       drawGraph();
       if (visible() && !orbMotion.matches) orb.frame = requestAnimationFrame(animate);
@@ -1331,6 +1359,8 @@
     context.globalAlpha = depthAlpha;
     context.fillStyle = isSpace ? 'rgba(242, 244, 247, 0.94)' : `rgba(242, 244, 247, ${(0.70 + recency * 0.24).toFixed(3)})`;
     context.font = isSpace ? '700 14px Inter, system-ui, sans-serif' : '600 11px Inter, system-ui, sans-serif';
+    context.shadowColor = 'rgba(2, 7, 14, .95)';
+    context.shadowBlur = 4;
     context.textAlign = 'center';
     context.textBaseline = 'top';
     context.__memoryGraphLabelNode = node;

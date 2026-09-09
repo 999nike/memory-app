@@ -153,6 +153,7 @@
       chatPanelRestorePoint.parentNode.insertBefore(panel, chatPanelRestorePoint);
       chatPanelRestorePoint.remove();
       panel.classList.remove('molecular-tool-open');
+      panel.classList.remove('molecular-chat-open');
     }
     chatPanelRestorePoint = null;
     if (closeToolButton) closeToolButton.hidden = true;
@@ -227,8 +228,48 @@
 
     const hud = document.createElement('div');
     hud.className = 'molecular-hud';
-    hud.innerHTML = '<strong>Memory Space</strong><span>Graph View</span>';
+    hud.innerHTML = '<strong>Universal Space</strong><span>Graph View</span>';
     document.body.appendChild(hud);
+
+    // Product chrome only: these buttons route to existing application surfaces.
+    const icon = path => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+    const icons = {
+      graph: icon('<circle cx="12" cy="5" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="m11 7-5 9m7-9 5 9M7 18h10"/>'),
+      memories: icon('<rect x="5" y="4" width="14" height="17" rx="3"/><path d="M9 3h6v4H9zM9 12h6m-6 4h4"/>'),
+      chat: icon('<path d="M20 11a8 8 0 0 1-8 8H5l-3 2 1-6a8 8 0 1 1 17-4Z"/><path d="M8 10h8m-8 4h5"/>'),
+      search: icon('<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>'),
+      add: icon('<path d="M12 5v14M5 12h14"/>'),
+      context: icon('<path d="m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18"/>'),
+      settings: icon('<circle cx="12" cy="12" r="3"/><path d="m9 3 6 0 1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1Z"/>')
+    };
+    const shell = document.createElement('header');
+    shell.className = 'universe-header';
+    shell.innerHTML = `<div class="universe-brand"><span class="universe-mark" aria-hidden="true">M</span><span><strong>Memory Space</strong><small>UNIVERSAL SPACE</small></span></div><nav aria-label="Universe navigation"><button type="button" data-shell-action="graph" aria-label="Graph" aria-current="page">${icons.graph}<span>Graph</span></button><button type="button" data-shell-action="memories" aria-label="Memories">${icons.memories}<span>Memories</span></button><button type="button" data-shell-action="chat" aria-label="AI Chat">${icons.chat}<span>AI Chat</span></button><button type="button" data-shell-action="search" aria-label="Search">${icons.search}<span>Search</span></button></nav><button type="button" class="universe-resident" data-shell-action="orb"><span class="resident-dot" aria-hidden="true"></span><span><strong>Orb &middot; <span data-resident-state>Ready</span></strong><small>Resident intelligence</small></span></button>`;
+    const rail = document.createElement('nav');
+    rail.className = 'universe-rail';
+    rail.setAttribute('aria-label', 'Workspace tools');
+    rail.innerHTML = `<span class="rail-caption" aria-hidden="true">U / S</span><button type="button" data-shell-action="add" aria-label="Add memory" title="Add memory">${icons.add}</button><button type="button" data-shell-action="context" aria-label="View AI context" title="View AI context">${icons.context}</button><button type="button" data-shell-action="settings" aria-label="AI access and connections" title="AI access and connections">${icons.settings}</button><span class="rail-foot" aria-hidden="true">&#10022;</span>`;
+    const actions = {
+      graph: () => closeToolPanel(),
+      memories: () => openMemoryApp(),
+      search: () => openMemoryApp('#searchInput'),
+      chat: () => { closeToolPanel(); openProposals(); document.getElementById('phase2ChatPanel')?.classList.add('molecular-chat-open'); document.getElementById('chatInput')?.focus(); },
+      orb: () => { const card = document.querySelector('.orb-card'); if (card) card.open = true; document.getElementById('orbRequestInput')?.focus(); },
+      add: () => triggerExisting('#newMemoryButton'),
+      context: () => triggerExisting('#contextButton'),
+      settings: () => openAiAccess()
+    };
+    for (const element of [shell, rail]) {
+      element.addEventListener('click', event => {
+        const action = event.target.closest('[data-shell-action]')?.dataset.shellAction;
+        actions[action]?.();
+      });
+    }
+    document.addEventListener('orb-presentation-state', event => {
+      shell.querySelector('[data-resident-state]').textContent = event.detail.label;
+      shell.querySelector('.universe-resident').dataset.state = event.detail.state;
+    });
+    document.body.append(shell, rail);
 
     closeToolButton = document.createElement('button');
     closeToolButton.type = 'button';
