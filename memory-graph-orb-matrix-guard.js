@@ -5,26 +5,26 @@
   if (!proto || proto.__memoryGraphOrbMatrixGuardInstalled) return;
   Object.defineProperty(proto, '__memoryGraphOrbMatrixGuardInstalled', { value: true });
 
-  // Manual folder/title projection learns the graph world matrix from the main
-  // canvas fillText path. The resident Orb also draws its state label on that
-  // canvas after translating into Orb-local coordinates. Do not let that HUD
-  // label pass through the folder projection hook or it overwrites the graph
-  // matrix and sends the separate folder/title overlay toward the Orb.
+  // The manual folder/title overlay learns its world->screen matrix by watching
+  // fillText on the main graph canvas. Only real graph node labels are drawn
+  // while the graph world transform is active; Orb/HUD/post-draw text is not.
+  // Keep non-node text out of the manual-gravity hook so it cannot overwrite
+  // the projection matrix with identity or Orb-local transforms.
   const previousFillText = proto.fillText;
   proto.fillText = function memoryGraphOrbMatrixGuard(text, x, y, ...rest) {
-    const isMainGraph = this?.canvas?.classList?.contains('memory-graph-canvas') === true;
-    const isOrbHudLabel = /^Orb\s*[·•]\s*/.test(String(text || ''));
-    if (isMainGraph && isOrbHudLabel) {
-      // Keep the label visible without invoking the wrapped fillText chain.
-      this.save();
+    const graphCanvas = this?.canvas;
+    const isMainGraph = graphCanvas?.classList?.contains('memory-graph-canvas') === true;
+    const isGraphNodeLabel = Boolean(this?.__memoryGraphLabelNode);
+
+    if (isMainGraph && !isGraphNodeLabel) {
+      graphCanvas.classList.remove('memory-graph-canvas');
       try {
-        this.strokeStyle = this.fillStyle;
-        this.lineWidth = 0.7;
-        return this.strokeText(text, x, y, ...rest);
+        return previousFillText.call(this, text, x, y, ...rest);
       } finally {
-        this.restore();
+        graphCanvas.classList.add('memory-graph-canvas');
       }
     }
+
     return previousFillText.call(this, text, x, y, ...rest);
   };
 })();
