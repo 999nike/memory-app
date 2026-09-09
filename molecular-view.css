@@ -326,7 +326,7 @@ body.molecular-view-active:has(.app-shell.detail-open) .orb-card { visibility: h
 
 /* Resident interaction surface, independent of the travelling Orb. */
 .orb-card, .universe-stats { position: fixed; z-index: 32; border: 1px solid rgb(76 152 190 / .3); border-radius: 18px; background: linear-gradient(125deg, rgb(9 24 36 / .93), rgb(5 13 21 / .94)); color: #d4e7f3; box-shadow: 0 16px 48px rgb(0 0 0 / .3), inset 0 1px 0 rgb(182 225 255 / .035); backdrop-filter: blur(18px); }
-.orb-card { right: var(--orb-panel-right, 24px); top: var(--orb-panel-top, 54dvh); bottom: auto; width: 340px; max-height: min(400px, calc(100dvh - var(--orb-panel-top, 54dvh) - 20px)); overflow: auto; }
+.orb-card { right: var(--orb-panel-right, 24px); top: var(--orb-panel-top, 54dvh); bottom: auto; width: var(--orb-panel-width, 340px); max-height: min(400px, calc(100dvh - var(--orb-panel-top, 54dvh) - 20px)); overflow: auto; }
 .orb-card[hidden], .universe-stats[hidden] { display: none; }
 .orb-card > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 15px; padding: 18px 20px; }
 .orb-card > summary::-webkit-details-marker, .universe-stats > summary::-webkit-details-marker { display: none; }

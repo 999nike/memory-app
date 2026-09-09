@@ -40,6 +40,7 @@
   let searchBound = false;
   let appAdaptersBound = false;
   let focusedNodeId = null;
+  let homePresentation = false;
   let persistTimer = 0;
   let viewTransitionFrame = 0;
   const presentationControlSpecs = new Map();
@@ -259,6 +260,7 @@
   }
 
   globalThis.addEventListener('orb-spatial-takeover', () => {
+    homePresentation = false;
     ++orbRequest; orbAbort?.abort(); clearTimeout(orbErrorTimer);
     stopOrbVoice();
     cancelOrbGuide(true);
@@ -276,6 +278,7 @@
     stopViewTransition();
     orbGuide.id = String(node.id);
     focusedNodeId = node.id;
+    homePresentation = false;
     orbGuide.start = performance.now();
     orbGuide.from = orbGuide.position && { ...orbGuide.position };
     orbGuide.phase = orbMotion.matches ? 'arrived' : 'outbound';
@@ -284,7 +287,7 @@
       focusPresentationNode(node, { animate: false });
       orb.state = 'arrived'; orbGuide.arrived = performance.now();
       orbGuide.timer = setTimeout(() => {
-        cancelOrbGuide(); restoreOrbVoiceState();
+        cancelOrbGuide(); frameUniverse(); restoreOrbVoiceState();
       }, 1000);
     }
     drawGraph();
@@ -314,6 +317,7 @@
         resetOrbSpatial(node);
         orbGuide.id = null; orbGuide.arrived = 0;
         orbGuide.viewFrom = null; orbGuide.midpoint = null;
+        frameUniverse({ animate: true, duration: 1050 });
       }
     }
     if (orbGuide.phase === 'cinematic') {
@@ -355,21 +359,41 @@
     return (graph?.width || innerWidth) < 640 || (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4;
   }
 
+  function homeComposition() {
+    const desktop = graph.width > 800;
+    const left = desktop ? 84 : 16;
+    const right = graph.width - (desktop ? 24 : 16);
+    const usable = right - left;
+    const graphRight = desktop ? left + usable * .71 : right;
+    return {
+      desktop, left, graphRight, top: desktop ? 150 : 130,
+      bottom: graph.height - (desktop ? 44 : 80),
+      residentX: (graphRight + right) / 2,
+      residentWidth: right - graphRight
+    };
+  }
+
   function drawOrb() {
     if (!document.body.classList.contains('molecular-view-active')) return;
     orb.syncPresentation?.();
     const low = orbLowDetail(), t = orbMotion.matches ? 0 : orb.time;
-    const radius = Math.min(graph.width < 640 ? 64 : 146, graph.width * .18, graph.height * .24);
-    // Give the luminous body ~292px desktop presence; outer filaments stay fine.
+    const composition = homeComposition();
+    // Overall filaments span ~2.8 radii: up to 440px in the resident zone.
+    const radius = composition.desktop
+      ? Math.min(157, (composition.residentWidth - 12) / 2.8, Math.max(64, (graph.height - 340) / 2.8))
+      : Math.min(64, graph.width * .16, graph.height * .20);
     const margin = radius * 1.4 + 8;
-    const boundX = value => clamp(value, Math.min(margin, graph.width / 2), Math.max(graph.width / 2, graph.width - margin));
-    const boundY = value => clamp(value, Math.min(margin + (graph.width < 640 ? 116 : 24), graph.height / 2), Math.max(graph.height / 2, graph.height - margin - 20));
-    const home = { x: boundX(graph.width - margin - 16), y: boundY(margin + 24) };
-    if (orb.card && graph.width >= 640 && canvas) {
+    const home = composition.desktop
+      ? { x: composition.residentX, y: 132 + radius * 1.4 }
+      : { x: Math.max(graph.width / 2, graph.width - margin - 16),
+          y: Math.min(graph.height / 2, margin + 116) };
+    if (orb.card && composition.desktop && canvas) {
       const rect = canvas.getBoundingClientRect();
-      const top = Math.min(rect.top + home.y + radius * 1.4 + 28, innerHeight - 170);
+      const panelWidth = Math.min(420, composition.residentWidth);
+      const top = Math.min(rect.top + home.y + radius * 1.4 + 24, innerHeight - 170);
+      orb.card.style.setProperty('--orb-panel-width', panelWidth + 'px');
       orb.card.style.setProperty('--orb-panel-top', Math.max(90, top) + 'px');
-      orb.card.style.setProperty('--orb-panel-right', Math.max(16, innerWidth - rect.left - home.x - 170) + 'px');
+      orb.card.style.setProperty('--orb-panel-right', Math.max(16, innerWidth - rect.left - home.x - panelWidth / 2) + 'px');
     }
     let { x, y } = orbGuide.position || home;
     const now = performance.now();
@@ -843,7 +867,7 @@
       if (!node.fixed) containNode(node);
     }
     const restored = restoreSavedView(savedState?.view, width, height);
-    if (!previousSpaceId && (!restored || Math.abs(view.scale - 1) < .01)) frameUniverse();
+    if (homePresentation || (!previousSpaceId && (!restored || Math.abs(view.scale - 1) < .01))) frameUniverse();
     if (count) count.textContent = String(graph.memoryNodes.length + 1);
     simulationFrames = 0;
 
@@ -851,7 +875,7 @@
     const activeQuery = searchInput?.value?.trim() || '';
     if (activeQuery) {
       focusSearchTerm(activeQuery, false);
-    } else {
+    } else if (!orbSafeNode(focusedNodeId)) {
       focusedNodeId = null;
     }
     drawGraph();
@@ -1294,6 +1318,9 @@
       animationFrame = requestAnimationFrame(tick);
     } else {
       releaseExpansionAnchors();
+      if (homePresentation && !orbGuide.phase && document.body.classList.contains('molecular-view-active')) {
+        frameUniverse({ animate: true });
+      }
       persistGraphState(false);
     }
   }
@@ -1453,6 +1480,11 @@
   }
 
   function projectedNode(node) {
+    if (graph?.width > 800 && document.body.classList.contains('molecular-view-active')) {
+      const primary = node.kind === 'space' || node.appRoot ||
+        (node.kind === 'control' && !node.parentId);
+      node = { ...node, radius: node.radius * (primary ? 1.22 : 1.10) };
+    }
     if (activeControlParentId && rotationActive() && node.kind === 'control') {
       return {
         x: node.x,
@@ -1560,10 +1592,10 @@
     context.beginPath();
     context.moveTo(source.x, source.y);
     context.lineTo(target.x, target.y);
-    context.lineWidth = revision ? 1.35 : 0.85;
+    context.lineWidth = revision ? 1.35 : 1.05;
     context.strokeStyle = revision
       ? 'rgba(199, 255, 86, 0.34)'
-      : 'rgba(120, 184, 255, 0.16)';
+      : 'rgba(120, 184, 255, 0.23)';
     if (revision) context.setLineDash([5, 4]);
     context.stroke();
     context.__memoryFlowActivityTarget = null;
@@ -1713,6 +1745,7 @@
 
   function handlePointerDown(event) {
     if (!graph || event.button !== 0) return;
+    homePresentation = false;
     stopViewTransition();
 
     const point = pointerPoint(event);
@@ -1893,13 +1926,15 @@
 
     if (mode === 'home' && !pointerState.moved) {
       collapsePresentationControls();
-      focusSpace({ animate: true });
+      if (document.body.classList.contains('molecular-view-active')) focusHome({ animate: true });
+      else focusSpace({ animate: true });
       surface?.dispatchEvent(new CustomEvent('memory-graph-home'));
     }
 
     if (mode === 'cluster' && !pointerState.moved && selectedNode?.kind === 'space') {
       collapsePresentationControls();
-      focusSpace({ animate: true });
+      if (document.body.classList.contains('molecular-view-active')) focusHome({ animate: true });
+      else focusSpace({ animate: true });
       surface?.dispatchEvent(new CustomEvent('memory-graph-home'));
     }
 
@@ -1953,6 +1988,7 @@
   }
 
   function handleWheel(event) {
+    homePresentation = false;
     if (!graph || !canvas) return;
     stopViewTransition();
 
@@ -2031,19 +2067,44 @@
     return clusterNodes;
   }
 
-  function frameUniverse() {
-    if (!graph || graph.width <= 800) return;
+  function frameUniverse(options = {}) {
+    if (!graph) return false;
+    const area = homeComposition();
     const nodes = graph.nodes.filter(node => !node.hidden && Number.isFinite(node.x) && Number.isFinite(node.y));
-    if (!nodes.length) return;
-    const left = Math.min(...nodes.map(node => node.x - (node.radius || 16) - 24));
-    const right = Math.max(...nodes.map(node => node.x + (node.radius || 16) + 24));
-    const top = Math.min(...nodes.map(node => node.y - (node.radius || 16) - 24));
-    const bottom = Math.max(...nodes.map(node => node.y + (node.radius || 16) + 24));
-    const availableWidth = Math.max(graph.width * .6, graph.width - 370);
-    view.scale = clamp(Math.min(availableWidth / Math.max(1, right - left),
-      graph.height * .8 / Math.max(1, bottom - top)), MIN_SCALE, 1.65);
-    view.x = availableWidth / 2 + 24 - (left + right) / 2 * view.scale;
-    view.y = graph.height * .54 - (top + bottom) / 2 * view.scale;
+    if (!nodes.length) return false;
+    let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+    for (const node of nodes) {
+      const p = projectedNode(node);
+      const labelHalfWidth = Math.min(90, String(node.label || '').length * 3.4);
+      const halfWidth = Math.max(p.radius + 8, labelHalfWidth);
+      left = Math.min(left, p.x - halfWidth);
+      right = Math.max(right, p.x + halfWidth);
+      top = Math.min(top, p.y - p.radius - 8);
+      bottom = Math.max(bottom, p.y + p.radius + 28);
+    }
+    const width = Math.max(160, area.graphRight - area.left - 16);
+    const height = Math.max(160, area.bottom - area.top);
+    const scale = clamp(Math.min(width / Math.max(1, right - left),
+      height / Math.max(1, bottom - top)), MIN_SCALE, area.desktop ? MAX_SCALE : 1.3);
+    const target = {
+      scale,
+      x: (area.left + area.graphRight) / 2 - (left + right) / 2 * scale,
+      y: (area.top + area.bottom) / 2 - (top + bottom) / 2 * scale
+    };
+    homePresentation = true;
+    if (options.animate && !orbMotion.matches) transitionView(target, true, options.duration);
+    else { stopViewTransition(); Object.assign(view, target); }
+    return true;
+  }
+
+  function focusHome(options = {}) {
+    if (!graph) return false;
+    cancelOrbGuide();
+    rotationApi()?.reset?.();
+    syncRotationState();
+    frameUniverse(options);
+    drawGraph();
+    return true;
   }
 
   function restoreSavedView(savedView, width, height) {
@@ -2142,11 +2203,10 @@
     viewTransitionFrame = 0;
   }
 
-  function transitionView(target, redraw = true) {
+  function transitionView(target, redraw = true, duration = 320) {
     stopViewTransition();
     const start = { x: view.x, y: view.y, scale: view.scale };
     const startedAt = performance.now();
-    const duration = 320;
     const animate = (timestamp) => {
       const progress = Math.min(1, (timestamp - startedAt) / duration);
       const eased = 1 - Math.pow(1 - progress, 3);
@@ -2166,6 +2226,7 @@
     if (!node) return false;
 
     const projected = projectedNode(node);
+    homePresentation = false;
     focusedNodeId = node.id;
     const scale = clamp(Math.max(view.scale, 1.15), MIN_SCALE, MAX_SCALE);
     const target = {
@@ -2185,6 +2246,7 @@
 
   function focusSpace(options = {}) {
     if (!graph) return false;
+    homePresentation = false;
     focusedNodeId = null;
     const scale = clamp(Number(options.scale) || 1, MIN_SCALE, MAX_SCALE);
     const target = {
@@ -2207,6 +2269,7 @@
       id: String(node.id || 'presentation-node'),
       kind: node.kind || 'memory',
       parentId: node.parentId,
+      appRoot: node.appRoot,
       x: Number(node.x || graph.centreX),
       y: Number(node.y || graph.centreY),
       radius: Number(node.radius || 16)
@@ -2556,6 +2619,7 @@
 
   function focusPresentationNode(node, options = {}) {
     if (!graph || !node) return false;
+    homePresentation = false;
     const projected = options.projected || projectPresentationNode(node);
     if (!projected) return false;
     const scale = options.exactScale ?? clamp(Math.max(view.scale, Number(options.scale) || 1.08), MIN_SCALE, MAX_SCALE);
@@ -2695,6 +2759,7 @@
       startSimulation();
     },
     focusMemory,
+    focusHome,
     focusSpace,
     projectPresentationNode,
     focusPresentationNode,

@@ -1,7 +1,6 @@
 (() => {
   'use strict';
 
-  const HOME_SCALE = 1.18;
   const SETTINGS_CONTROLS = [
     { id: 'settings', label: 'Settings', sectorAngle: 0.10, radius: 30, expandable: true },
 
@@ -186,7 +185,7 @@
     else if (action === 'add-memory') triggerExisting('#newMemoryButton');
     else if (action === 'export-workspace') triggerExisting('#exportButton');
     else if (action === 'import-workspace') triggerExisting('#importInput');
-    else if (action === 'recenter') graphApi()?.focusSpace?.({ animate: true, scale: HOME_SCALE });
+    else if (action === 'recenter') graphApi()?.focusHome?.({ animate: true });
     else if (action === 'workspace-view') deactivate();
   }
 
@@ -209,7 +208,7 @@
     document.body.classList.add('molecular-view-active');
     requestAnimationFrame(() => {
       graphApi()?.refresh?.();
-      graphApi()?.focusSpace?.({ animate: false, scale: HOME_SCALE });
+      graphApi()?.focusHome?.({ animate: false });
     });
     return true;
   }
