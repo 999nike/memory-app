@@ -1554,16 +1554,6 @@
         (node.kind === 'control' && !node.parentId);
       node = { ...node, radius: node.radius * (primary ? 1.22 : 1.10) };
     }
-    if (activeControlParentId && rotationActive() && node.kind === 'control') {
-      return {
-        x: node.x,
-        y: node.y,
-        radius: node.radius,
-        depth: 0,
-        alpha: 1,
-        scale: 1
-      };
-    }
     const projected = rotationApi()?.project?.(node, graph);
     if (projected && Number.isFinite(projected.x) && Number.isFinite(projected.y)) return projected;
     return {
@@ -1577,7 +1567,7 @@
   }
 
   function orderedDrawableNodes() {
-    const nodes = graph.nodes.filter((node) => !node.fixed && !node.hidden);
+    const nodes = graph.nodes.filter((node) => !node.hidden && (!node.fixed || node === graph.spaceNode));
     if (!rotationActive()) return nodes;
     return nodes.sort((a, b) => projectedNode(a).depth - projectedNode(b).depth);
   }
@@ -1603,7 +1593,6 @@
 
     if (rotationActive()) {
       for (const node of orderedDrawableNodes()) drawNodeAboveConnectors(node);
-      drawNodeAboveConnectors(graph.spaceNode);
     } else {
       drawNodeAboveConnectors(graph.spaceNode);
       for (const node of graph.nodes) {

@@ -143,37 +143,57 @@
     );
   }
 
+  function universeCentre(graph) {
+    // The Memory root is a participant, not the pivot of the other applications.
+    return { x: Number(graph.width || 1) * .5, y: Number(graph.height || 1) * .5 };
+  }
+
   function familyPath(node, graph) {
     const path = [], seen = new Set();
     let current = graph?.nodes?.find(item => String(item.id) === String(node?.id)) || node;
-    while (current && current.kind !== 'space' && !seen.has(String(current.id))) {
+    while (current && !seen.has(String(current.id))) {
       path.push(current); seen.add(String(current.id));
+      // Include the actual root, including Memory's space node.
+      if (current.appRoot || current.clusterRoot || current.kind === 'space') break;
+      if (current.parentId == null) break;
       current = graph?.nodes?.find(item => String(item.id) === String(current.parentId));
     }
     return path;
   }
 
   function pseudoDepth(node, graph) {
-    if (!node || node.kind === 'space' || !graph) return 0;
+    if (!node || !graph) return 0;
     const path = familyPath(node, graph);
     const root = path[path.length - 1] || node;
     const shell = Math.max(120, Math.min(graph.width, graph.height) * .46);
-    const radial = clamp(Math.hypot(root.x - graph.centreX, root.y - graph.centreY) / shell, 0, .97);
-    const broad = (hashUnit(root.id) >= .5 ? 1 : -1) *
-      Math.sqrt(Math.max(.04, 1 - radial * radial)) * shell * .72;
+    // Global depth stays substantial even for roots near the edge of the canvas.
+    // A family's local budget is smaller than its broad depth, preserving its side.
+    const hemisphere = hashUnit(root.id) >= .5 ? 1 : -1;
+    const broad = hemisphere * shell * (.42 + hashUnit(root.id + ':shell') * .20);
+    const phase = hashUnit(root.id + ':local') * Math.PI * 2;
     let offset = 0;
-    // Bounded ancestry offsets retain family depth even in deep trees.
-    path.slice(0, -1).reverse().forEach((child, depth) => {
-      offset += (hashUnit(child.id + ':depth') - .5) * shell * .07 * Math.pow(.55, depth);
-    });
-    return broad + offset;
+    for (let index = path.length - 2, level = 0; index >= 0; index--, level++) {
+      const child = path[index], parent = path[index + 1];
+      const dx = Number(child.x || 0) - Number(parent.x || 0);
+      const dy = Number(child.y || 0) - Number(parent.y || 0);
+      const distance = Math.hypot(dx, dy);
+      const angle = Math.atan2(dy, dx);
+      // A corrugated local shell gives radial siblings volume, not a tilted disc.
+      // Scale each displacement to its own link so small subtrees cannot explode.
+      const shape = .72 * Math.sin(angle * 2 + phase) +
+        .28 * (hashUnit(child.id + ':depth') * 2 - 1);
+      offset += Math.min(distance * .62, shell * .20) * shape * Math.pow(.65, level);
+    }
+    const budget = shell * .26;
+    return broad + budget * Math.tanh(offset / budget);
   }
 
   function beginCinematic(node, graph) {
     cancelCinematic();
     if (!node || !graph || isRotating()) return false;
     const root = familyPath(node, graph).at(-1) || node;
-    const x = root.x - graph.centreX, y = root.y - graph.centreY;
+    const centre = universeCentre(graph);
+    const x = root.x - centre.x, y = root.y - centre.y;
     const z = pseudoDepth(root, graph);
     const desired = Math.atan2(-x, z);
     const delta = normaliseAngle(desired - state.yaw);
@@ -209,10 +229,10 @@
       scale: 1
     };
 
-    if (!node || !graph || !isActive() || node.kind === 'space') return fallback;
+    if (!node || !graph || !isActive()) return fallback;
 
-    const centreX = Number(graph.centreX || 0);
-    const centreY = Number(graph.centreY || 0);
+    const centre = universeCentre(graph);
+    const centreX = centre.x, centreY = centre.y;
     const x = Number(node.x || 0) - centreX;
     const y = Number(node.y || 0) - centreY;
     const z = pseudoDepth(node, graph);
@@ -228,7 +248,7 @@
     const zPitch = y * sinPitch + zYaw * cosPitch;
 
     const depthRadius = Math.max(160, Math.min(Number(graph.width || 1), Number(graph.height || 1)) * 0.62);
-    const perspective = clamp(1 + zPitch / (depthRadius * 3.25), 0.82, 1.20);
+    const perspective = clamp(1 + zPitch / (depthRadius * 2.8), 0.80, 1.24);
     const alpha = clamp(0.68 + (perspective - 0.82) * 1.45, 0.62, 1);
 
     return {
