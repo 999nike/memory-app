@@ -536,6 +536,14 @@
       context.fillStyle = core;
       context.beginPath(); context.arc(0, 0, radius * 1.1, 0, tau); context.fill();
       context.globalCompositeOperation = 'lighter';
+      // A faint edge aura leaves the waveform crisp, without a canvas blur pass.
+      const aura = context.createRadialGradient(0, 0, radius * .88, 0, 0, radius * 1.48);
+      aura.addColorStop(0, 'rgba(15,115,207,0)');
+      aura.addColorStop(.35, `rgba(20,142,235,${.025 + signal.speech * .045})`);
+      aura.addColorStop(.66, `rgba(90,210,136,${.012 + signal.speech * .018})`);
+      aura.addColorStop(1, 'rgba(15,115,207,0)');
+      context.fillStyle = aura;
+      context.beginPath(); context.arc(0, 0, radius * 1.48, 0, tau); context.fill();
       // Interior light is confined beneath the crisp shell, with no blur pass.
       const energy = context.createRadialGradient(-radius * .22, radius * .08, radius * .03, 0, 0, radius * .94);
       energy.addColorStop(0, `rgba(12,111,255,${.12 + signal.energy * .12})`);
@@ -572,11 +580,29 @@
         context.ellipse(0, 0, r, r * (.80 + ring * .06), -.4 + ring * .6, t * .12 + ring * 2, t * .12 + ring * 2 + 3.9);
         context.stroke();
       }
-      for (let i = 0; i < (low ? 14 : 30); i++) {
-        const lon = i * 2.39996 + t * .07;
-        const p = point(Math.acos(1 - 2 * (i + .5) / (low ? 14 : 30)), lon, 1.12 + .06 * Math.sin(i * 7));
-        context.fillStyle = `rgba(${i % 3 ? '50,169,255' : '150,255,92'},${(.2 + .45 * Math.max(0, p.z)) * (.6 + signal.energy * .4)})`;
-        context.beginPath(); context.arc(p.x, p.y, p.z > .3 ? 1.1 : .65, 0, tau); context.fill();
+      // Fixed-count deterministic motes: no emitters, history buffers or extra RAF.
+      const moteCount = low ? 10 : 28;
+      for (let i = 0; i < moteCount; i++) {
+        const lon = i * 2.39996 + t * (.045 + (i % 3) * .012);
+        const p = point(Math.acos(1 - 2 * (i + .5) / moteCount), lon,
+          1.2 + .18 * (.5 + .5 * Math.sin(i * 7 + t * .24)));
+        const shimmer = .65 + .35 * Math.sin(i * 4.7 + t * 1.1);
+        const alpha = (.16 + .32 * Math.max(0, p.z)) * shimmer * (.7 + signal.speech * .8);
+        const color = i % 3 ? '67,184,255' : '157,255,117';
+        context.fillStyle = `rgba(${color},${alpha})`;
+        const size = p.z > .3 ? 1.15 : .65;
+        context.beginPath(); context.arc(p.x, p.y, size, 0, tau); context.fill();
+        if (!low && p.z > .3 && i % 4 === 0) {
+          context.fillStyle = `rgba(${color},${alpha * .09})`;
+          context.beginPath(); context.arc(p.x, p.y, size * 3.4, 0, tau); context.fill();
+          // Short tangential sparks become visible during speech, never fireworks.
+          context.strokeStyle = `rgba(${color},${alpha * signal.speech * .65})`;
+          context.lineWidth = .65;
+          const length = 2 + signal.speech * 7;
+          context.beginPath(); context.moveTo(p.x, p.y);
+          context.lineTo(p.x - Math.sin(lon) * length, p.y + Math.cos(lon) * length);
+          context.stroke();
+        }
       }
       context.globalCompositeOperation = 'source-over';
       context.fillStyle = signal.fault > .1 ? '#ffac88' : '#a3e9df';
@@ -1469,6 +1495,7 @@
     context.save();
     context.translate(view.x, view.y);
     context.scale(view.scale, view.scale);
+    drawClusterAtmosphere();
     for (const edge of graph.edges || []) {
       if (!edge.source.hidden && !edge.target.hidden) drawEdge(edge);
     }
@@ -1486,6 +1513,38 @@
     context.restore();
     drawOrb();
     surface?.dispatchEvent(new CustomEvent('memory-graph-drawn'));
+  }
+
+  function drawClusterAtmosphere() {
+    if (!document.body.classList.contains('molecular-view-active')) return;
+    const low = orbLowDetail();
+    const detail = low ? 'low' : 'full';
+    if (surface && surface.dataset.atmosphereDetail !== detail) surface.dataset.atmosphereDetail = detail;
+    context.save();
+    context.globalCompositeOperation = 'source-over';
+    context.shadowBlur = 0;
+    let count = 0;
+    // Only primary anchors get support light; descendants keep their existing glow.
+    for (const node of graph.nodes) {
+      if (node.hidden || !(node.kind === 'space' || node.appRoot ||
+        (node.kind === 'control' && !node.parentId))) continue;
+      if (count >= (low ? 3 : 8)) break;
+      const p = projectedNode(node);
+      const radius = Math.min(135, Math.max(52, p.radius * 3.5));
+      const screenX = view.x + p.x * view.scale, screenY = view.y + p.y * view.scale;
+      if (screenX < -radius * view.scale || screenX > graph.width + radius * view.scale ||
+          screenY < -radius * view.scale || screenY > graph.height + radius * view.scale) continue;
+      count++;
+      context.globalAlpha = (p.alpha || 1) * (low ? .65 : 1);
+      const haze = context.createRadialGradient(p.x, p.y, p.radius, p.x, p.y, radius);
+      haze.addColorStop(0, 'rgba(40,139,223,.10)');
+      haze.addColorStop(.4, 'rgba(25,96,153,.045)');
+      haze.addColorStop(1, 'rgba(20,68,105,0)');
+      context.fillStyle = haze;
+      context.beginPath(); context.arc(p.x, p.y, radius, 0, Math.PI * 2); context.fill();
+    }
+    context.restore();
+    context.beginPath();
   }
 
   function drawEdge(edge) {
