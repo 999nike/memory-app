@@ -101,10 +101,10 @@
     return { ok: true, targetId: target.id, fallback, reply };
   }
 
-  // Positive type allowlist plus an action veto. Never dispatch or expand nodes.
+  // Guidance destinations may carry actions; targeting never dispatches or expands them.
   function orbSafeNode(id) {
     return graph?.nodes.find(node => String(node.id) === String(id) && !node.hidden &&
-      !node.action && ['space', 'memory', 'control'].includes(node.kind)) || null;
+      ['space', 'memory', 'control'].includes(node.kind)) || null;
   }
 
   function orbSearch(query) {
