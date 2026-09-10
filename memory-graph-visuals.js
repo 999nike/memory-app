@@ -407,12 +407,12 @@
 
     tracePoints(electricContext, points);
     electricContext.lineWidth = interacting ? 3.5 : 4.8;
-    electricContext.strokeStyle = interacting ? 'rgba(55, 139, 255, 0.08)' : 'rgba(55, 139, 255, 0.13)';
+    electricContext.strokeStyle = interacting ? 'rgba(55, 139, 255, 0.10)' : 'rgba(55, 139, 255, 0.18)';
     electricContext.stroke();
 
     tracePoints(electricContext, points);
     electricContext.lineWidth = interacting ? 1.8 : 2.4;
-    electricContext.strokeStyle = interacting ? 'rgba(120, 184, 255, 0.30)' : 'rgba(120, 184, 255, 0.44)';
+    electricContext.strokeStyle = interacting ? 'rgba(120, 184, 255, 0.34)' : 'rgba(120, 184, 255, 0.52)';
     electricContext.stroke();
 
     tracePoints(electricContext, points);

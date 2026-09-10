@@ -4,9 +4,13 @@ import { readFile, writeFile, mkdir, stat, readdir } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureSupervisor } from './supervisor/server.mjs';
+import { createOrbRealtimeRoute } from './orb-realtime-server.mjs';
+import { createOrbLocalRoute } from './orb-local-server.mjs';
 
 const HOST = process.env.UNIVERSAL_SPACE_HOST || '0.0.0.0';
 const PORT = Number(process.env.UNIVERSAL_SPACE_PORT || 4173);
+const handleOrbRealtime = createOrbRealtimeRoute({ port: PORT });
+const handleOrbLocal = createOrbLocalRoute({ port: PORT });
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)));
 const CODE_SPACE_ROOT = resolve(ROOT_DIR, '..');
 const SECRETS_DIR = resolve(ROOT_DIR, '..', '..', 'secrets', 'universal-space-gmail');
@@ -536,6 +540,8 @@ async function serveStatic(req, res, requestUrl) {
 const server = http.createServer(async (req, res) => {
   const requestUrl = new URL(req.url || '/', `http://${req.headers.host || `localhost:${PORT}`}`);
   try {
+    if (await handleOrbRealtime(req, res, requestUrl)) return;
+    if (await handleOrbLocal(req, res, requestUrl)) return;
     if (await handleGmailRoute(req, res, requestUrl)) return;
     if (await handleCodeSpaceRoute(req, res, requestUrl)) return;
     await serveStatic(req, res, requestUrl);

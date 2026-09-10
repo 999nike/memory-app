@@ -55,98 +55,81 @@
   const orbGuide = { id: null, start: 0, from: null, position: null, timer: 0, arrived: 0, phase: null, viewFrom: null, spatialOwned: false };
   let orbRequest = 0, orbAbort = null, orbReply = null, orbErrorTimer = 0;
 
-  const orbVoice = { recognition: null, speaking: false, utterance: null, token: 0, button: null };
-
+  const orbVoice = { speaking: false, state: 'idle', client: null, mode: 'local', ask: null };
   function restoreOrbVoiceState() {
-    orb.state = orbVoice.speaking ? 'speaking' : orbGuide.id ? (orbGuide.phase === 'arrived' ? 'arrived'
-      : orbGuide.phase === 'lock' ? 'thinking' : 'guiding') : 'idle';
+    orb.state = orbVoice.client?.active && ['speaking', 'thinking'].includes(orbVoice.state) ? orbVoice.state
+      : orbGuide.id ? (orbGuide.phase === 'arrived' ? 'arrived' : orbGuide.phase === 'lock' ? 'thinking' : 'guiding')
+      : orbVoice.client?.active ? 'listening' : 'idle';
     drawGraph();
   }
+  function stopOrbVoice() { orbVoice.client?.stop(); }
 
-  function stopOrbVoice() {
-    orbVoice.token++;
-    const recognition = orbVoice.recognition;
-    orbVoice.recognition = null;
-    try { recognition?.abort(); } catch { /* Already ended. */ }
-    if (orbVoice.utterance) globalThis.speechSynthesis?.cancel();
-    orbVoice.utterance = null; orbVoice.speaking = false;
-    orbVoice.button?.setAttribute('aria-pressed', 'false');
-  }
-
-  function speakOrbReply(reply, requestId) {
-    if (!globalThis.speechSynthesis || !globalThis.SpeechSynthesisUtterance) return;
-    const token = orbVoice.token;
-    const utterance = new SpeechSynthesisUtterance(reply);
-    orbVoice.utterance = utterance;
-    utterance.rate = .95;
-    utterance.onstart = () => {
-      if (token !== orbVoice.token || requestId !== orbRequest) return;
-      orbVoice.speaking = true; orb.state = 'speaking'; drawGraph();
-    };
-    const finish = () => {
-      if (token !== orbVoice.token || requestId !== orbRequest) return;
-      orbVoice.speaking = false; orbVoice.utterance = null;
-      restoreOrbVoiceState();
-    };
-    utterance.onend = finish; utterance.onerror = finish;
-    try { speechSynthesis.speak(utterance); } catch { finish(); }
-  }
-
-  function mountOrbMicrophone(card, input) {
-    const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
-    if (!Recognition) return;
+  function mountOrbMicrophone(card) {
     const button = document.createElement('button');
     button.type = 'button'; button.textContent = 'Mic';
-    button.setAttribute('aria-label', 'Speak to Orb');
-    button.setAttribute('aria-pressed', 'false');
-    orbVoice.button = button;
+    button.setAttribute('aria-label', 'Speak to Orb'); button.setAttribute('aria-pressed', 'false');
     card.querySelector('.orb-input-row').append(button);
+    const callbacks = {
+      state: value => {
+        orbVoice.state = value; orbVoice.speaking = value === 'speaking';
+        if (value === 'error') { cancelOrbGuide(); orb.state = value; drawGraph(); }
+        else restoreOrbVoiceState();
+      },
+      amplitude: value => {
+        orb.amplitude = value;
+        orb.syncPresentation?.();
+        // The existing Orb animation loop consumes this envelope.
+      },
+      message: text => { if (orbReply) orbReply.textContent = text; },
+      active: value => {
+        card.dataset.voice = String(value);
+        button.textContent = value ? 'Stop' : 'Mic';
+        button.setAttribute('aria-pressed', String(value));
+        button.setAttribute('aria-label', value ? 'Stop Orb voice' : 'Speak to Orb');
+        card.querySelectorAll('.orb-debug input, .orb-debug select, .orb-debug button').forEach(control => { control.disabled = value; });
+      },
+      search: query => orbSearch(query).filter(item => {
+        const node = orbSafeNode(item.id);
+        // Even navigation to write/action controls is excluded from voice capabilities.
+        return node && !node.action && !node.appAction;
+      }),
+      guide: id => {
+        const node = orbSafeNode(id);
+        return Boolean(node && !node.action && !node.appAction && guideOrbTo(id, orbRequest));
+      }
+    };
+    const providers = {
+      realtime: globalThis.createOrbRealtime(callbacks),
+      local: globalThis.createOrbLocal({ ...callbacks, phase: value => {
+        if (orbVoice.mode !== 'local') return;
+        button.textContent = value === 'listening' ? 'Finish' : value === 'idle' ? 'Mic' : 'Stop';
+        button.setAttribute('aria-label', value === 'listening' ? 'Finish speaking to Orb' : value === 'idle' ? 'Speak to Orb' : 'Stop Orb voice');
+      } })
+    };
+    const providerLabel = document.createElement('label'); providerLabel.className = 'orb-input-label';
+    providerLabel.textContent = 'Voice '; const select = document.createElement('select');
+    select.setAttribute('aria-label', 'Orb voice provider');
+    select.innerHTML = '<option value="local">Local · Whisper / Ollama / Lily</option><option value="realtime">OpenAI Realtime · optional</option>';
+    try { if (localStorage.getItem('orb-voice-provider') === 'realtime') orbVoice.mode = 'realtime'; } catch {}
+    select.value = orbVoice.mode; orbVoice.client = providers[orbVoice.mode];
+    providerLabel.append(select); card.querySelector('.orb-request-form').prepend(providerLabel);
+    select.addEventListener('change', () => {
+      stopOrbVoice(); cancelOrbGuide(); orbVoice.mode = select.value; orbVoice.client = providers[select.value];
+      try { localStorage.setItem('orb-voice-provider', select.value); } catch {}
+      if (orbReply) orbReply.textContent = select.value === 'local' ? 'Local voice. Speak, then press Finish. First use downloads speech models.' : 'OpenAI Realtime. Requires server credentials; connects only when you press Mic.';
+    });
+    orbVoice.ask = text => {
+      if (orbVoice.mode !== 'local') return askOrb(text);
+      ++orbRequest; orbAbort?.abort(); clearTimeout(orbErrorTimer); cancelOrbGuide();
+      return providers.local.ask(text);
+    };
     button.addEventListener('click', () => {
-      if (orbVoice.recognition) {
-        stopOrbVoice(); restoreOrbVoiceState(); return;
+      if (orbVoice.client.active) {
+        if (orbVoice.mode === 'local' && orbVoice.client.phase === 'listening') { void orbVoice.client.finish(); return; }
+        stopOrbVoice(); if (orbReply) orbReply.textContent = 'Voice stopped.'; return;
       }
-      stopOrbVoice();
-      ++orbRequest; orbAbort?.abort(); clearTimeout(orbErrorTimer);
-      cancelOrbGuide();
-      let recognition;
-      try { recognition = new Recognition(); } catch {
-        orbReply.textContent = 'Microphone unavailable. Type your request instead.'; restoreOrbVoiceState(); return;
-      }
-      orbVoice.recognition = recognition;
-      recognition.lang = document.documentElement.lang || navigator.language || 'en-GB';
-      recognition.continuous = false; recognition.interimResults = false;
-      let accepted = false;
-      const current = () => orbVoice.recognition === recognition;
-      recognition.onstart = () => {
-        if (!current()) return;
-        orb.state = 'listening'; button.setAttribute('aria-pressed', 'true');
-        orbReply.textContent = 'Listening...'; drawGraph();
-      };
-      recognition.onresult = event => {
-        if (!current() || accepted) return;
-        const transcript = Array.from(event.results).filter(result => result.isFinal)
-          .map(result => result[0].transcript).join(' ').trim();
-        if (!transcript) return;
-        accepted = true; input.value = transcript;
-        askOrb(transcript);
-      };
-      recognition.onerror = () => {
-        if (!current()) return;
-        orbReply.textContent = 'Microphone unavailable. Type your request instead.';
-        stopOrbVoice(); restoreOrbVoiceState();
-      };
-      recognition.onend = () => {
-        if (!current()) return;
-        orbVoice.recognition = null; button.setAttribute('aria-pressed', 'false');
-        if (!accepted) {
-          orbReply.textContent = 'No speech received. Try again or type your request.';
-          restoreOrbVoiceState();
-        }
-      };
-      try { recognition.start(); } catch {
-        orbReply.textContent = 'Microphone unavailable. Type your request instead.';
-        stopOrbVoice(); restoreOrbVoiceState();
-      }
+      ++orbRequest; orbAbort?.abort(); clearTimeout(orbErrorTimer); cancelOrbGuide();
+      void orbVoice.client.start();
     });
   }
 
@@ -195,7 +178,6 @@
     if (!target || !guideOrbTo(target.id, requestId)) return fail('No safe visible node matched. Try its label.');
     const reply = `${fallback ? 'Local AI unavailable. ' : ''}Guiding to ${target.label}.${intent.operation === 'open' ? ' Opening is disabled; guidance only.' : ''}`;
     say(reply);
-    speakOrbReply(reply, requestId);
     return { ok: true, targetId: target.id, fallback, reply };
   }
 
@@ -302,7 +284,7 @@
     orbGuide.timer = setTimeout(() => {
       orbGuide.beaconId = null; orbGuide.timer = 0; drawGraph();
     }, 1800);
-    if (!orbVoice.speaking) orb.state = 'idle';
+    restoreOrbVoiceState();
     return true;
   }
 
@@ -341,7 +323,7 @@
       rotationApi()?.advanceCinematic?.(.5 + .5 * orbEase(progress));
       frameOrbDestination(node, progress);
     }
-    if (!orbVoice.speaking) orb.state = orbGuide.phase === 'lock' ? 'thinking'
+    if (!orbVoice.client?.active || !['speaking', 'thinking'].includes(orbVoice.state)) orb.state = orbGuide.phase === 'lock' ? 'thinking'
       : orbGuide.phase === 'arrived' ? 'arrived' : 'guiding';
   }
 
@@ -528,7 +510,7 @@
       orb.visualSince = t;
     }
     const age = Math.max(0, t - orb.visualSince);
-    const speech = orb.state === 'speaking' ? orb.amplitude * (orbVoice.speaking ? .6 + .4 * Math.pow(Math.sin(t * 8.3) * Math.cos(t * 3.7), 2) : 1) : 0;
+    const speech = ['speaking', 'listening'].includes(orb.state) ? orb.amplitude * (orb.state === 'listening' ? .55 : 1) : 0;
     const pulse = orb.state === 'arrived' ? Math.exp(-age * 3) * Math.sin(Math.min(1, age * 2) * Math.PI) : 0;
     const fault = orb.state === 'error' ? Math.exp(-age * 4) : 0;
     return {
@@ -578,7 +560,7 @@
         light.moveTo(a.x, a.y); light.lineTo(b.x, b.y);
       }
     };
-    const steps = low ? 72 : 128, rings = low ? 24 : 46, meridians = low ? 32 : 64;
+    const steps = low ? 72 : 128, rings = low ? 24 : 52, meridians = low ? 32 : 72;
     for (let family = 0; family < 2; family++) {
       const count = family ? meridians : rings;
       for (let line = 0; line < count; line++) {
@@ -600,7 +582,7 @@
         for (let step = 0; step <= steps; step++) {
           const lon = step / steps * tau;
           const lat = .38 + band * .47 + strand * .014 * (1 + .45 * Math.sin(lon * 3 - phase * 1.6 + band))
-            + (.09 + signal.speech * .055) * Math.sin(lon * 3 + phase * 1.2 + band * .9)
+            + (.145 + signal.speech * .075) * Math.sin(lon * 3 + phase * 1.2 + band * .9)
             + .035 * Math.sin(lon * 7 - phase * 2 + band);
           const p = point(lat, lon, 1.009);
           if (previous) segment(bands, previous, p, band % 3 !== 1);
@@ -647,13 +629,13 @@
       for (let depth = 0; depth < 4; depth++) {
         for (let green = 0; green < 2; green++) {
           const color = green ? '125,255,65' : '24,151,255';
-          const alpha = [.035, .085, .28, .62][depth] * (.8 + signal.energy * .45);
+          const alpha = [.045, .10, .32, .70][depth] * (.8 + signal.energy * .45);
           context.strokeStyle = `rgba(${color},${alpha})`;
           context.lineWidth = (low ? .42 : .46) + depth * .045;
           context.stroke(mesh[depth * 2 + green]);
           // A narrow bloom beneath an exact filament, never full-sphere blur.
           context.strokeStyle = `rgba(${color},${alpha * (.22 + signal.speech * .12)})`;
-          context.lineWidth = 2.4 + signal.speech;
+          context.lineWidth = 2.8 + signal.speech * 1.4;
           context.stroke(bands[depth * 2 + green]);
           context.strokeStyle = `rgba(${signal.fault > .1 ? '255,167,119' : green ? '192,255,156' : '139,225,255'},${(.25 + signal.energy * .42 + signal.speech * .3) * (depth / 3)})`;
           context.lineWidth = .75 + signal.speech * .35;
@@ -736,8 +718,8 @@
     orbReply = document.createElement('output'); orbReply.setAttribute('aria-live', 'polite');
     orbReply.className = 'orb-reply';
     orbReply.textContent = 'Find a memory, an app, or a place in your universe.';
-    card.querySelector('form').addEventListener('submit', event => { event.preventDefault(); askOrb(request.value); });
-    mountOrbMicrophone(card, request);
+    card.querySelector('form').addEventListener('submit', event => { event.preventDefault(); orbVoice.ask(request.value); });
+    mountOrbMicrophone(card);
     content.append(orbReply, controls);
     const stats = document.createElement('details');
     stats.className = 'universe-stats';
@@ -1627,8 +1609,9 @@
       count++;
       context.globalAlpha = (p.alpha || 1) * (low ? .65 : 1);
       const haze = context.createRadialGradient(p.x, p.y, p.radius, p.x, p.y, radius);
-      haze.addColorStop(0, 'rgba(40,139,223,.10)');
-      haze.addColorStop(.4, 'rgba(25,96,153,.045)');
+      haze.addColorStop(0, 'rgba(48,155,255,.22)');
+      haze.addColorStop(.24, 'rgba(30,122,232,.11)');
+      haze.addColorStop(.55, 'rgba(25,96,153,.045)');
       haze.addColorStop(1, 'rgba(20,68,105,0)');
       context.fillStyle = haze;
       context.beginPath(); context.arc(p.x, p.y, radius, 0, Math.PI * 2); context.fill();

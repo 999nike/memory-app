@@ -277,12 +277,14 @@ body.molecular-view-active #memoryGraphSurface {
     radial-gradient(ellipse 24% 44% at 75% 58%, rgb(23 97 70 / .22), transparent 75%),
     radial-gradient(ellipse 50% 30% at 54% 46%, rgb(13 39 77 / .2), transparent 72%),
     radial-gradient(ellipse 14% 35% at 15% 40%, rgb(19 58 98 / .13), transparent 80%),
-    linear-gradient(145deg, #030a12, #050d19 47%, #03090e 78%);
+    linear-gradient(145deg, #02070d, #020910 47%, #010609 78%);
 }
 body.molecular-view-active #memoryGraphSurface::before {
   opacity: .80;
   pointer-events: none;
   background-image:
+    radial-gradient(circle at 31% 57%, #729ebc 0 .35px, transparent .8px),
+    radial-gradient(circle at 81% 33%, #426079 0 .4px, transparent .9px),
     radial-gradient(circle at 72% 21%, #d4efff 0 .8px, #5396c54a 1.2px, transparent 4px),
     radial-gradient(circle at 17% 29%, #9fcde5 0 .55px, transparent 1px),
     radial-gradient(circle at 63% 74%, #578ca9 0 .65px, transparent 1.2px),
@@ -290,7 +292,7 @@ body.molecular-view-active #memoryGraphSurface::before {
     radial-gradient(circle at 78% 48%, #366885 0 .6px, transparent 1px),
     radial-gradient(circle at 46% 83%, #3b7869 0 .7px, transparent 1.4px),
     radial-gradient(circle at 23% 62%, #abcbe3 0 .65px, #3a6b922c 1px, transparent 3px);
-  background-size: 733px 607px, 119px 157px, 211px 199px, 83px 107px, 193px 151px, 307px 271px, 521px 419px;
+  background-size: 67px 89px, 97px 71px, 733px 607px, 119px 157px, 211px 199px, 83px 107px, 193px 151px, 307px 271px, 521px 419px;
 }
 body.molecular-view-active #memoryGraphSurface::after {
   content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .38;
@@ -345,6 +347,7 @@ body.molecular-view-active:has(.app-shell.detail-open) .orb-card { visibility: h
 .orb-card .orb-equaliser i:nth-child(2n) { animation-delay: -.6s; }
 .orb-card .orb-equaliser i:nth-child(3) { animation-delay: -.9s; }
 @keyframes orb-meter { from { transform: scaleY(.35); } to { transform: scaleY(var(--orb-amplitude, 1)); } }
+.orb-card[data-voice="true"] .orb-equaliser i { animation: none; transform: scaleY(var(--orb-amplitude, .05)); }
 .orb-card-content { padding: 0 20px 14px; }
 .orb-input-label { display: block; color: #9fb6c6; font-size: 10px; margin-bottom: 8px; }
 .orb-input-row { display: flex; gap: 8px; }
@@ -384,5 +387,5 @@ body.molecular-view-active:has(.app-shell.detail-open) .orb-card { visibility: h
   body.molecular-view-active .detail-panel, body.molecular-view-active .phase2-chat-pane.molecular-tool-open { top: auto; }
   body.molecular-view-active .molecular-close-tool { top: 76px; right: 13px; }
 }
-@media (prefers-reduced-motion: reduce) { .orb-card .orb-equaliser i { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .orb-card .orb-equaliser i { animation: none !important; transform: none !important; } }
 body.molecular-view-active .phase2-chat-pane.molecular-chat-open .chat-form { display: grid; }

@@ -52,6 +52,7 @@
     const value = result && typeof result === 'object' ? result : {};
     return {
       reply: String(value.reply || 'I could not produce a reply.'),
+      ...(provider.id === 'orb-local-ollama' ? { navigate: value.navigate ?? null } : {}),
       usedMemoryTitles: Array.isArray(value.usedMemoryTitles) ? value.usedMemoryTitles.map(String).slice(0, 12) : [],
       proposals: Array.isArray(value.proposals) ? value.proposals.slice(0, 5) : [],
       model: value.model || provider.id,
@@ -259,6 +260,20 @@
     }
   };
 
+  registerProvider({
+    id: 'orb-local-ollama', name: 'Orb · local Ollama', kind: 'openai-compatible', local: true,
+    capabilities: { chat: true, readOnly: true },
+    async generate(request) {
+      const response = await transportFetch('/api/orb/local/chat', {
+        method: 'POST', signal: request.signal, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: request.message, history: request.history || [] })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Local AI unavailable');
+      return data;
+    }
+  });
+
   globalThis.MemoryAI = Object.freeze({
     contractVersion: 1,
     registerProvider,
@@ -268,6 +283,11 @@
     getActiveProviderId,
     listProviders,
     generate,
+    async generateFor(id, request) {
+      const provider = providers.get(id);
+      if (!provider) throw new Error('AI provider unavailable');
+      return normalizeResult(await provider.generate(request), provider);
+    },
     transportFetch,
     focusRequestContext
   });
