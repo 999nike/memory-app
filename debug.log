@@ -1,0 +1,87 @@
+[0908/232416.867:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0908/232418.840:ERROR:gpu\command_buffer\service\shared_image\shared_image_manager.cc:395] SharedImageManager::ProduceMemory: Trying to Produce a Memory representation from a non-existent mailbox.
+[0908/232418.856:ERROR:gpu\command_buffer\service\shared_image\shared_image_manager.cc:395] SharedImageManager::ProduceMemory: Trying to Produce a Memory representation from a non-existent mailbox.
+[0908/232418.856:ERROR:gpu\command_buffer\service\shared_image\shared_image_manager.cc:395] SharedImageManager::ProduceMemory: Trying to Produce a Memory representation from a non-existent mailbox.
+[0908/232418.856:ERROR:gpu\command_buffer\service\shared_image\shared_image_manager.cc:395] SharedImageManager::ProduceMemory: Trying to Produce a Memory representation from a non-existent mailbox.
+[0908/232456.554:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0908/232528.889:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0908/232541.120:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0908/232621.218:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0908/234735.385:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0908/235557.524:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0909/001648.680:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0909/001753.311:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0909/040729.545:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0909/042428.067:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0910/141139.353:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0910/141309.594:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0910/141313.816:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141314.119:INFO:third_party\blink\renderer\modules\peerconnection\peer_connection_dependency_factory.cc:940] Running WebRTC with a combined Network and Worker thread.
+[0910/141315.922:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141320.183:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for bbebb207-2bfc-4de6-9683-a0fdb018f247.local., errorcode: -105
+[0910/141320.184:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for 0ed81623-bf2c-4978-81f3-6c24803a8dbc.local., errorcode: -105
+[0910/141320.237:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname bbebb207-2bfc-4de6-9683-a0fdb018f247.local with error -1
+[0910/141320.300:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname 0ed81623-bf2c-4978-81f3-6c24803a8dbc.local with error -1
+[0910/141345.962:ERROR:gpu\command_buffer\service\shared_image\shared_image_manager.cc:395] SharedImageManager::ProduceMemory: Trying to Produce a Memory representation from a non-existent mailbox.
+[0910/141404.056:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0910/141407.593:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141407.887:INFO:third_party\blink\renderer\modules\peerconnection\peer_connection_dependency_factory.cc:940] Running WebRTC with a combined Network and Worker thread.
+[0910/141409.348:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141413.823:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for 6c0f522e-8275-448b-be09-02d3ce715cb8.local., errorcode: -105
+[0910/141413.823:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for a8d2612b-b2f8-459a-b0d5-96d353419df6.local., errorcode: -105
+[0910/141413.850:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname 6c0f522e-8275-448b-be09-02d3ce715cb8.local with error -1
+[0910/141413.916:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname a8d2612b-b2f8-459a-b0d5-96d353419df6.local with error -1
+[0910/141438.582:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0910/141442.267:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141442.540:INFO:third_party\blink\renderer\modules\peerconnection\peer_connection_dependency_factory.cc:940] Running WebRTC with a combined Network and Worker thread.
+[0910/141443.995:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141448.483:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for be12b07c-7515-405c-9092-0b5e4b27f223.local., errorcode: -105
+[0910/141448.483:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for b69c309d-7257-43e8-aece-bff1b2fee085.local., errorcode: -105
+[0910/141448.488:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname be12b07c-7515-405c-9092-0b5e4b27f223.local with error -1
+[0910/141448.584:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname b69c309d-7257-43e8-aece-bff1b2fee085.local with error -1
+[0910/141504.090:ERROR:gpu\command_buffer\service\shared_image\shared_image_manager.cc:395] SharedImageManager::ProduceMemory: Trying to Produce a Memory representation from a non-existent mailbox.
+[0910/141523.174:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0910/141527.598:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141527.864:INFO:third_party\blink\renderer\modules\peerconnection\peer_connection_dependency_factory.cc:940] Running WebRTC with a combined Network and Worker thread.
+[0910/141529.353:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141533.799:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for b7c8af46-ab32-452e-ae65-8996b760256e.local., errorcode: -105
+[0910/141533.799:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for 64e696b2-93c8-467c-a90a-95f37d6c3363.local., errorcode: -105
+[0910/141533.812:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname b7c8af46-ab32-452e-ae65-8996b760256e.local with error -1
+[0910/141533.889:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname 64e696b2-93c8-467c-a90a-95f37d6c3363.local with error -1
+[0910/141608.640:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0910/141612.334:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141612.641:INFO:third_party\blink\renderer\modules\peerconnection\peer_connection_dependency_factory.cc:940] Running WebRTC with a combined Network and Worker thread.
+[0910/141614.118:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141618.531:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for a40f39cd-220f-4276-ab45-477034ee08ab.local., errorcode: -105
+[0910/141618.531:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for 1d196b7b-c010-46bf-b3a9-a53b9d25bd91.local., errorcode: -105
+[0910/141618.537:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname a40f39cd-220f-4276-ab45-477034ee08ab.local with error -1
+[0910/141618.602:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname 1d196b7b-c010-46bf-b3a9-a53b9d25bd91.local with error -1
+[0910/141719.315:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0910/141722.826:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141723.098:INFO:third_party\blink\renderer\modules\peerconnection\peer_connection_dependency_factory.cc:940] Running WebRTC with a combined Network and Worker thread.
+[0910/141724.574:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141728.898:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for 5641ae78-9f6a-471f-b7fe-fafd59ba3a8d.local., errorcode: -105
+[0910/141728.898:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for 5641ae78-9f6a-471f-b7fe-fafd59ba3a8d.local., errorcode: -105
+[0910/141728.898:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for 5641ae78-9f6a-471f-b7fe-fafd59ba3a8d.local., errorcode: -105
+[0910/141728.948:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname 5641ae78-9f6a-471f-b7fe-fafd59ba3a8d.local with error -1
+[0910/141728.960:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for d41b9527-0684-40d0-906d-0bc3ef4e915e.local., errorcode: -105
+[0910/141728.960:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for d41b9527-0684-40d0-906d-0bc3ef4e915e.local., errorcode: -105
+[0910/141728.960:ERROR:services\network\p2p\socket_manager.cc:143] Failed to resolve address for d41b9527-0684-40d0-906d-0bc3ef4e915e.local., errorcode: -105
+[0910/141729.013:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname 5641ae78-9f6a-471f-b7fe-fafd59ba3a8d.local with error -1
+[0910/141729.013:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname 5641ae78-9f6a-471f-b7fe-fafd59ba3a8d.local with error -1
+[0910/141729.071:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname d41b9527-0684-40d0-906d-0bc3ef4e915e.local with error -1
+[0910/141729.071:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname d41b9527-0684-40d0-906d-0bc3ef4e915e.local with error -1
+[0910/141729.071:WARNING:third_party\webrtc\p2p\base\p2p_transport_channel.cc:1283] Failed to resolve ICE candidate hostname d41b9527-0684-40d0-906d-0bc3ef4e915e.local with error -1
+[0910/141815.184:ERROR:net\base\network_change_notifier_win.cc:213] WSALookupServiceBegin failed with: -1
+[0910/141819.127:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141819.393:INFO:third_party\blink\renderer\modules\peerconnection\peer_connection_dependency_factory.cc:940] Running WebRTC with a combined Network and Worker thread.
+[0910/141820.857:WARNING:media\audio\win\audio_manager_win.cc:209] Unable to get preferred audio params for default 0x80070490
+[0910/141821.872:WARNING:net\base\net_errors_win.cc:121] Unknown error 1168 mapped to net::ERR_FAILED
+[0910/141821.873:WARNING:net\base\net_errors_win.cc:121] Unknown error 1168 mapped to net::ERR_FAILED
+[0910/141821.874:WARNING:third_party\webrtc\p2p\dtls\dtls_transport.cc:886] DtlsTransport[0|1|__]: Packet received before we know if we are doing DTLS or not.
+[0910/141822.067:WARNING:net\base\net_errors_win.cc:121] Unknown error 1168 mapped to net::ERR_FAILED
+[0910/141822.067:WARNING:net\base\net_errors_win.cc:121] Unknown error 1168 mapped to net::ERR_FAILED
+[0910/141822.132:WARNING:net\base\net_errors_win.cc:121] Unknown error 1168 mapped to net::ERR_FAILED
+[0910/141825.687:ERROR:third_party\webrtc\media\sctp\dcsctp_transport.cc:560] DcSctpTransport4->OnAborted(error=PEER_REPORTED, message=User-Initiated Abort, reason=Close called).
+[0910/141828.749:ERROR:gpu\command_buffer\service\shared_image\shared_image_manager.cc:395] SharedImageManager::ProduceMemory: Trying to Produce a Memory representation from a non-existent mailbox.
+[0910/141828.749:ERROR:gpu\command_buffer\service\shared_image\shared_image_manager.cc:395] SharedImageManager::ProduceMemory: Trying to Produce a Memory representation from a non-existent mailbox.

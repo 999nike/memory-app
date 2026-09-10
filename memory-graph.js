@@ -62,7 +62,7 @@
       : orbVoice.client?.active ? 'listening' : 'idle';
     drawGraph();
   }
-  function stopOrbVoice() { orbVoice.client?.stop(); }
+  function stopOrbVoice(cancelInference = true) { orbVoice.client?.stop(cancelInference); }
 
   function mountOrbMicrophone(card) {
     const button = document.createElement('button');
@@ -72,7 +72,7 @@
     const callbacks = {
       state: value => {
         orbVoice.state = value; orbVoice.speaking = value === 'speaking';
-        if (value === 'error') { cancelOrbGuide(); orb.state = value; drawGraph(); }
+        if (value === 'error' && !orbGuide.id) { orb.state = value; drawGraph(); }
         else restoreOrbVoiceState();
       },
       amplitude: value => {
@@ -118,11 +118,7 @@
       try { localStorage.setItem('orb-voice-provider', select.value); } catch {}
       if (orbReply) orbReply.textContent = select.value === 'local' ? 'Local voice. Speak, then press Finish. First use downloads speech models.' : 'OpenAI Realtime. Requires server credentials; connects only when you press Mic.';
     });
-    orbVoice.ask = text => {
-      if (orbVoice.mode !== 'local') return askOrb(text);
-      ++orbRequest; orbAbort?.abort(); clearTimeout(orbErrorTimer); cancelOrbGuide();
-      return providers.local.ask(text);
-    };
+    orbVoice.ask = text => askOrb(text);
     button.addEventListener('click', () => {
       if (orbVoice.client.active) {
         if (orbVoice.mode === 'local' && orbVoice.client.phase === 'listening') { void orbVoice.client.finish(); return; }
@@ -136,49 +132,33 @@
   async function askOrb(value) {
     const text = String(value || '').trim();
     const requestId = ++orbRequest;
-    stopOrbVoice();
+    stopOrbVoice(false);
     orbAbort?.abort(); clearTimeout(orbErrorTimer);
-    const controller = new AbortController(); orbAbort = controller;
-    setOrbState('thinking');
     const say = reply => { if (orbReply) orbReply.textContent = reply; };
     const fail = reply => {
-      say(reply); setOrbState('error');
-      orbErrorTimer = setTimeout(() => { if (requestId === orbRequest) setOrbState('idle'); }, 1600);
+      say(reply);
+      if (!orbGuide.id) {
+        setOrbState('error');
+        orbErrorTimer = setTimeout(() => { if (requestId === orbRequest && !orbGuide.id) setOrbState('idle'); }, 1600);
+      }
       return { ok: false, reply };
     };
-    if (!text || text.length > 500) return fail('Enter a request of 1–500 characters.');
-    say('Finding a safe destination…');
-    let intent = { operation: 'find', query: text }, fallback = false;
-    const timeout = setTimeout(() => controller.abort(), 12000);
-    try {
-      const provider = globalThis.MemoryAI?.getActiveProvider?.();
-      if (!provider?.local || provider.kind !== 'openai-compatible') throw new Error('Local interpreter unavailable');
-      const result = await globalThis.MemoryAI.generate({
-        signal: controller.signal, context: '', history: [],
-        message: 'Interpret a read-only navigation request. Return ONLY JSON with exactly operation (find, guide, or open), query (a short node label, retaining app qualifiers), and reply (short text). Never return IDs, tools, actions, or commands. For unsupported write requests return operation "unsupported". Gmail is labelled EMAIL. Request: ' + JSON.stringify(text)
-      });
-      if (requestId !== orbRequest) return { ok: false, stale: true };
-      let parsed;
-      try { parsed = JSON.parse(result.reply); } catch { return fail('Invalid interpreter response. Try a direct node label.'); }
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
-          Object.keys(parsed).sort().join(',') !== 'operation,query,reply' ||
-          !['find', 'guide', 'open'].includes(parsed.operation) ||
-          typeof parsed.query !== 'string' || !parsed.query.trim() || parsed.query.length > 160 ||
-          typeof parsed.reply !== 'string' || parsed.reply.length > 240) {
-        return fail('Unsupported interpreter response. No action taken.');
-      }
-      intent = parsed;
-    } catch {
-      if (requestId !== orbRequest) return { ok: false, stale: true };
-      fallback = true;
-    } finally { clearTimeout(timeout); }
-    if (requestId !== orbRequest) return { ok: false, stale: true };
-    // Only renderer-owned search may supply an ID. Model reply is never executed.
-    const target = orbSearch(intent.query)[0];
-    if (!target || !guideOrbTo(target.id, requestId)) return fail('No safe visible node matched. Try its label.');
-    const reply = `${fallback ? 'Local AI unavailable. ' : ''}Guiding to ${target.label}.${intent.operation === 'open' ? ' Opening is disabled; guidance only.' : ''}`;
-    say(reply);
-    return { ok: true, targetId: target.id, fallback, reply };
+    if (!text || text.length > 500) return fail('Enter a request of 1?500 characters.');
+    const prefix = /^(?:please\s+)?(?:find|show(?:\s+me)?|take\s+me\s+to|go\s+to|navigate\s+to|guide\s+me\s+to|highlight|open|where\s+is)\s+/i;
+    const navigation = prefix.test(text);
+    const query = text.replace(prefix, '').replace(/[?.!]+$/, '').trim();
+    const targets = orbSearch(query);
+    const target = navigation ? targets[0] : targets.find(item => item.label.toLowerCase() === query.toLowerCase());
+    if (target && guideOrbTo(target.id, requestId)) {
+      const reply = `Guiding to ${target.label}.`;
+      say(reply);
+      return { ok: true, targetId: target.id, reply };
+    }
+    if (navigation) return fail('No safe visible node matched. Try its label.');
+    if (orbVoice.mode === 'local' && orbVoice.client?.ask) {
+      return orbVoice.client.ask(text, { conversationOnly: true });
+    }
+    return fail('No safe visible node matched. Try its label.');
   }
 
   // Guidance destinations may carry actions; targeting never dispatches or expands them.

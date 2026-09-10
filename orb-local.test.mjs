@@ -59,3 +59,106 @@ test('local worker uses required browser models and voice; graph passes same cap
   assert.match(graph, /createOrbRealtime\(callbacks\)/); assert.match(graph, /createOrbLocal\(\{ \.\.\.callbacks/);
   assert.match(graph, /!node\.action && !node\.appAction/);
 });
+import vm from 'node:vm';
+import * as resident from './orb-resident.mjs';
+const graphSource = await readFile(new URL('./memory-graph.js', import.meta.url), 'utf8');
+const localSource = await readFile(new URL('./orb-local.js', import.meta.url), 'utf8');
+const tick = () => new Promise(resolve => setImmediate(resolve));
+function harness() {
+  const workers = [], outputs = [], requests = [], messages = [], states = [];
+  const context = vm.createContext({
+    AbortController, setTimeout, clearTimeout, setInterval, clearInterval, Float32Array,
+    resident, document: { addEventListener() {} }, addEventListener() {},
+    AudioContext: class {
+      destination = {}; resume() { return Promise.resolve(); } close() { return Promise.resolve(); }
+      createAnalyser() { return { fftSize: 512, disconnect() {}, connect() {}, getFloatTimeDomainData() {} }; }
+      createBuffer() { return { copyToChannel() {} }; }
+      createBufferSource() { const output = { connect() {}, disconnect() {}, start() {}, stop() {} }; outputs.push(output); return output; }
+    },
+    Worker: class {
+      constructor() { workers.push(this); this.jobs = []; }
+      postMessage(data) { this.jobs.push(data); }
+      terminate() { this.terminated = true; }
+      reply() { this.onmessage({ data: { id: this.jobs.at(-1).id, audio: new Float32Array(10), sampleRate: 24000 } }); }
+    },
+    MemoryAI: { generateFor: (_provider, args) => new Promise((resolve, reject) => requests.push({ ...args, resolve, reject })) }
+  });
+  vm.runInContext(localSource.replace("await import('./orb-resident.mjs')", 'globalThis.resident'), context);
+  const client = context.createOrbLocal({ state: x => states.push(x), amplitude() {}, message: x => messages.push(x), active() {}, search: () => { throw Error('Typed model navigation attempted'); }, guide: () => { throw Error('Typed model guidance attempted'); } });
+  Object.assign(context, {
+    client, orbVoice: { mode: 'local', client }, orbRequest: 0, orbAbort: null, orbErrorTimer: 0,
+    orbReply: { textContent: '' }, orbGuide: { id: null }, orb: {}, orbMotion: { matches: false },
+    graph: { nodes: [{ id: 'compose', label: 'Compose', kind: 'control', action: 'compose' }] },
+    performance, homePresentation: false, focusedNodeId: null,
+    stopOrbVoice: cancel => client.stop(cancel), setOrbState: x => states.push(x),
+    cancelOrbGuide() { context.orbGuide.id = null; }, stopViewTransition() {}, drawGraph() {},
+  });
+  vm.runInContext(graphSource.slice(graphSource.indexOf('  async function askOrb('), graphSource.indexOf('  const orbEase')), context);
+  vm.runInContext(graphSource.slice(graphSource.indexOf('  function guideOrbTo('), graphSource.indexOf('  function acknowledgeOrbTarget(')), context);
+  return { context, client, workers, outputs, requests, messages, states };
+}
+
+test('bare and prefixed typed destinations begin the existing cinematic synchronously without Ollama or audio', async () => {
+  for (const text of ['compose', 'find compose', 'take me to compose', 'please show me compose', 'where is compose?']) {
+    const h = harness();
+    h.context.MemoryAI.generateFor = () => { throw Error('Ollama unavailable'); };
+    const result = h.context.askOrb(text);
+    assert.equal(h.context.orbGuide.id, 'compose');
+    assert.equal(h.context.orbGuide.phase, 'outbound');
+    assert.equal(h.workers.length, 0); assert.equal(h.outputs.length, 0);
+    assert.equal((await result).ok, true);
+  }
+});
+
+test('delayed Gemma conversation is animated immediately and cannot overwrite newer navigation', async () => {
+  const h = harness();
+  const old = h.context.askOrb('how are you?');
+  assert.ok(h.states.includes('thinking'));
+  await tick();
+  const navigation = h.context.askOrb('find compose');
+  assert.equal(h.context.orbGuide.phase, 'outbound');
+  assert.equal(h.requests[0].signal.aborted, true);
+  h.requests[0].resolve({ reply: 'Old response', navigate: 'Compose' });
+  await old; await navigation;
+  assert.equal(h.context.orbReply.textContent, 'Guiding to Compose.');
+  assert.equal(h.context.orbGuide.id, 'compose'); assert.equal(h.workers.length, 0);
+});
+
+test('Kokoro worker is reused across completed typed conversations and model navigation is ignored', async () => {
+  const h = harness();
+  try {
+    for (let i = 0; i < 2; i++) {
+      const turn = h.context.askOrb('tell me about yourself'); await tick();
+      h.requests[i].resolve({ reply: 'Hello', navigate: 'Compose' }); await tick();
+      assert.equal(h.workers.length, 1); assert.ok(!h.workers[0].terminated);
+      h.workers[0].reply(); await turn;
+      h.outputs[i].onended();
+      assert.equal(h.client.active, false);
+    }
+    assert.equal(h.context.orbGuide.id, null);
+  } finally { h.client.stop(); }
+});
+
+test('cancelled worker inference cannot complete or change a newer turn', async () => {
+  const h = harness();
+  try {
+    const old = h.context.askOrb('hello'); await tick();
+    h.requests[0].resolve({ reply: 'Old', navigate: null }); await tick();
+    const oldWorker = h.workers[0];
+    const newer = h.context.askOrb('how are you?'); await tick();
+    assert.equal(oldWorker.terminated, true);
+    h.requests[1].resolve({ reply: 'New', navigate: null }); await tick();
+    oldWorker.reply(); await tick();
+    assert.equal(h.outputs.length, 0);
+    h.workers[1].reply(); await newer; await old;
+    assert.equal(h.messages.at(-1), 'New'); assert.equal(h.outputs.length, 1);
+  } finally { h.client.stop(); }
+});
+
+test('voice errors preserve active deterministic guidance', () => {
+  const body = graphSource.slice(graphSource.indexOf('      state: value => {') + '      state: value => {'.length, graphSource.indexOf('      amplitude: value => {')).replace(/},\s*$/, '');
+  const context = vm.createContext({ orbVoice: {}, orbGuide: { id: 'compose' }, orb: { state: 'guiding' }, drawGraph() {}, restoreOrbVoiceState() {}, cancelOrbGuide() { throw Error('Cinematic cancelled'); } });
+  vm.runInContext(`(value => { ${body} })('error')`, context);
+  assert.equal(context.orbGuide.id, 'compose');
+});
+

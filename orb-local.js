@@ -16,7 +16,7 @@
         if (s.output) { s.output.onended = null; try { s.output.stop(); } catch {} s.output.disconnect(); }
         s.analyser?.disconnect(); s.context?.close().catch(() => {});
       }
-      if (cancelInference && worker) { worker.terminate(); worker = null; pending?.reject(new Error('Cancelled')); pending = null; }
+      if ((cancelInference || pending) && worker) { worker.terminate(); worker = null; pending?.reject(new Error('Cancelled')); pending = null; }
       amplitude(0); active(false); phase?.('idle'); state('idle');
     };
     const infer = (type, payload) => {
@@ -62,14 +62,15 @@
       s.analyser = s.context.createAnalyser(); s.analyser.fftSize = 512;
       return s;
     };
-    const answer = async (s, text) => {
+    const answer = async (s, text, conversationOnly = false) => {
       if (session !== s) return;
       s.phase = 'thinking'; phase?.('thinking'); state('thinking'); message('Thinking…');
       const resident = await import('./orb-resident.mjs');
       const result = await MemoryAI.generateFor('orb-local-ollama', { message: text, history, signal: s.abort.signal });
       if (session !== s) return;
       const validated = resident.validateResidentReply({ reply: result.reply, navigate: result.navigate });
-      const resolved = resident.resolveResidentNavigation(validated, text, search, guide);
+      const resolved = conversationOnly ? { reply: validated.reply, guided: false }
+        : resident.resolveResidentNavigation(validated, text, search, guide);
       history.push({ role: 'user', content: text }, { role: 'assistant', content: resolved.reply });
       history.splice(0, Math.max(0, history.length - 8));
       message(resolved.reply);
@@ -125,11 +126,11 @@
         s.captureTimer = setTimeout(finish, 30000);
       } catch (error) { if (s || session) fail(s || session, error); else { message(error.message); state('error'); } }
     };
-    const ask = async text => {
+    const ask = async (text, { conversationOnly = false } = {}) => {
       let s;
       try {
         if (!text.trim() || text.length > 1000) return;
-        stop(); s = await begin(); await answer(s, text.trim());
+        stop(false); s = await begin(); await answer(s, text.trim(), conversationOnly);
       } catch (error) { fail(s || session, error); }
     };
     globalThis.addEventListener('pagehide', () => stop());
