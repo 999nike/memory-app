@@ -281,6 +281,7 @@
     graphApi().registerPresentationControls(SETTINGS_CONTROLS);
     surface.addEventListener('memory-graph-control-action', handleControlAction);
     surface.addEventListener('memory-graph-home', closeToolPanel);
+    window.addEventListener('memory-proposal-pending', openProposals);
     surface.addEventListener('pointermove', updateParallax, { passive: true });
     surface.addEventListener('pointerleave', resetParallax, { passive: true });
     activate();

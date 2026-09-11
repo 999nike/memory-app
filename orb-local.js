@@ -13,7 +13,6 @@
       const s = session; session = null;
       if (s) {
         s.abort.abort(); clearTimeout(s.deadline); stopInput(s);
-        if (s.output) { s.output.onended = null; try { s.output.stop(); } catch {} s.output.disconnect(); }
         s.analyser?.disconnect(); s.context?.close().catch(() => {});
       }
       if ((cancelInference || pending) && worker) { worker.terminate(); worker = null; pending?.reject(new Error('Cancelled')); pending = null; }
@@ -49,22 +48,63 @@
       if (session !== s) return;
       stop();
       const friendly = { NotAllowedError: 'Microphone permission denied. Allow microphone access and try again.', NotFoundError: 'No microphone found. Connect one and try again.', NotReadableError: 'Microphone is busy or unavailable.' };
-      message(friendly[error.name] || error.message || 'Local voice unavailable'); state('error');
+      message(s?.reply ? `${s.reply} (Voice unavailable. You can keep chatting.)` : friendly[error.name] || error.message || 'Local voice unavailable');
+      if (!s?.reply) state('error');
     };
-    const begin = async () => {
+    const begin = async (withAudio = true) => {
       stop(false);
       const s = { abort: new AbortController(), phase: 'thinking', chunks: [] }; session = s;
       active(true); phase?.('thinking'); state('thinking');
       s.deadline = setTimeout(() => fail(s, new Error('Local voice timed out. Try again.')), 300000);
+      if (withAudio) await prepareAudio(s);
+      return s;
+    };
+    const prepareAudio = async s => {
       if (!globalThis.AudioContext) throw new Error('Local audio is unavailable in this browser.');
       s.context = new AudioContext(); await s.context.resume();
       if (session !== s) return s;
       s.analyser = s.context.createAnalyser(); s.analyser.fftSize = 512;
-      return s;
+    };
+    const speak = async (s, reply) => {
+      if (session !== s) return;
+      s.reply = reply; message(reply);
+      try {
+        const { playOrbSpeech } = await import('./orb-tts.js');
+        if (session !== s) return;
+        if (!s.context) await prepareAudio(s);
+        if (session !== s) return;
+        await playOrbSpeech({ text: reply, context: s.context, analyser: s.analyser, signal: s.abort.signal,
+          onSpeaking: () => {
+            if (session !== s) return;
+            s.phase = 'speaking'; phase?.('speaking'); state('speaking'); meter(s);
+          } });
+        if (session === s) stop(false);
+      } catch (error) { fail(s, error); }
     };
     const answer = async (s, text, conversationOnly = false) => {
       if (session !== s) return;
       s.phase = 'thinking'; phase?.('thinking'); state('thinking'); message('Thinking…');
+      const proposalRequest = /^(?:wizz[,:]?\s*)?(?:please\s+)?(?:remember\s+that\b|remember\s*:|save\s+this\s+(?:as|to)\s+(?:a\s+)?memory\b|(?:make|create|prepare|propose|add)\s+(?:me\s+)?(?:a\s+)?job\b)/i.test(text);
+      if (proposalRequest) {
+        const context = globalThis.MemoryProposalQueue?.context?.();
+        if (!context) throw new Error('The Memory proposal queue is unavailable.');
+        const prepared = await MemoryAI.prepareProposalFor('orb-local-ollama', {
+          message: text, space: context.space, signal: s.abort.signal
+        });
+        if (session !== s) return;
+        let reply = prepared.reply;
+        if (prepared.proposal) {
+          await globalThis.MemoryProposalQueue.submit(prepared.proposal, text);
+          if (session !== s) return;
+          reply = prepared.proposal.type === 'job'
+            ? 'I’ve prepared that job for your approval.'
+            : 'I’ve prepared that memory for your approval.';
+        }
+        history.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
+        history.splice(0, Math.max(0, history.length - 8));
+        await speak(s, reply);
+        return;
+      }
       const resident = await import('./orb-resident.mjs');
       const result = await MemoryAI.generateFor('orb-local-ollama', { message: text, history, signal: s.abort.signal });
       if (session !== s) return;
@@ -73,17 +113,7 @@
         : resident.resolveResidentNavigation(validated, text, search, guide);
       history.push({ role: 'user', content: text }, { role: 'assistant', content: resolved.reply });
       history.splice(0, Math.max(0, history.length - 8));
-      message(resolved.reply);
-      const audio = await infer('speak', { text: resolved.reply });
-      if (session !== s) return;
-      message(resolved.reply);
-      const buffer = s.context.createBuffer(1, audio.audio.length, audio.sampleRate);
-      buffer.copyToChannel(audio.audio, 0);
-      s.output = s.context.createBufferSource(); s.output.buffer = buffer;
-      s.output.connect(s.analyser); s.analyser.connect(s.context.destination);
-      s.phase = 'speaking'; phase?.('speaking'); state('speaking'); meter(s);
-      s.output.onended = () => { if (session === s) stop(false); };
-      s.output.start();
+      await speak(s, resolved.reply);
     };
     const finish = async () => {
       const s = session;
@@ -130,11 +160,15 @@
       let s;
       try {
         if (!text.trim() || text.length > 1000) return;
-        stop(false); s = await begin(); await answer(s, text.trim(), conversationOnly);
+        stop(false); s = await begin(false); await answer(s, text.trim(), conversationOnly);
       } catch (error) { fail(s || session, error); }
+    };
+    const speakReply = async text => {
+      let s;
+      try { s = await begin(false); await speak(s, text); } catch (error) { fail(s || session, error); }
     };
     globalThis.addEventListener('pagehide', () => stop());
     document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
-    return { start, stop, finish, ask, get active() { return session !== null; }, get phase() { return session?.phase || 'idle'; } };
+    return { start, stop, finish, ask, speakReply, get active() { return session !== null; }, get phase() { return session?.phase || 'idle'; } };
   };
 })();

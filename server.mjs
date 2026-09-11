@@ -6,13 +6,16 @@ import { fileURLToPath } from 'node:url';
 import { ensureSupervisor } from './supervisor/server.mjs';
 import { createOrbRealtimeRoute } from './orb-realtime-server.mjs';
 import { createOrbLocalRoute } from './orb-local-server.mjs';
+import { createOrbTtsRoute } from './orb-tts-server.mjs';
 
 const HOST = process.env.UNIVERSAL_SPACE_HOST || '0.0.0.0';
 const PORT = Number(process.env.UNIVERSAL_SPACE_PORT || 4173);
 const handleOrbRealtime = createOrbRealtimeRoute({ port: PORT });
 const handleOrbLocal = createOrbLocalRoute({ port: PORT });
+const handleOrbTts = createOrbTtsRoute({ port: PORT });
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)));
 const CODE_SPACE_ROOT = resolve(ROOT_DIR, '..');
+const CODE_SPACE_PROJECT_ROOT = resolve(ROOT_DIR, '..', '..', 'workspaces');
 const SECRETS_DIR = resolve(ROOT_DIR, '..', '..', 'secrets', 'universal-space-gmail');
 const CLIENT_SECRET_FILE = resolve(SECRETS_DIR, 'client_secret.json');
 const TOKEN_FILE = resolve(SECRETS_DIR, 'token.json');
@@ -372,8 +375,11 @@ async function gmailStatus() {
 }
 
 async function codeSpaceProjects() {
-  const entries = await readdir(CODE_SPACE_ROOT, { withFileTypes: true });
-  return entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.')).slice(0, 40).map((entry) => ({ name: entry.name }));
+  const entries = await readdir(CODE_SPACE_PROJECT_ROOT, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.') && entry.name.toLowerCase() !== 'code-space')
+    .slice(0, 40)
+    .map((entry) => ({ name: entry.name }));
 }
 
 async function codeSpaceFiles(project = 'universal-space') {
@@ -403,7 +409,7 @@ async function handleCodeSpaceRoute(req, res, requestUrl) {
   if (req.method !== 'GET') return false;
   try {
     if (requestUrl.pathname === '/api/code-space/projects') {
-      sendJson(res, 200, { root: CODE_SPACE_ROOT, projects: await codeSpaceProjects() });
+      sendJson(res, 200, { root: CODE_SPACE_PROJECT_ROOT, projects: await codeSpaceProjects() });
       return true;
     }
     if (requestUrl.pathname === '/api/code-space/files') {
@@ -542,6 +548,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (await handleOrbRealtime(req, res, requestUrl)) return;
     if (await handleOrbLocal(req, res, requestUrl)) return;
+    if (await handleOrbTts(req, res, requestUrl)) return;
     if (await handleGmailRoute(req, res, requestUrl)) return;
     if (await handleCodeSpaceRoute(req, res, requestUrl)) return;
     await serveStatic(req, res, requestUrl);

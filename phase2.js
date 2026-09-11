@@ -46,6 +46,46 @@
     localStorage.setItem(CHAT_KEY, JSON.stringify(chatState));
   }
 
+  function proposalIngressContext() {
+    const workspace = loadWorkspace();
+    const space = getActiveSpace(workspace);
+    return space ? { space: { id: String(space.id), name: String(space.name) } } : null;
+  }
+
+  async function submitWizzProposal(value, sourceMessage) {
+    const context = proposalIngressContext();
+    if (!context || !value || Array.isArray(value) ||
+        Object.keys(value).sort().join(',') !== 'action,content,importance,priority,project,reason,title,type' ||
+        value.action !== 'propose_memory') throw new Error('Invalid WIZZ proposal');
+    const title = typeof value.title === 'string' ? value.title.trim() : '';
+    const content = typeof value.content === 'string' ? value.content.trim() : '';
+    const project = typeof value.project === 'string' ? value.project.trim() : '';
+    const reason = typeof value.reason === 'string' ? value.reason.trim() : '';
+    if (!title || title.length > 100 || !content || content.length > 2000 ||
+        !['note', 'job'].includes(value.type) || !['critical', 'high', 'normal', 'low'].includes(value.importance) ||
+        project.length > 100 || !['low', 'normal', 'high', 'urgent'].includes(value.priority) || reason.length > 500 ||
+        value.type === 'note' && project) throw new Error('Invalid WIZZ proposal fields');
+    if (value.type === 'job') {
+      const response = await fetch('/api/code-space/projects', { headers: { Accept: 'application/json' } });
+      const data = response.ok ? await response.json() : { projects: [] };
+      const projects = new Set((Array.isArray(data.projects) ? data.projects : []).map(item => String(item?.name || '')));
+      if (!project || !projects.has(project)) throw new Error('Choose a verified Code Space project for this job');
+    }
+    const original = String(sourceMessage || '').trim().slice(0, 1000);
+    chatState = loadChatState();
+    chatState.proposals.push({
+      id: uid('proposal'), spaceId: context.space.id, title, content, type: value.type,
+      importance: value.importance, project, priority: value.priority, reason,
+      sourceKind: 'wizz-orb', sourceLabel: 'WIZZ', sourceMessage: original,
+      status: 'pending', createdAt: now()
+    });
+    saveChatState();
+    renderPhase2();
+    window.dispatchEvent(new CustomEvent('memory-proposal-pending', { detail: { sourceKind: 'wizz-orb' } }));
+    toast('WIZZ proposal ready for approval');
+    return true;
+  }
+
   function getActiveSpace(workspace = loadWorkspace()) {
     if (!workspace) return null;
     return workspace.spaces.find((space) => space.id === workspace.activeSpaceId) || workspace.spaces[0] || null;
@@ -230,7 +270,7 @@
         </div>
         <strong>${escapeHtml(proposal.title)}</strong>
         <p>${escapeHtml(proposal.content)}</p>
-        <small>${escapeHtml(proposal.reason || 'AI suggested this as durable context.')}</small>
+        <small>${proposal.sourceLabel ? `${escapeHtml(proposal.sourceLabel)} · ` : ''}${escapeHtml(proposal.reason || 'AI suggested this as durable context.')}</small>
         <div class="proposal-actions">
           <button type="button" data-proposal-action="reject" data-proposal-id="${escapeAttr(proposal.id)}">Reject</button>
           <button type="button" data-proposal-action="review" data-proposal-id="${escapeAttr(proposal.id)}">Edit</button>
@@ -473,6 +513,11 @@
   }
 
   function escapeAttr(value) { return escapeHtml(value); }
+
+  globalThis.MemoryProposalQueue = Object.freeze({
+    context: proposalIngressContext,
+    submit: submitWizzProposal
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectLayout, { once: true });

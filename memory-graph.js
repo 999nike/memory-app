@@ -53,6 +53,7 @@
   const orbMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const orb = { state: 'idle', amplitude: 0.5, time: 0, last: 0, frame: 0, mounted: false };
   const orbGuide = { id: null, start: 0, from: null, position: null, timer: 0, arrived: 0, phase: null, viewFrom: null, spatialOwned: false };
+  let orbPostArrivalTargetId = null;
   let orbRequest = 0, orbAbort = null, orbReply = null, orbErrorTimer = 0;
 
   const orbVoice = { speaking: false, state: 'idle', client: null, mode: 'local', ask: null };
@@ -116,7 +117,7 @@
     select.addEventListener('change', () => {
       stopOrbVoice(); cancelOrbGuide(); orbVoice.mode = select.value; orbVoice.client = providers[select.value];
       try { localStorage.setItem('orb-voice-provider', select.value); } catch {}
-      if (orbReply) orbReply.textContent = select.value === 'local' ? 'Local voice. Speak, then press Finish. First use downloads speech models.' : 'OpenAI Realtime. Requires server credentials; connects only when you press Mic.';
+      if (orbReply) orbReply.textContent = select.value === 'local' ? 'Local voice. Speak, then press Finish. First microphone use downloads Whisper; speech uses the resident voice service.' : 'OpenAI Realtime. Requires server credentials; connects only when you press Mic.';
     });
     orbVoice.ask = text => askOrb(text);
     button.addEventListener('click', () => {
@@ -152,6 +153,7 @@
     if (target && guideOrbTo(target.id, requestId)) {
       const reply = `Guiding to ${target.label}.`;
       say(reply);
+      if (orbVoice.mode === 'local') void orbVoice.client?.speakReply?.(reply);
       return { ok: true, targetId: target.id, reply };
     }
     if (navigation) return fail('No safe visible node matched. Try its label.');
@@ -224,6 +226,7 @@
 
   globalThis.addEventListener('orb-spatial-takeover', () => {
     homePresentation = false;
+    orbPostArrivalTargetId = null;
     ++orbRequest; orbAbort?.abort(); clearTimeout(orbErrorTimer);
     stopOrbVoice();
     cancelOrbGuide(true);
@@ -234,6 +237,7 @@
     if (requestId !== null && requestId !== orbRequest) return false;
     const node = orbSafeNode(id);
     if (!node) return false;
+    orbPostArrivalTargetId = null;
     if (requestId === null) {
       ++orbRequest; orbAbort?.abort(); clearTimeout(orbErrorTimer); stopOrbVoice();
     }
@@ -258,12 +262,32 @@
     if (!node || orbGuide.phase !== 'arrived' || String(node.id) !== orbGuide.id) return false;
     resetOrbSpatial(node, true);
     cancelOrbGuide();
+    orbPostArrivalTargetId = String(node.id);
     focusedNodeId = node.id;
     orbGuide.beaconId = String(node.id);
     orbGuide.beaconUntil = performance.now() + 1800;
     orbGuide.timer = setTimeout(() => {
       orbGuide.beaconId = null; orbGuide.timer = 0; drawGraph();
     }, 1800);
+    restoreOrbVoiceState();
+    return true;
+  }
+
+  function returnFromOrbFocus() {
+    const target = orbSafeNode(orbPostArrivalTargetId);
+    if (!target) return false;
+    orbPostArrivalTargetId = null;
+    cancelOrbGuide();
+    rotationApi()?.reset?.({ manual: false });
+    syncRotationState();
+    focusedNodeId = null;
+    frameUniverse({ animate: true });
+    orbGuide.start = performance.now();
+    orbGuide.beaconId = String(target.id);
+    orbGuide.beaconUntil = orbGuide.start + 2200;
+    orbGuide.timer = setTimeout(() => {
+      orbGuide.beaconId = null; orbGuide.timer = 0; drawGraph();
+    }, 2200);
     restoreOrbVoiceState();
     return true;
   }
@@ -1742,8 +1766,12 @@
     window.addEventListener('keydown', handleGraphKeyDown);
     document.getElementById('closeDetailButton')?.addEventListener('click', () => {
       inspectorBridgeActive = true;
-      requestAnimationFrame(() => { inspectorBridgeActive = false; });
+      requestAnimationFrame(() => {
+        inspectorBridgeActive = false;
+        returnFromOrbFocus();
+      });
     }, true);
+    document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('close', returnFromOrbFocus));
   }
 
   function bindSearch() {
@@ -1758,7 +1786,9 @@
   }
 
   function handleGraphKeyDown(event) {
-    if (event.key !== 'Escape' || !rotationActive()) return;
+    if (event.key !== 'Escape') return;
+    if (returnFromOrbFocus()) return;
+    if (!rotationActive()) return;
     rotationApi()?.reset?.();
     syncRotationState();
     drawGraph();
@@ -1947,14 +1977,17 @@
 
     const acknowledged = event.type !== 'pointercancel' && !pointerState.moved &&
       acknowledgeOrbTarget(selectedNode);
-    if (mode === 'home' && !pointerState.moved && !acknowledged) {
+    const exitedOrbFocus = !acknowledged && !pointerState.moved &&
+      (mode === 'home' || mode === 'pan' || mode === 'cluster' && selectedNode?.kind === 'space') &&
+      returnFromOrbFocus();
+    if (mode === 'home' && !pointerState.moved && !acknowledged && !exitedOrbFocus) {
       collapsePresentationControls();
       if (document.body.classList.contains('molecular-view-active')) focusHome({ animate: true });
       else focusSpace({ animate: true });
       surface?.dispatchEvent(new CustomEvent('memory-graph-home'));
     }
 
-    if (mode === 'cluster' && !pointerState.moved && selectedNode?.kind === 'space' && !acknowledged) {
+    if (mode === 'cluster' && !pointerState.moved && selectedNode?.kind === 'space' && !acknowledged && !exitedOrbFocus) {
       collapsePresentationControls();
       if (document.body.classList.contains('molecular-view-active')) focusHome({ animate: true });
       else focusSpace({ animate: true });
@@ -2013,6 +2046,10 @@
   function handleWheel(event) {
     homePresentation = false;
     if (!graph || !canvas) return;
+    if (event.deltaY > 0 && returnFromOrbFocus()) {
+      event.preventDefault();
+      return;
+    }
     stopViewTransition();
 
     const point = pointerPoint(event);

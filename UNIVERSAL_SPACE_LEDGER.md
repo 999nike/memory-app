@@ -1,5 +1,29 @@
 # Universal Space Ledger
 
+## WIZZ proposal ingress - 11 September 2026
+
+- Explicit WIZZ requests beginning with the narrow remember/job forms use a dedicated Ollama structured-output route. It returns either one `propose_memory` object (`note` or `job`) or a short clarification; normal chat and deterministic navigation keep their established paths.
+- The server and browser both enforce the existing proposal field limits and enums. Job projects must exactly match the current bounded Code Space project list. The existing `universal-space` project is used only when it is present in that verified list; otherwise a missing project produces a clarification rather than an invented destination.
+- A small `MemoryProposalQueue.submit()` ingress validates again and appends only a `pending` item to the authoritative `memory-space-chat-v1` queue with `sourceKind: wizz-orb`, `sourceLabel: WIZZ` and the original request. It cannot approve, save Memory, create a ready job, dispatch Office/Code Space work or invoke Codex.
+- The existing proposal card, Reject/Edit/Approve handlers and approval executor are unchanged. A pending-event hook opens the existing proposal panel; no new approval UI, pipeline, bridge or credential path was added.
+- The single permitted browser verification could not start because browser discovery returned no available browsers. No automated substitute was run; pending-state display, manual approval and normal ready-job creation remain for human verification.
+
+## Orb post-arrival overview return - 10 September 2026
+
+- The accepted navigation and cinematic sequence is unchanged. After the user acknowledges an arrived destination, Universal Space remembers that target while its normal inspector, app control or dialog remains active.
+- Closing the inspector/dialog, pressing Escape, clicking the home/outside canvas, or deliberately zooming out restores the existing `frameUniverse({ animate: true })` overview and resets cinematic rotation through the established API.
+- The existing Orb beacon remains on the destination for 2.2 seconds during and briefly after the overview transition, then clears normally. Starting another navigation or taking over the spatial view clears the post-arrival lifecycle.
+- Scope is contained to the post-arrival lifecycle in `memory-graph.js`; no flight path, pre-arrival timing, targeting, topology, voice, permissions, node action or visual implementation was changed.
+- The single permitted browser verification could not start: browser discovery returned no available browsers. No substitute browser or automated suite was run; the complete interaction sequence remains for human verification.
+
+## Resident Kokoro speech integration - 10 September 2026
+
+- Replies use POST `/api/orb/tts`, fixed to the resident service at `127.0.0.1:8880/v1/audio/speech`. Private client/Host, exact Origin, bounded JSON, single-flight, timeout, disconnect cancellation and redacted errors follow the local route pattern. No keys, paid fallback or arbitrary upstream URLs.
+- Server defaults: `bf_lily`, speed `1.2`; `ORB_TTS_VOICE` and `ORB_TTS_SPEED` isolate voice configuration. The generic browser TTS interface schedules streamed mono 24 kHz signed 16-bit PCM through the existing Web Audio analyser. Installed API inspection confirmed sentence streaming and the WAV sample rate.
+- Whisper remains browser-local; worker Kokoro imports, initialization and synthesis are removed. Cancellation aborts speech and stops queued audio. Voice failure retains the reply. Typed Gemma navigation restrictions and microphone permissions remain unchanged.
+- Deterministic guidance starts first, followed by an asynchronous spoken acknowledgement. No targeting, cinematic, camera, graph, highlighting or visual implementation changes.
+- Verification is limited by user instruction to one browser session, with its outcome reported in chat. No unit, lint or syntax suites are run. Human listening and microphone judgement remain for the user.
+
 ## Local Orb voice finishing patch - 10 September 2026
 
 - Started on `molecular-v2` at `5567d59`, preserving the previous uncommitted Realtime/visual patch. Before editing, the complete modified list was `UNIVERSAL_SPACE_LEDGER.md`, `index.html`, `memory-graph-visuals.js`, `memory-graph.js`, `molecular-view.css`, `server.mjs`; untracked: `debug.log`, `orb-realtime-server.mjs`, `orb-realtime.browser-test.mjs`, `orb-realtime.js`, `orb-realtime.test.mjs`. All eleven files were archived and archive entries verified at `C:\Users\Admin\AppData\Local\Temp\universal-space-orb-before-local-20260910-160435.zip` before changes.

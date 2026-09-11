@@ -262,7 +262,7 @@
 
   registerProvider({
     id: 'orb-local-ollama', name: 'Orb · local Ollama', kind: 'openai-compatible', local: true,
-    capabilities: { chat: true, readOnly: true },
+    capabilities: { chat: true, readOnly: true, memoryProposals: true },
     async generate(request) {
       const response = await transportFetch('/api/orb/local/chat', {
         method: 'POST', signal: request.signal, headers: { 'Content-Type': 'application/json' },
@@ -270,6 +270,29 @@
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Local AI unavailable');
+      return data;
+    },
+    async prepareProposal(request) {
+      const projectResponse = await transportFetch('/api/code-space/projects', { signal: request.signal, headers: { Accept: 'application/json' } });
+      const projectData = projectResponse.ok ? await projectResponse.json() : { projects: [] };
+      const projects = (Array.isArray(projectData.projects) ? projectData.projects : [])
+        .map(item => String(item?.name || '')).filter(Boolean).slice(0, 40);
+      const normal = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const normalizedMessage = ` ${normal(request.message)} `;
+      const explicitProject = projects
+        .map(project => ({ project, normalized: normal(project) }))
+        .filter(item => item.normalized && normalizedMessage.includes(` ${item.normalized} `))
+        .sort((left, right) => right.normalized.length - left.normalized.length)[0]?.project || '';
+      const defaultProject = explicitProject || projects.find(project => normal(project) === normal(request.space?.name))
+        || projects.find(project => project === 'universal-space') || '';
+      const response = await transportFetch('/api/orb/local/proposal', {
+        method: 'POST', signal: request.signal, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: request.message, space: request.space, projects, defaultProject })
+      });
+      const data = await response.json().catch(() => ({
+        error: `WIZZ proposal route returned HTTP ${response.status} without a JSON response.`
+      }));
+      if (!response.ok) throw new Error(data.error || `WIZZ proposal route failed (HTTP ${response.status}).`);
       return data;
     }
   });
@@ -287,6 +310,11 @@
       const provider = providers.get(id);
       if (!provider) throw new Error('AI provider unavailable');
       return normalizeResult(await provider.generate(request), provider);
+    },
+    async prepareProposalFor(id, request) {
+      const provider = providers.get(id);
+      if (!provider?.prepareProposal) throw new Error('AI proposal interpreter unavailable');
+      return provider.prepareProposal(request);
     },
     transportFetch,
     focusRequestContext

@@ -1,5 +1,5 @@
 // Lazy, browser-local inference. Only model/library downloads use the network.
-let whisper, kokoro;
+let whisper;
 let taskId = 0;
 const progress = event => {
   if (event.status === 'progress') postMessage({ id: taskId, progress: `Downloading local voice model: ${Math.round(event.progress || 0)}%` });
@@ -22,15 +22,6 @@ async function ears() {
   })().catch(error => { whisper = null; throw error; });
   return whisper;
 }
-async function mouth() {
-  if (!kokoro) kokoro = (async () => {
-    const { KokoroTTS } = await import('https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js');
-    return KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
-      device: 'wasm', dtype: 'q8', progress_callback: progress
-    });
-  })().catch(error => { kokoro = null; throw error; });
-  return kokoro;
-}
 onmessage = async ({ data }) => {
   taskId = data.id;
   try {
@@ -38,10 +29,7 @@ onmessage = async ({ data }) => {
       const transcriber = await ears();
       const result = await transcriber(data.audio, { max_new_tokens: 128, chunk_length_s: 30, stride_length_s: 5 });
       postMessage({ id: data.id, text: String(result.text || '').trim() });
-    } else if (data.type === 'speak') {
-      const tts = await mouth();
-      const result = await tts.generate(data.text, { voice: 'bf_lily', speed: 1.2 });
-      postMessage({ id: data.id, audio: result.audio, sampleRate: result.sampling_rate }, [result.audio.buffer]);
+
     }
   } catch (error) { postMessage({ id: data.id, error: `Local voice model unavailable: ${error.message}` }); }
 };
