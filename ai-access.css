@@ -194,6 +194,43 @@
   color: var(--soft);
 }
 
+.ai-access-external-status.error {
+  border-color: rgb(255 150 120 / 0.28);
+  background: rgb(255 120 90 / 0.055);
+  color: #ffd1c4;
+}
+
+.ai-access-copy-fallback {
+  display: grid;
+  gap: 7px;
+  margin: -3px 0 13px;
+}
+
+.ai-access-copy-fallback[hidden] { display: none; }
+
+.ai-access-copy-fallback label {
+  color: var(--soft);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.ai-access-copy-fallback input {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid rgb(120 184 255 / 0.34);
+  border-radius: 9px;
+  color: #e8f7ff;
+  background: rgb(2 9 16 / 0.72);
+  font: 0.75rem ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.ai-access-copy-fallback p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
 .ai-access-advanced {
   border-top: 1px solid var(--line);
   padding-top: 16px;

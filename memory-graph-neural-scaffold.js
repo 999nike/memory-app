@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 2;
+  const VERSION = 3;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
   Object.defineProperty(proto, '__memoryGraphNeuralScaffoldInstalled', { value: true });
@@ -248,6 +248,58 @@
     previousStroke.call(ctx);
   }
 
+  function traceFilament(ctx, filament) {
+    ctx.beginPath();
+    ctx.moveTo(filament.p0.x, filament.p0.y);
+    ctx.quadraticCurveTo(filament.p1.x, filament.p1.y, filament.p2.x, filament.p2.y);
+  }
+
+  function pointOnFilament(filament, t) {
+    const mt = 1 - t;
+    return {
+      x: mt * mt * filament.p0.x + 2 * mt * t * filament.p1.x + t * t * filament.p2.x,
+      y: mt * mt * filament.p0.y + 2 * mt * t * filament.p1.y + t * t * filament.p2.y
+    };
+  }
+
+  function drawFilament(ctx, filament, compact = false) {
+    const alpha = ctx.globalAlpha;
+    const light = ctx.createLinearGradient(filament.p0.x, filament.p0.y, filament.p2.x, filament.p2.y);
+    light.addColorStop(0, 'rgba(42,126,232,0)');
+    light.addColorStop(0.14, 'rgba(42,126,232,.22)');
+    light.addColorStop(0.72, 'rgba(66,155,248,.30)');
+    light.addColorStop(1, 'rgba(66,155,248,0)');
+    traceFilament(ctx, filament);
+    ctx.lineWidth = compact ? 0.72 : 1.0;
+    ctx.strokeStyle = light;
+    ctx.globalAlpha = alpha * 0.36;
+    previousStroke.call(ctx);
+
+    traceFilament(ctx, filament);
+    ctx.lineWidth = compact ? 0.24 : 0.32;
+    ctx.globalAlpha = alpha;
+    previousStroke.call(ctx);
+  }
+
+  function drawFilamentLights(ctx, filament, seed, timestamp, count = 1) {
+    const duration = 2600 + hash(seed, 21, 22) * 2200;
+    for (let index = 0; index < count; index += 1) {
+      const phase = hash(seed, index + 23, 24) + index / count;
+      const progress = ((timestamp / duration) + phase) % 1;
+      const fade = Math.sin(Math.PI * progress) ** 2;
+      const point = pointOnFilament(filament, progress);
+
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 1.7, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(50,145,255,${(0.12 * fade).toFixed(3)})`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 0.55, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(232,249,255,${(0.70 * fade).toFixed(3)})`;
+      ctx.fill();
+    }
+  }
+
   function drawOrganicTube(ctx, curve, width, interacting, compact = false) {
     const detail = interacting ? 0.58 : 1;
     ctx.save();
@@ -268,11 +320,11 @@
     ctx.restore();
   }
 
-  function drawDendrites(ctx, curve, seed, interacting, density = 1, compact = false) {
+  function drawDendrites(ctx, curve, seed, timestamp, interacting, density = 1, compact = false) {
     if (interacting) return;
     const mobile = sourceCanvas?.clientWidth < 700;
-    const divisor = compact ? 58 : mobile ? 50 : 34;
-    const count = clamp(Math.round(curve.length / divisor * density), compact ? 1 : 3, compact ? 4 : mobile ? 7 : 13);
+    const divisor = compact ? 62 : mobile ? 62 : 46;
+    const count = clamp(Math.round(curve.length / divisor * density), compact ? 1 : mobile ? 2 : 3, compact ? 3 : mobile ? 5 : 9);
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -298,25 +350,27 @@
         y: origin.y + py * side * reach + tangent.y * forward
       };
 
-      ctx.beginPath();
-      ctx.moveTo(origin.x, origin.y);
-      ctx.quadraticCurveTo(mid.x, mid.y, end.x, end.y);
-      ctx.lineWidth = compact ? 0.36 : 0.48;
-      ctx.strokeStyle = 'rgba(157,229,255,.28)';
-      previousStroke.call(ctx);
+      const filament = { p0: origin, p1: mid, p2: end };
+      drawFilament(ctx, filament, compact);
+      const lightCount = !mobile && !compact && hash(localSeed, 13, 14) > 0.82 ? 2 : 1;
+      drawFilamentLights(ctx, filament, localSeed, timestamp, lightCount);
 
-      if (!compact && hash(localSeed, 9, 10) > (mobile ? 0.66 : 0.44)) {
+      if (!compact && hash(localSeed, 9, 10) > (mobile ? 0.80 : 0.68)) {
         const forkSide = hash(localSeed, 11, 12) > 0.5 ? 1 : -1;
         const fork = {
           x: mid.x + px * forkSide * reach * 0.44 + tangent.x * reach * 0.15,
           y: mid.y + py * forkSide * reach * 0.44 + tangent.y * reach * 0.15
         };
-        ctx.beginPath();
-        ctx.moveTo(mid.x, mid.y);
-        ctx.quadraticCurveTo((mid.x + fork.x) * 0.5 + px * forkSide * 3, (mid.y + fork.y) * 0.5 + py * forkSide * 3, fork.x, fork.y);
-        ctx.lineWidth = 0.24;
-        ctx.strokeStyle = 'rgba(210,246,255,.22)';
-        previousStroke.call(ctx);
+        const forkFilament = {
+          p0: mid,
+          p1: {
+            x: (mid.x + fork.x) * 0.5 + px * forkSide * 3,
+            y: (mid.y + fork.y) * 0.5 + py * forkSide * 3
+          },
+          p2: fork
+        };
+        drawFilament(ctx, forkFilament, true);
+        drawFilamentLights(ctx, forkFilament, localSeed + 0.71, timestamp, 1);
       }
     }
     ctx.restore();
@@ -436,7 +490,7 @@
   function drawCluster(ctx, geometry, timestamp, interacting, compact = false) {
     const trunkWidth = clamp(geometry.trunk.length * (compact ? 0.050 : 0.058), compact ? 3.2 : 5.4, compact ? 7.0 : 12.5);
     drawOrganicTube(ctx, geometry.trunk, trunkWidth, interacting, compact);
-    drawDendrites(ctx, geometry.trunk, geometry.seed, interacting, compact ? 0.72 : 1.25, compact);
+    drawDendrites(ctx, geometry.trunk, geometry.seed, timestamp, interacting, compact ? 0.72 : 1.25, compact);
     if (!interacting) {
       drawJunction(ctx, geometry.junction, geometry.seed, timestamp, compact ? 0.62 : 0.92);
       drawPulse(ctx, geometry.trunk, geometry.seed, timestamp, 0.10);
@@ -446,11 +500,11 @@
       if (child.stem) {
         const stemWidth = clamp(child.stem.length * 0.045, 2.6, 6.4);
         drawOrganicTube(ctx, child.stem, stemWidth, interacting, false);
-        drawDendrites(ctx, child.stem, child.seed + 1.1, interacting, 0.72, false);
+        drawDendrites(ctx, child.stem, child.seed + 1.1, timestamp, interacting, 0.72, false);
       }
       const branchWidth = clamp(child.branch.length * (compact ? 0.030 : 0.034), compact ? 1.8 : 2.4, compact ? 4.6 : 6.8);
       drawOrganicTube(ctx, child.branch, branchWidth, interacting, compact);
-      drawDendrites(ctx, child.branch, child.seed + 2.3, interacting, compact ? 0.62 : 0.88, compact);
+      drawDendrites(ctx, child.branch, child.seed + 2.3, timestamp, interacting, compact ? 0.62 : 0.88, compact);
       if (!interacting) {
         drawPulse(ctx, child.branch, child.seed, timestamp, 0.35);
         if (child.stem && hash(child.seed, 11, 12) > 0.35) drawJunction(ctx, child.shared, child.seed + 3.3, timestamp, 0.54);

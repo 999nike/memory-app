@@ -1,5 +1,83 @@
 # Universal Space Ledger
 
+## AI Access verified public connector address - 22 September 2026
+
+- Changed only AI Access address generation: the selected Space-bound customer's existing, format-validated `connectionId` is combined with the verified installed public origin `https://bridge.w-i-z-z-lab-studios.com` and `/mcp`. The stale saved HTTP `baseUrl` is neither used nor overwritten. HTTPS, URL-credential, query and fragment validation remains enforced against the verified origin.
+- Existing active-customer selection and clipboard/manual-copy fallback are retained. No customer ID, token, connection, OAuth grant, permission, memory, Bridge route, Supervisor path or onboarding flow changed. Bumped only the `ai-access.js` cache key.
+- Passed syntax/diff checks, focused selected-customer/address/ID-validation/clipboard/manual-fallback/feedback/credential-exclusion tests, and exact local served-asset checks. No browser connection was available for pointer-driven UI verification. No commit, push or deployment performed.
+
+## AI Access customer connector selection repair - 22 September 2026
+
+- Cause: AI Access independently resolved its Bridge from the global `MemoryAI` provider. That can be a legacy/local owner Bridge even when the active Space already has a different customer-scoped Bridge binding, causing the HTTPS-only connector helper to return empty and show `Secure AI connector address unavailable`.
+- AI Access now uses the existing `MemoryBridgeScope.activeBridge()` selection first, retaining its fail-closed fallback for older/single-connection state. Address construction remains HTTPS-only and customer-scoped; no token, owner credential, OAuth grant, memory, or connection record changed. Bumped only the `ai-access.js` cache key.
+- The installed runtime public URL is `https://bridge.w-i-z-z-lab-studios.com`. All three existing encrypted customer connection routes answered unauthenticated `/c/{connectionId}/mcp` probes with the expected HTTP 401, confirming Cloudflare/TLS routing and active tenant paths without transmitting credentials. Focused selection/address/credential-exclusion checks, JavaScript syntax, diff whitespace, and local served-asset checks passed. No browser session was available to inspect the user's browser-local binding or perform the final pointer click. No commit, push, or deployment performed.
+
+## AI Access connector-copy fallback - 22 September 2026
+
+- Root cause: the LAN application runs on plain HTTP, so it is not a secure browser context and the Clipboard API is unavailable/denied. The AI Access handler called `navigator.clipboard.writeText` unconditionally and offered no address for manual copying.
+- AI Access now derives the MCP address from the actively selected Memory Bridge and preserves its customer scope as HTTPS `/c/{connectionId}/mcp`. The UI refuses HTTP URLs, URL credentials, queries and fragments. It never reads or renders the saved Bridge bearer token or owner credentials.
+- Successful copies show explicit status/toast feedback. Failure displays only the safe address in a focused, selected, read-only field with manual-copy instructions and an error state. Bridge authentication, OAuth, external-client permissions and memory data paths are unchanged.
+- Bumped `ai-access.js` and `ai-access.css` cache keys. Passed syntax/diff checks, active-customer selection, scoped-address, success/fallback, selection, feedback and credential-exclusion tests; both local addresses served the exact changed assets. Browser discovery returned no browser, so pointer-driven dialog verification remains pending. No commit, push or deployment performed.
+
+## Connector pulse zoom response - 21 September 2026
+
+- Changed only the existing neural-flow pulse presentation and its cache references. Captured route points already include the canvas transform and graph `view.scale`; the patch reads `MemoryGraph.presentationState().view.scale` and applies no further coordinate scaling.
+- At close zoom (0.90+) pulse size, intensity and count remain exact. As zoom falls, screen-space radius/halo and opacity ease down. Normal test scale 0.75 produced 76.7% size / 73.2% opacity and three visible desktop pulses; minimum/auto-fit scale 0.45 produced 46% size / 38% opacity and two. Mobile retains three close and two below 0.90. Hidden pulses still update the existing hub launch/arrival signal, so hub behavior is unchanged; route geometry, direction and timing are unchanged.
+- Bumped the neural-flow cache key in index.html and molecular-engine-loader.js. Syntax, diff whitespace, deterministic close/normal/auto-fit zoom checks and exact serving at both local addresses passed. Browser discovery returned no available browser, so screenshot-level overlap and device FPS confirmation remain pending. No commit, push or deployment performed.
+
+## Existing connector pulse circulation correction - 21 September 2026
+
+- Removed the preceding patch's separate root stroke, root pulse and flare helper plus its blue-hub capture plumbing. The main connector drawing style and geometry are preserved.
+- Updated the existing neural-flow blue-white route pulses: four per child route on desktop (three mobile), staggered round trips. Three desktop/two mobile pulses turn within 40-50% of their route; one traverses the full route. Reused the existing glow renderer and frame loop; shared route metrics and shorter trails limit added work. Activity-specific pulses retain their existing direction and appearance.
+- The existing blue core briefly increases in size/intensity from the route pulse's actual launch/arrival phase; no independent flare clock or layer. Updated all three affected script cache keys in index.html and molecular-engine-loader.js.
+- Passed JavaScript syntax, executed pulse checks for bidirectional inner/full travel, launch/arrival signals, activity direction and desktop/mobile counts, plus exact asset serving from both local addresses. Browser visual/FPS verification remains unavailable without a connected browser. No commit, push or deployment performed.
+
+## Blue hub energy cores - 21 September 2026
+
+- Enhanced only the blue sprite path with a broader blue-white core, clipped moving tendrils and a faint breathing corona. Retained cached shell rendering and the existing graph redraw clock. Six tendrils on mobile/during interaction, ten on desktop; reduced-motion uses a static phase. Green sprite, labels, Orb and background are unchanged.
+- The existing scaffold captures blue hub bounds during node drawing. Only trunk roots originating at those hubs receive a short tapered boost and one outward pulse, following their original cubic geometry from the shell for approximately 24 pixels. Small staggered junction flares are desktop-only. Connector geometry, downstream drawing and decorative fibre functions are unchanged; no new canvas or animation loop.
+- Cache keys updated in index.html and molecular-engine-loader.js. Syntax and diff checks passed. A mocked canvas smoke check verified changing hub geometry, restored rim path/state, green-node exclusion and mobile drawing. Both local addresses served the exact changed assets. No connected browser was available for visual hierarchy, interaction or device FPS verification. No commit, push or deployment performed.
+
+## Fibre-optic decorative filaments - 21 September 2026
+
+- Replaced only the scaffold layer's faint peripheral dendrites with ultra-thin dark electric-blue filaments. Each strand uses one tapered end-fade gradient for its core and low-alpha glow; the main organic/electric connector drawing paths, nodes, Orb and background are unchanged.
+- Added one staggered white-blue data light per filament, with a second on a small desktop-only subset. Lights follow the existing quadratic strand geometry and fade at both ends inside the scaffold's existing animation frame; no animation loop was added. Branch count is lower, and mobile is capped at five primary filaments per curve with one light each.
+- Bumped the scaffold script cache key in the main page and both legacy loader paths. JavaScript syntax, diff whitespace, exact local asset serving and structural animation checks passed. Browser discovery returned no available browser, so visual hierarchy and device frame-rate confirmation remain pending. No commit, push or deployment performed.
+
+## Space Junkz background visibility follow-up - 21 September 2026
+
+- Increased desktop video opacity from 0.52 to 0.75 and mobile opacity from 0.42 to 0.85. Removed the remaining full-surface black inset shading; label shadows, graph canvases, connectors and Orb styles are unchanged. No video filter or animation was added.
+- Bumped the `molecular-view.css` cache key. Exact CSS serving and diff checks passed at both local addresses. No commit, push or deployment performed.
+
+## Space Junkz background visibility - 21 September 2026
+
+- Increased the video layer from 0.34 to 0.52 opacity on desktop and from 0.22 to 0.42 on mobile. Removed the desktop brightness/saturation/contrast filter and reduced the surface's black inset shadow alpha from 0.60 to 0.34. The dark failure background, video lifecycle and all graph layers remain unchanged.
+- Bumped the `molecular-view.css` cache key. CSS diff checks and exact local serving passed; browser discovery returned no available browser, so visual readability and device playback remain for manual confirmation. No commit, push or deployment performed.
+
+## Original Space Junkz video background - 21 September 2026
+
+- Replaced the generated nebula canvas and the full-screen synthetic cloud/star layers with the original `background_video2.mp4` streamed from the supplied Space Junkz media URL. The video sits below the existing graph canvases, is muted, loops, plays inline and retains `#02070d` as the failure fallback.
+- The video source is assigned only while the document is visible and playback pauses on hide. Mobile uses lower opacity and no video filter to reduce compositing cost. Existing graph, node, connector, Orb and interaction code is unchanged.
+- Verified the remote URL returns HTTP 200, `video/mp4`, byte-range support and a 146,766,173-byte asset. `ffprobe` reports H.264, 1920x1080, 30 fps, about 1.3 Mbps and 15 minutes. JavaScript syntax, diff whitespace and cache-bumped asset serving passed at both local app addresses. Browser discovery returned no available browser, so visual playback, interaction and device-frame-rate verification remain pending. No commit, push or deployment performed.
+
+## Empty uranium-glass green nodes - 21 September 2026
+
+- Changed only `buildGreenSprite()` in `memory-graph-visuals.js`: translucent uranium tint, soft studio highlight, thin luminous rim and faint lower inner glow, with an empty centre. Read Glass Lab's local `src/table/glass-presets.js`, material and studio environment for the #24ff32 tint and reflection treatment; no Glass Lab files changed and no plasma copied. This is a cached Canvas 2D approximation, not physical 3D refraction.
+- Existing sprite sizing/cache, labels, hit targets, graph/physics, electric connectors, blue roots and Orb are unchanged. Confirmed all renderer code outside this function matches HEAD after newline normalization; preserved existing unrelated working changes.
+- Passed JavaScript syntax and diff whitespace checks. Both `http://127.0.0.1:4173` and `http://192.168.1.204:4173` returned the app and exact patched renderer. Browser discovery returned no available browsers, so visual and pointer-interaction verification remain pending. No commit, push or deployment performed.
+
+## Codex dispatch metadata and capability-boundary repair - 13 September 2026
+
+- Root cause 1: the Add Memory / Job submit path already conditionally stored `codexModel` and `codexReasoningEffort`, but Office's live feed is served by the deployed `E:\WIZZ-Server\workspaces\memory-app` bridge copy. That copy omitted both fields while normalizing the published workspace and building ready-job feed records. The live bridge now preserves non-default selections and continues omitting Default values; the canonical Universal bridge remains aligned.
+- Root cause 2: Code Space rendered the frozen package capability groups correctly, but both the browser runner and server-side Codex worker replaced them with a hard-coded full-project grant. Both grants now derive only from `capabilities.allowed`; the server revalidates the complete classification. Without `modifyFiles`, Codex launches with the read-only sandbox, and its permission prompt marks ungranted capabilities unavailable, including `runTests`.
+- A non-live cross-pipeline test serialized `gpt-5.6-sol` / `high` through the live Memory Bridge, Office job/package export, Code Space validation and exact Codex argument generation. A Default case omitted both overrides. Full Office tests passed 57/57 and full Code Space tests passed 36/36; both Universal bridge-copy job-feed checks and syntax checks passed. No Codex execution was launched.
+
+## Codex job model selection - 13 September 2026
+
+- Added compact Model and Reasoning selectors to the existing Universal Space Memory/Job form. The options are limited to models and reasoning levels discovered from the installed WSL Codex CLI; Default omits both overrides and preserves the prior behavior.
+- Ready-job metadata now conditionally carries `codexModel` and `codexReasoningEffort`. Office preserves those fields unchanged in its job, dispatch package and export, and Code Space validates the local allowlist before passing explicit selections to the existing Codex CLI launch. No separate settings system or Code Space UI change was introduced.
+- Verified one Default job (both fields absent) and one explicit `gpt-5.6-terra` / `high` job through focused pipeline tests. Universal Space's job-feed check passed, all 55 Office tests passed, all 36 Code Space tests passed, and the installed WSL Codex CLI accepted the resulting model/reasoning argument shape without launching a paid task.
+
 ## WIZZ proposal ingress - 11 September 2026
 
 - Explicit WIZZ requests beginning with the narrow remember/job forms use a dedicated Ollama structured-output route. It returns either one `propose_memory` object (`note` or `job`) or a short clarification; normal chat and deterministic navigation keep their established paths.

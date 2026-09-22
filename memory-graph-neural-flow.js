@@ -19,8 +19,10 @@
   let ctx = null;
   let frame = 0;
   let lastPaint = 0;
+  let graphZoom = 1;
   const anchors = new Map();
   const arrivedVisualActivities = new Set();
+  const hubSignals = [];
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const distance = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
@@ -29,6 +31,19 @@
     const value = Math.sin(seed * 9041.713 + a * 67.731 + b * 181.913) * 43758.5453;
     return value - Math.floor(value);
   };
+
+  function pulseZoomStyle() {
+    const zoom = clamp(graphZoom, 0.45, 1);
+    const progress = (zoom - 0.45) / 0.55;
+    const eased = progress * progress * (3 - 2 * progress);
+    return { size: 0.46 + eased * 0.54, alpha: 0.38 + eased * 0.62 };
+  }
+
+  function visiblePulseCount(base) {
+    if (graphZoom >= 0.90) return base;
+    if (graphZoom >= 0.65) return Math.max(2, base - 1);
+    return Math.min(2, base);
+  }
 
   function isMainGraph(context) {
     return context?.canvas?.classList?.contains('memory-graph-canvas') === true;
@@ -323,32 +338,43 @@
 
   function drawRoutePulse(curves, seed, timestamp, phase, compact, options = {}) {
     if (!curves.length) return;
-    const metrics = routeMetrics(curves);
+    const metrics = options.metrics || routeMetrics(curves);
     const duration = (compact ? 3000 : 3400) + seed * 1500;
     const raw = Number.isFinite(options.progress)
       ? clamp(options.progress, 0, 1)
       : ((timestamp + phase * duration + seed * 1100) % duration) / duration;
     const activity = options.activity === true;
     const reverse = options.reverse !== false;
-    const routeProgress = activity ? (reverse ? 1 - raw : raw) : 0.5 - 0.5 * Math.cos(raw * Math.PI * 2);
+    const reach = options.reach ?? 1;
+    const routeProgress = activity ? (reverse ? 1 - raw : raw) : reach * (0.5 - 0.5 * Math.cos(raw * Math.PI * 2));
+    if (options.circulation) {
+      // One brief core response as the same pulse arrives at / leaves the hub.
+      hubSignals.push({ point: curves[0].p0, energy: Math.max(0, 1 - Math.min(raw, 1 - raw) / 0.045), at: timestamp });
+    }
+    if (options.visible === false) return;
     const point = routePoint(curves, metrics, routeProgress);
     const direction = activity ? (reverse ? -1 : 1) : raw < 0.5 ? 1 : -1;
     const emphasis = options.emphasis || null;
     const pulse = emphasis === 'strong' ? 0.52 + 0.48 * (0.5 + Math.sin(timestamp * 0.011) * 0.5) : 1;
     const intensity = emphasis === 'strong' ? 1.28 * pulse : emphasis === 'steady' ? 0.62 : 1;
-    const radius = (compact ? 8.5 : 11.5) * (activity ? 1.18 : 1) * intensity;
+    // Captured route coordinates already include view.scale. Only the fixed
+    // screen-space pulse footprint needs a zoom response here.
+    const zoomStyle = pulseZoomStyle();
+    const radius = (compact ? 8.5 : 11.5) * (activity ? 1.18 : 1) * intensity * zoomStyle.size;
     const palette = options.palette || (activity ? 'purple' : 'blue');
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = zoomStyle.alpha;
 
-    for (let i = 3; i >= 1; i -= 1) {
+    const trailCount = options.circulation ? (sourceCanvas?.clientWidth < 760 ? 1 : 2) : 3;
+    for (let i = trailCount; i >= 1; i -= 1) {
       const trailProgress = clamp(routeProgress - direction * i * 0.012, 0, 1);
       const trailPoint = routePoint(curves, metrics, trailProgress);
       glow(trailPoint, radius * (0.34 + i * 0.09), 0.10 + (4 - i) * 0.035, false, palette);
     }
     glow(point, radius * (activity ? 1.88 : 1.75), activity ? 0.34 : compact ? 0.20 : 0.26, false, palette);
-    glow(point, radius, activity ? 1 : compact ? 0.74 : 0.92, true, palette);
+    glow(point, radius, activity || options.circulation ? 1 : compact ? 0.74 : 0.92, true, palette);
 
     for (const boundary of metrics.boundaries) {
       const delta = Math.abs(routeProgress - boundary.progress);
@@ -465,20 +491,27 @@
     for (let clusterIndex = 0; clusterIndex < clusters.length; clusterIndex += 1) {
       const geometry = buildClusterGeometry(clusters[clusterIndex], centre, clusterIndex, compact);
       const children = geometry.children;
-      const maxPulses = compact ? 2 : 3;
       if (!children.length) {
         drawRoutePulse([geometry.trunk], geometry.seed, timestamp, clusterIndex * 0.21, compact);
         continue;
       }
-      const stride = Math.max(1, Math.ceil(children.length / maxPulses));
-      let emitted = 0;
-      for (let childIndex = 0; childIndex < children.length && emitted < maxPulses; childIndex += stride) {
+      const pulseCount = compact || sourceCanvas?.clientWidth < 760 ? 3 : 4;
+      const visibleCount = visiblePulseCount(pulseCount);
+      for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
         const child = children[childIndex];
         const route = [geometry.trunk];
         if (child.stem) route.push(child.stem);
         route.push(child.branch);
-        drawRoutePulse(route, child.seed + geometry.seed, timestamp, clusterIndex * 0.17 + emitted * 0.31, compact);
-        emitted += 1;
+        const metrics = routeMetrics(route);
+        for (let pulseIndex = 0; pulseIndex < pulseCount; pulseIndex += 1) {
+          const seed = child.seed + geometry.seed + pulseIndex * 0.173;
+          drawRoutePulse(route, seed, timestamp,
+            clusterIndex * 0.17 + childIndex * 0.23 + pulseIndex / pulseCount, compact, {
+              circulation: true, metrics,
+              visible: pulseIndex < visibleCount - 1 || pulseIndex === pulseCount - 1,
+              reach: pulseIndex === pulseCount - 1 ? 1 : 0.40 + hash(seed, 18, 7) * 0.10
+            });
+        }
       }
 
       let pendingCount = 0;
@@ -532,6 +565,9 @@
     const frameMs = interacting ? 72 : 34;
     if (timestamp - lastPaint < frameMs) return;
     lastPaint = timestamp;
+    const currentZoom = Number(globalThis.MemoryGraph?.presentationState?.()?.view?.scale);
+    graphZoom = Number.isFinite(currentZoom) ? currentZoom : 1;
+    hubSignals.length = 0;
 
     const rect = sourceCanvas.getBoundingClientRect();
     if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;
@@ -601,6 +637,17 @@
     mainSegmentCount: () => mainSegments.length,
     manualSegmentCount: () => manualSegments.length,
     captureAnchor,
+    hubEnergy(context, circle) {
+      const dpr = context.canvas.width / Math.max(1, context.canvas.getBoundingClientRect().width);
+      const m = context.getTransform();
+      const point = { x: (m.a * circle.x + m.c * circle.y + m.e) / dpr, y: (m.b * circle.x + m.d * circle.y + m.f) / dpr };
+      let energy = 0;
+      const now = performance.now();
+      for (const signal of hubSignals) {
+        if (now - signal.at < 120 && distance(point, signal.point) < 3) energy = Math.max(energy, signal.energy);
+      }
+      return energy;
+    },
     redraw() { lastPaint = 0; }
   });
 })();

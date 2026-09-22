@@ -33,7 +33,7 @@ function job(id, overrides = {}) {
 
 const runtime = createWorkspaceRuntime();
 runtime.publishWorkspace('customer-a', snapshot('a', [
-  job('ready-a'),
+  job('ready-a', { codexModel: 'gpt-5.6-sol', codexReasoningEffort: 'high' }),
   { id: 'memory-a', title: 'Private fact', content: 'Not a job', type: 'fact', importance: 'normal', status: 'confirmed' }
 ]));
 runtime.publishWorkspace('customer-b', snapshot('b', [job('ready-b')]));
@@ -41,6 +41,10 @@ runtime.publishWorkspace('customer-b', snapshot('b', [job('ready-b')]));
 assert.deepEqual(runtime.readyJobs('customer-a').map((item) => item.id), ['ready-a']);
 assert.deepEqual(runtime.readyJobs('customer-b').map((item) => item.id), ['ready-b']);
 assert.equal(runtime.readyJobs('customer-a')[0].details, 'Investigate the overlap and patch the affected layout.');
+assert.equal(runtime.readyJobs('customer-a')[0].codexModel, 'gpt-5.6-sol');
+assert.equal(runtime.readyJobs('customer-a')[0].codexReasoningEffort, 'high');
+assert.equal(Object.hasOwn(runtime.readyJobs('customer-b')[0], 'codexModel'), false, 'Default must omit a model override');
+assert.equal(Object.hasOwn(runtime.readyJobs('customer-b')[0], 'codexReasoningEffort'), false, 'Default must omit a reasoning override');
 assert.equal(Object.hasOwn(runtime.readyJobs('customer-a')[0], 'content'), false, 'job feed must not expose unrelated Memory fields');
 
 const acknowledgement = runtime.acknowledgeJob('customer-a', 'ready-a', 'office-1', new Date('2026-08-14T12:00:00.000Z'));

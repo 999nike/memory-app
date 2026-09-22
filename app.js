@@ -10,6 +10,14 @@
     note: 'Note',
     job: 'Job'
   };
+  const CODEX_REASONING_LEVELS = Object.freeze({
+    '': ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+    'gpt-5.6-sol': ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+    'gpt-5.6-terra': ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+    'gpt-5.6-luna': ['low', 'medium', 'high', 'xhigh', 'max'],
+    'gpt-5.5': ['low', 'medium', 'high', 'xhigh'],
+    'gpt-5.2': ['low', 'medium', 'high', 'xhigh']
+  });
 
   const now = () => new Date().toISOString();
   const uid = (prefix) => `${prefix}_${crypto.randomUUID?.() || `${Date.now()}_${Math.random().toString(16).slice(2)}`}`;
@@ -118,6 +126,8 @@
     memoryJobFields: document.getElementById('memoryJobFields'),
     memoryProjectInput: document.getElementById('memoryProjectInput'),
     memoryPriorityInput: document.getElementById('memoryPriorityInput'),
+    memoryModelInput: document.getElementById('memoryModelInput'),
+    memoryReasoningInput: document.getElementById('memoryReasoningInput'),
     memoryCreatedByInput: document.getElementById('memoryCreatedByInput'),
     memorySourceInput: document.getElementById('memorySourceInput'),
     memoryLockedInput: document.getElementById('memoryLockedInput'),
@@ -315,6 +325,8 @@
     els.memoryImportanceInput.value = memory?.importance || 'normal';
     els.memoryProjectInput.value = memory?.project || '';
     els.memoryPriorityInput.value = memory?.priority || 'normal';
+    els.memoryModelInput.value = memory?.codexModel || '';
+    updateReasoningOptions(memory?.codexReasoningEffort || '');
     els.memoryCreatedByInput.value = memory?.createdBy || 'user';
     els.memorySourceInput.value = memory?.source || 'User confirmed';
     els.memoryLockedInput.checked = Boolean(memory?.locked);
@@ -335,6 +347,8 @@
 
     const isJob = els.memoryTypeInput.value === 'job';
     const project = els.memoryProjectInput.value.trim();
+    const codexModel = els.memoryModelInput.value;
+    const codexReasoningEffort = els.memoryReasoningInput.value;
     if (isJob && !project) {
       showToast('Choose the Code Space project for this job');
       els.memoryProjectInput.focus();
@@ -353,6 +367,8 @@
         details: els.memoryContentInput.value.trim(),
         project,
         priority: els.memoryPriorityInput.value,
+        ...(codexModel ? { codexModel } : {}),
+        ...(codexReasoningEffort ? { codexReasoningEffort } : {}),
         createdBy: els.memoryCreatedByInput.value || existing?.createdBy || 'user',
         officeCollectedAt: existing?.officeCollectedAt || null,
         officeJobId: existing?.officeJobId || null
@@ -362,10 +378,14 @@
 
     if (existing) {
       Object.assign(existing, payload);
+      if (isJob && !codexModel) delete existing.codexModel;
+      if (isJob && !codexReasoningEffort) delete existing.codexReasoningEffort;
       if (!isJob) {
         delete existing.details;
         delete existing.project;
         delete existing.priority;
+        delete existing.codexModel;
+        delete existing.codexReasoningEffort;
         delete existing.createdBy;
         delete existing.officeCollectedAt;
         delete existing.officeJobId;
@@ -500,6 +520,15 @@
     const isJob = els.memoryTypeInput.value === 'job';
     els.memoryJobFields.hidden = !isJob;
     els.memoryProjectInput.required = isJob;
+  }
+
+  function updateReasoningOptions(selected = els.memoryReasoningInput.value) {
+    const levels = CODEX_REASONING_LEVELS[els.memoryModelInput.value] || [];
+    els.memoryReasoningInput.innerHTML = [
+      '<option value="">Default</option>',
+      ...levels.map((level) => `<option value="${level}">${level === 'xhigh' ? 'Extra high' : capitalise(level)}</option>`)
+    ].join('');
+    els.memoryReasoningInput.value = levels.includes(selected) ? selected : '';
   }
 
   function exportWorkspace() {
@@ -653,6 +682,7 @@
 
   els.memoryForm.addEventListener('submit', submitMemory);
   els.memoryTypeInput.addEventListener('change', updateJobFields);
+  els.memoryModelInput.addEventListener('change', () => updateReasoningOptions(''));
   window.addEventListener('memory-job-acknowledged', () => {
     state = loadState();
     render();

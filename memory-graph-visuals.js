@@ -23,6 +23,7 @@
   const INTERACTING_FRAME_MS = 78;
   const SPRITE_QUALITY = 2;
   const spriteCache = new Map();
+  const hubReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
   let electricCanvas = null;
   let electricContext = null;
@@ -102,25 +103,28 @@
     const c = logicalSize / 2;
     const strength = clamp(0.62 + sourceAlpha * 0.80, 0.66, 1);
 
-    drawGlowDisc(ctx, c, c, radius * 0.55, radius * 1.70, [
-      [0, `rgba(199, 255, 86, ${(0.16 * strength).toFixed(3)})`],
-      [0.45, `rgba(121, 255, 53, ${(0.13 * strength).toFixed(3)})`],
-      [0.78, `rgba(80, 238, 34, ${(0.075 * strength).toFixed(3)})`],
-      [1, 'rgba(58, 222, 30, 0)']
+    // Glass Lab's #24ff32 uranium tint and soft studio reflections, in the
+    // existing cached 2D sprite. Keep the volume empty: no plasma or core.
+    drawGlowDisc(ctx, c, c, radius * 0.70, radius * 1.55, [
+      [0, `rgba(36, 255, 50, ${(0.075 * strength).toFixed(3)})`],
+      [0.35, `rgba(36, 255, 50, ${(0.10 * strength).toFixed(3)})`],
+      [0.72, `rgba(36, 255, 50, ${(0.035 * strength).toFixed(3)})`],
+      [1, 'rgba(36, 255, 50, 0)']
     ]);
 
     const sphere = ctx.createRadialGradient(
-      c - radius * 0.32,
-      c - radius * 0.38,
-      Math.max(1, radius * 0.08),
+      c - radius * 0.12,
+      c - radius * 0.16,
+      0,
       c,
       c,
-      radius * 1.04
+      radius
     );
-    sphere.addColorStop(0, `rgba(148, 214, 83, ${(0.30 + sourceAlpha * 0.22).toFixed(3)})`);
-    sphere.addColorStop(0.22, 'rgba(57, 98, 31, 0.80)');
-    sphere.addColorStop(0.58, 'rgba(18, 38, 15, 0.96)');
-    sphere.addColorStop(1, 'rgba(3, 12, 6, 0.99)');
+    sphere.addColorStop(0, 'rgba(26, 74, 39, 0.16)');
+    sphere.addColorStop(0.50, 'rgba(25, 109, 42, 0.22)');
+    sphere.addColorStop(0.78, `rgba(36, 255, 50, ${(0.20 * strength).toFixed(3)})`);
+    sphere.addColorStop(0.92, `rgba(105, 255, 123, ${(0.38 * strength).toFixed(3)})`);
+    sphere.addColorStop(1, 'rgba(8, 53, 23, 0.58)');
 
     ctx.beginPath();
     ctx.arc(c, c, radius, 0, Math.PI * 2);
@@ -128,42 +132,47 @@
     ctx.fill();
 
     ctx.save();
-    ctx.shadowBlur = radius * 0.62;
-    ctx.shadowColor = `rgba(142, 255, 62, ${(0.48 * strength).toFixed(3)})`;
+    ctx.shadowBlur = radius * 0.28;
+    ctx.shadowColor = `rgba(36, 255, 50, ${(0.38 * strength).toFixed(3)})`;
     ctx.beginPath();
     ctx.arc(c, c, radius * 0.98, 0, Math.PI * 2);
-    ctx.lineWidth = Math.max(1.5, radius * 0.12);
-    ctx.strokeStyle = `rgba(126, 255, 57, ${(0.78 * strength).toFixed(3)})`;
+    ctx.lineWidth = Math.max(0.7, radius * 0.035);
+    ctx.strokeStyle = `rgba(151, 255, 166, ${(0.64 * strength).toFixed(3)})`;
     ctx.stroke();
     ctx.restore();
 
-    ctx.beginPath();
-    ctx.arc(c, c, radius * 0.92, 0, Math.PI * 2);
-    ctx.lineWidth = Math.max(0.9, radius * 0.065);
-    ctx.strokeStyle = `rgba(239, 255, 219, ${(0.76 + sourceAlpha * 0.16).toFixed(3)})`;
-    ctx.stroke();
+    // A broad reflected softbox gives the shell curvature without a solid core.
+    ctx.save();
+    ctx.translate(c - radius * 0.30, c - radius * 0.38);
+    ctx.rotate(-Math.PI / 4);
+    ctx.scale(1, 0.55);
+    drawGlowDisc(ctx, 0, 0, 0, radius * 0.48, [
+      [0, `rgba(242, 255, 239, ${(0.52 * strength).toFixed(3)})`],
+      [0.30, `rgba(220, 255, 223, ${(0.30 * strength).toFixed(3)})`],
+      [1, 'rgba(220, 255, 223, 0)']
+    ]);
+    ctx.restore();
 
     ctx.save();
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(c, c, radius * 0.88, Math.PI * 1.06, Math.PI * 1.62);
-    ctx.lineWidth = Math.max(1.1, radius * 0.09);
-    ctx.strokeStyle = `rgba(255, 255, 244, ${(0.46 + sourceAlpha * 0.28).toFixed(3)})`;
+    ctx.arc(c, c, radius * 0.90, Math.PI * 1.12, Math.PI * 1.49);
+    ctx.lineWidth = Math.max(0.65, radius * 0.035);
+    ctx.strokeStyle = `rgba(240, 255, 242, ${(0.58 * strength).toFixed(3)})`;
     ctx.stroke();
     ctx.restore();
 
-    const lowerShade = ctx.createRadialGradient(c, c + radius * 0.56, 0, c, c + radius * 0.35, radius * 1.05);
-    lowerShade.addColorStop(0, 'rgba(0, 0, 0, 0.20)');
-    lowerShade.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.beginPath();
-    ctx.arc(c, c, radius * 0.90, 0, Math.PI * 2);
-    ctx.fillStyle = lowerShade;
-    ctx.fill();
+    // Faint light collected inside the lower edge; the centre stays clear.
+    drawGlowDisc(ctx, c + radius * 0.22, c + radius * 0.49, 0, radius * 0.40, [
+      [0, `rgba(92, 255, 112, ${(0.18 * strength).toFixed(3)})`],
+      [0.45, `rgba(36, 255, 50, ${(0.10 * strength).toFixed(3)})`],
+      [1, 'rgba(36, 255, 50, 0)']
+    ]);
 
     return { canvas, logicalSize };
   }
 
-  function drawCoreVeins(ctx, c, radius) {
+  function drawCoreVeins(ctx, c, radius, time = 0, low = false) {
     ctx.save();
     ctx.beginPath();
     ctx.arc(c, c, radius * 0.79, 0, Math.PI * 2);
@@ -172,10 +181,12 @@
     ctx.lineJoin = 'round';
 
     const seed = radius * 0.137 + 2.71;
-    for (let branch = 0; branch < 20; branch += 1) {
-      const angle = (branch / 20) * Math.PI * 2 + (hashUnit(seed, branch, 1) - 0.5) * 0.28;
+    const branches = low ? 6 : 10;
+    for (let branch = 0; branch < branches; branch += 1) {
+      const phase = time * 1.2 + branch * 2.39;
+      const angle = (branch / branches) * Math.PI * 2 + (hashUnit(seed, branch, 1) - 0.5) * 0.28 + Math.sin(phase) * 0.12;
       const length = radius * (0.42 + hashUnit(seed, branch, 2) * 0.28);
-      const bend = (hashUnit(seed, branch, 3) - 0.5) * radius * 0.20;
+      const bend = Math.sin(phase * 0.83) * radius * 0.24;
       const perpX = -Math.sin(angle);
       const perpY = Math.cos(angle);
 
@@ -193,15 +204,22 @@
       ctx.moveTo(points[0].x, points[0].y);
       for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y);
       ctx.lineWidth = Math.max(1.2, radius * 0.055);
-      ctx.strokeStyle = 'rgba(39, 92, 255, 0.24)';
-      ctx.stroke();
+      ctx.strokeStyle = 'rgba(39, 132, 255, 0.42)';
+      originalStroke.call(ctx);
 
       ctx.beginPath();
       ctx.moveTo(points[0].x, points[0].y);
       for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y);
       ctx.lineWidth = Math.max(0.45, radius * 0.018);
-      ctx.strokeStyle = 'rgba(187, 224, 255, 0.72)';
-      ctx.stroke();
+      ctx.strokeStyle = `rgba(207, 242, 255, ${0.55 + 0.23 * Math.sin(phase) ** 2})`;
+      originalStroke.call(ctx);
+      if (!low && branch % 2 === 0) {
+        const tip = points[3];
+        ctx.beginPath();
+        ctx.moveTo(points[2].x, points[2].y);
+        ctx.lineTo(tip.x + perpX * radius * 0.14, tip.y + perpY * radius * 0.14);
+        originalStroke.call(ctx);
+      }
     }
     ctx.restore();
   }
@@ -238,12 +256,10 @@
     ctx.fillStyle = sphere;
     ctx.fill();
 
-    drawCoreVeins(ctx, c, radius);
-
     const coreGlow = ctx.createRadialGradient(c, c, 0, c, c, radius * 0.50);
     coreGlow.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    coreGlow.addColorStop(0.07, 'rgba(207, 239, 255, 0.98)');
-    coreGlow.addColorStop(0.22, 'rgba(85, 160, 255, 0.62)');
+    coreGlow.addColorStop(0.20, 'rgba(225, 248, 255, 0.98)');
+    coreGlow.addColorStop(0.48, 'rgba(85, 178, 255, 0.78)');
     coreGlow.addColorStop(1, 'rgba(26, 87, 255, 0)');
     ctx.beginPath();
     ctx.arc(c, c, radius * 0.50, 0, Math.PI * 2);
@@ -300,6 +316,29 @@
       sprite.logicalSize,
       sprite.logicalSize
     );
+    if (colour === 'blue') {
+      const energy = hubReducedMotion.matches ? 0 : (globalThis.MemoryGraphNeuralFlow?.hubEnergy?.(context, circle) || 0);
+      const time = hubReducedMotion.matches ? 0 : performance.now() / 1000;
+      const low = context.canvas.clientWidth < 760 || context.canvas.dataset.interacting === 'true';
+      const breath = 0.5 + 0.5 * Math.sin(time * 1.7);
+      context.save();
+      context.translate(circle.x, circle.y);
+      context.globalCompositeOperation = 'lighter';
+      drawCoreVeins(context, 0, circle.radius, time, low);
+      drawGlowDisc(context, 0, 0, 0, circle.radius * (0.45 + breath * 0.06 + energy * 0.16), [
+        [0, 'rgba(245, 253, 255, 0.95)'],
+        [0.22, `rgba(182, 231, 255, ${0.32 + breath * 0.12 + energy * 0.28})`],
+        [1, 'rgba(35, 130, 255, 0)']
+      ]);
+      drawGlowDisc(context, 0, 0, circle.radius * 0.95, circle.radius * 1.35, [
+        [0, `rgba(65, 169, 255, ${0.07 + breath * 0.04})`],
+        [1, 'rgba(35, 130, 255, 0)']
+      ]);
+      context.restore();
+      // Canvas paths are not saved by save/restore: preserve the caller's rim.
+      context.beginPath();
+      context.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2);
+    }
   }
 
   function ensureElectricLayer(sourceCanvas) {

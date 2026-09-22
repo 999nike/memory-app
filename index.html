@@ -12,12 +12,12 @@
   <link rel="stylesheet" href="./phase2.css?v=8">
   <link rel="stylesheet" href="./memory-lifecycle.css?v=1">
   <link rel="stylesheet" href="./provider-connections.css?v=1">
-  <link rel="stylesheet" href="./ai-access.css?v=1">
+  <link rel="stylesheet" href="./ai-access.css?v=copy-fallback-20260922">
   <link rel="stylesheet" href="./memory-bridge.css?v=4">
   <link rel="stylesheet" href="./external-ai-proposals.css?v=1">
   <link rel="stylesheet" href="./context-trace.css?v=1">
   <link rel="stylesheet" href="./memory-graph.css?v=recovery-20260905-01">
-  <link rel="stylesheet" href="./molecular-view.css?v=1">
+  <link rel="stylesheet" href="./molecular-view.css?v=space-junkz-visible-20260921">
 </head>
 <body>
   <div class="app-shell">
@@ -196,6 +196,23 @@
             <option value="urgent">Urgent</option>
           </select>
         </label>
+        <label>
+          Model
+          <select id="memoryModelInput">
+            <option value="" selected>Default</option>
+            <option value="gpt-5.6-sol">GPT-5.6-Sol</option>
+            <option value="gpt-5.6-terra">GPT-5.6-Terra</option>
+            <option value="gpt-5.6-luna">GPT-5.6-Luna</option>
+            <option value="gpt-5.5">GPT-5.5</option>
+            <option value="gpt-5.2">GPT-5.2</option>
+          </select>
+        </label>
+        <label>
+          Reasoning
+          <select id="memoryReasoningInput">
+            <option value="" selected>Default</option>
+          </select>
+        </label>
       </div>
       <input type="hidden" id="memoryCreatedByInput" value="user">
       <label>
@@ -256,14 +273,14 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="./product-onboarding.js?v=1" defer></script>
-  <script src="./app.js?v=recovery-20260905-01" defer></script>
-  <script src="./memory-graph-visuals.js?v=3" defer></script>
+  <script src="./app.js?v=codex-model-20260913" defer></script>
+  <script src="./memory-graph-visuals.js?v=hub-circulation-20260921" defer></script>
   <script src="./memory-graph-mobile.js?v=label-fix-20260905-01" defer></script>
   <script src="./memory-graph-rotation.js?v=1" defer></script>
   <script src="./memory-graph-manual-groups.js?v=5" defer></script>
   <script src="./memory-graph-neural-width.js?v=1" defer></script>
-  <script src="./memory-graph-neural-scaffold.js?v=2" defer></script>
-  <script src="./memory-graph-neural-flow.js?v=recovery-20260905-01" defer></script>
+  <script src="./memory-graph-neural-scaffold.js?v=hub-circulation-20260921" defer></script>
+  <script src="./memory-graph-neural-flow.js?v=pulse-zoom-20260921" defer></script>
   <script src="./memory-graph-manual-gravity.js?v=8" defer></script>
   <script src="./universal-app-adapters.js?v=recovery-20260905-01" defer></script>
   <script src="./gmail-adapter.js?v=recovery-20260905-01" defer></script>
@@ -273,7 +290,7 @@
   <script src="./orb-realtime.js?v=1" defer></script>
   <script src="./orb-local.js?v=2" defer></script>
   <script src="./memory-graph.js?v=orb-realtime-20260910" defer></script>
-  <script src="./memory-graph-nebula.js?v=1" defer></script>
+  <script src="./memory-graph-nebula.js?v=space-junkz-video-20260921" defer></script>
   <script src="./memory-lifecycle.js?v=3" defer></script>
   <script src="./local-ai.js?v=6" defer></script>
   <script src="./memory-normalize.js?v=2" defer></script>
@@ -284,7 +301,7 @@
   <script src="./provider-connections.js?v=2" defer></script>
   <script src="./memory-bridge-ui.js?v=4" defer></script>
   <script src="./space-bridge-scope.js?v=2" defer></script>
-  <script src="./ai-access.js?v=3" defer></script>
+  <script src="./ai-access.js?v=verified-public-origin-20260922" defer></script>
   <script src="./bridge-onboarding.js?v=4" defer></script>
   <script src="./context-firewall.js?v=1" defer></script>
   <script src="./phase2.js?v=4" defer></script>

@@ -3,6 +3,8 @@
 
   const WORKSPACE_KEY = 'memory-space-v1';
   const BRIDGES_KEY = 'memory-ai-bridges-v1';
+  const PUBLIC_BRIDGE_ORIGIN = 'https://bridge.w-i-z-z-lab-studios.com';
+  const CUSTOMER_CONNECTION_ID_PATTERN = /^conn_[A-Za-z0-9_-]{8,80}$/;
   let observer;
   let externalStatusRequest = 0;
 
@@ -28,6 +30,9 @@
   }
 
   function activeBridge() {
+    const scopedBridge = globalThis.MemoryBridgeScope?.activeBridge?.();
+    if (scopedBridge) return scopedBridge;
+
     const bridges = loadBridges();
     if (!bridges.length) return null;
 
@@ -42,6 +47,39 @@
     // expose or revoke the wrong customer's OAuth grants. Fail closed until
     // the user selects the intended Memory Bridge.
     return bridges.length === 1 ? bridges[0] : null;
+  }
+
+  function customerMcpAddress(bridge) {
+    try {
+      const connectionId = String(bridge?.connectionId || '').trim();
+      if (!CUSTOMER_CONNECTION_ID_PATTERN.test(connectionId)) return '';
+
+      const parsed = new URL(PUBLIC_BRIDGE_ORIGIN);
+      if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.search || parsed.hash) return '';
+      parsed.pathname = `/c/${encodeURIComponent(connectionId)}/mcp`;
+      return parsed.href;
+    } catch {
+      return '';
+    }
+  }
+
+  function hideCopyFallback(dialog) {
+    const fallback = dialog?.querySelector('#aiAccessCopyFallback');
+    const input = dialog?.querySelector('#aiAccessCopyAddress');
+    if (fallback) fallback.hidden = true;
+    if (input) input.value = '';
+  }
+
+  function showCopyFallback(dialog, address) {
+    const fallback = dialog?.querySelector('#aiAccessCopyFallback');
+    const input = dialog?.querySelector('#aiAccessCopyAddress');
+    if (!fallback || !input) return;
+    input.value = address;
+    fallback.hidden = false;
+    requestAnimationFrame(() => {
+      input.focus({ preventScroll: true });
+      input.select();
+    });
   }
 
   function mountControl() {
@@ -115,8 +153,13 @@
             <span>Grok</span><span>Mistral</span><span>Claude</span><span>Cursor</span>
           </div>
           <div class="ai-access-external-status" id="aiAccessExternalStatus"></div>
+          <div class="ai-access-copy-fallback" id="aiAccessCopyFallback" hidden>
+            <label for="aiAccessCopyAddress">AI connector address</label>
+            <input id="aiAccessCopyAddress" type="text" readonly spellcheck="false" autocomplete="off" aria-describedby="aiAccessCopyHelp">
+            <p id="aiAccessCopyHelp">Select the address, then use Copy from your browser or device.</p>
+          </div>
           <div class="ai-access-list" id="aiAccessAuthorizedList"></div>
-          <button type="button" class="primary-button" id="aiAccessConnectExternal">Connect AI app</button>
+          <button type="button" class="primary-button" id="aiAccessConnectExternal">Copy AI connector address</button>
         </section>
 
         <details class="ai-access-advanced">
@@ -217,6 +260,8 @@
 
     const requestId = ++externalStatusRequest;
     const bridges = loadBridges();
+    status.classList.remove('ready', 'error');
+    hideCopyFallback(dialog);
     button.disabled = false;
     if (!bridges.length) {
       status.classList.remove('ready');
@@ -239,7 +284,7 @@
     status.classList.add('ready');
     status.textContent = 'Checking which AI apps currently have access…';
     list.innerHTML = '';
-    button.textContent = 'Connect AI app';
+    button.textContent = 'Copy AI connector address';
     if (!globalThis.MemoryBridge?.listExternalClients) {
       status.textContent = 'Private AI access is ready. Restart the updated Memory Bridge once to enable live permission controls.';
       return;
@@ -364,24 +409,43 @@
       return;
     }
 
-    const address = `${String(bridge.baseUrl || '').replace(/\/+$/, '')}/mcp`;
-    if (!address.startsWith('https://')) {
-      if (status) status.textContent = 'This saved bridge does not have a secure external connection address.';
+    const address = customerMcpAddress(bridge);
+    if (!address) {
+      hideCopyFallback(dialog);
+      if (status) {
+        status.classList.remove('ready');
+        status.classList.add('error');
+        status.textContent = 'This saved connection does not contain a safe customer-scoped HTTPS connector address.';
+      }
+      toast('Secure AI connector address unavailable');
       return;
     }
 
+    const original = event.currentTarget.textContent;
+    event.currentTarget.disabled = true;
     try {
+      if (!globalThis.isSecureContext || !navigator.clipboard?.writeText) {
+        throw new Error('clipboard_unavailable');
+      }
       await navigator.clipboard.writeText(address);
+      hideCopyFallback(dialog);
       if (status) {
+        status.classList.remove('error');
         status.classList.add('ready');
         status.textContent = 'Connection copied. Open the AI app you want to use, add a custom connection, paste it, then approve Memory Space access.';
       }
-      toast('AI connection copied');
+      toast('AI connector address copied');
     } catch {
+      showCopyFallback(dialog, address);
       if (status) {
-        status.classList.add('ready');
-        status.textContent = 'Your private bridge is ready. Use Advanced connection setup if your browser blocks copying the connection.';
+        status.classList.remove('ready');
+        status.classList.add('error');
+        status.textContent = 'Automatic copying is blocked by this browser. The safe connector address is selected below for manual copying.';
       }
+      toast('Copy blocked — address shown below');
+    } finally {
+      event.currentTarget.disabled = false;
+      event.currentTarget.textContent = original;
     }
   }
 

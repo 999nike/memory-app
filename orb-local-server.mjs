@@ -17,7 +17,7 @@ export function createOrbLocalRoute({ fetchImpl = fetch, env = process.env, port
     const response = await fetchImpl('http://127.0.0.1:11434/api/tags', { signal });
     if (!response.ok) throw new Error('Local AI unavailable');
     const tags = (await response.json()).models?.map(item => item.name) || [];
-    model = (tags.includes(env.OLLAMA_MODEL) && env.OLLAMA_MODEL) || tags.find(tag => /^gemma[^:]*:1b(?:-|$)/i.test(tag)) || tags[0];
+    model = (tags.includes(env.OLLAMA_MODEL) && env.OLLAMA_MODEL) || tags.find(tag => /^gemma[^:]*:4b(?:-|$)/i.test(tag)) || tags[0];
     if (!model) throw new Error('Local AI unavailable: no Ollama model installed');
     expires = Date.now() + 30000; return model;
   };
