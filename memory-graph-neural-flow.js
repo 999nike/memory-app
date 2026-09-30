@@ -4,12 +4,12 @@
   // Pulse routing follows the approved August renderer (blob
   // 6feadb2985a4179620fd55ae9b95c6afd12bb3fb) while retaining the current
   // pulse-only, capped and visibility-aware animation lifecycle.
-  const VERSION = 9;
+  const VERSION = 10;
   const MAX_DPR = 1.75;
   const MAX_PULSES = 10;
   const FRAME_MS = 1000 / 30;
-  const AMBIENT_MIN_MS = 850;
-  const AMBIENT_MAX_MS = 1700;
+  const AMBIENT_MIN_MS = 1050;
+  const AMBIENT_MAX_MS = 1900;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const palettes = {
     blue: ['255,255,255', '102,225,255', '37,126,255'],
@@ -165,7 +165,7 @@
       palette,
       intensity,
       radius,
-      startedAt: performance.now(),
+      startedAt: performance.now() + clamp(Number(options.delay) || 0, 0, 900),
       duration: 560
     });
     if (blooms.length > MAX_PULSES) blooms.splice(0, blooms.length - MAX_PULSES);
@@ -204,7 +204,6 @@
       destinationRadius: clamp(Number(options.destinationRadius) || 16, 8, 42),
       arrivalDetail: options.arrivalDetail || null
     };
-    addBloom(points[0], palette, intensity * .62, clamp(8 + intensity * 4, 8, 16));
     pulses.push(pulse);
     startLoop();
     return id;
@@ -243,51 +242,55 @@
     const eased = easeElectrical(progress);
     const point = pointAt(pulse, eased);
     const source = pulse.points[0];
-    const colours = palettes[pulse.palette] || palettes.blue;
-    if (progress < .18) {
-      const launchEnergy = 1 - progress / .18;
-      glow(source, (22 + 18 * launchEnergy) * pulse.intensity, .36 * launchEnergy, pulse.palette);
-      glow(source, (8 + 8 * launchEnergy) * pulse.intensity, .72 * launchEnergy, pulse.palette);
+    const colours = palettes[pulse.palette] || palettes.cyan;
+
+    // Soma flashes briefly, then the colour is carried by the moving wave.
+    if (progress < .16) {
+      const launchEnergy = 1 - progress / .16;
+      glow(source, (12 + 12 * launchEnergy) * pulse.intensity, .22 * launchEnergy, pulse.palette);
+      glow(source, (5 + 5 * launchEnergy) * pulse.intensity, .52 * launchEnergy, pulse.palette);
     }
-    const tailSpan = .21 + Math.min(.07, pulse.intensity * .04);
+
+    // Shader-style wave front plus a restrained residual trail.
+    const tailSpan = .30;
     const tailStart = Math.max(0, eased - tailSpan);
     const first = pointAt(pulse, tailStart);
     const tailGradient = ctx.createLinearGradient(first.x, first.y, point.x, point.y);
     tailGradient.addColorStop(0, `rgba(${colours[2]},0)`);
-    tailGradient.addColorStop(.34, `rgba(${colours[2]},.16)`);
-    tailGradient.addColorStop(.72, `rgba(${colours[1]},.62)`);
-    tailGradient.addColorStop(1, 'rgba(255,255,255,.96)');
+    tailGradient.addColorStop(.30, `rgba(${colours[2]},.10)`);
+    tailGradient.addColorStop(.68, `rgba(${colours[1]},.54)`);
+    tailGradient.addColorStop(.90, `rgba(${colours[1]},.88)`);
+    tailGradient.addColorStop(1, 'rgba(255,255,255,.98)');
 
     traceTail(pulse, tailStart, eased);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.lineWidth = 16 * pulse.intensity;
-    ctx.strokeStyle = `rgba(${colours[2]},.16)`;
+    ctx.lineWidth = 7.0 * pulse.intensity;
+    ctx.strokeStyle = `rgba(${colours[2]},.12)`;
     ctx.stroke();
+
     traceTail(pulse, tailStart, eased);
-    ctx.lineWidth = 6.2 * pulse.intensity;
+    ctx.lineWidth = 3.0 * pulse.intensity;
     ctx.strokeStyle = tailGradient;
     ctx.stroke();
-    traceTail(pulse, Math.max(tailStart, eased - tailSpan * .42), eased);
-    ctx.lineWidth = Math.max(1.15, 1.8 * pulse.intensity);
-    ctx.strokeStyle = 'rgba(248,254,255,.94)';
+
+    traceTail(pulse, Math.max(tailStart, eased - .055), eased);
+    ctx.lineWidth = Math.max(.8, 1.15 * pulse.intensity);
+    ctx.strokeStyle = 'rgba(255,255,255,.98)';
     ctx.stroke();
 
-    glow(point, 25 * pulse.intensity, .42, pulse.palette);
-    glow(point, 11.5 * pulse.intensity, 1, pulse.palette);
-    ctx.fillStyle = 'rgba(255,255,255,.98)';
+    glow(point, 12 * pulse.intensity, .46, pulse.palette);
+    glow(point, 5.5 * pulse.intensity, .90, pulse.palette);
+    ctx.fillStyle = 'rgba(255,255,255,.99)';
     ctx.beginPath();
-    ctx.arc(point.x, point.y, Math.max(2.1, 3.3 * pulse.intensity), 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, Math.max(1.25, 1.9 * pulse.intensity), 0, Math.PI * 2);
     ctx.fill();
 
-    // The approved flow visibly energised shared branch junctions as a signal
-    // crossed trunk -> stem -> child boundaries. These points are precomputed
-    // with the cached route, so this adds no per-frame route reconstruction.
     for (const boundary of pulse.boundaries) {
       const distance = Math.abs(eased - boundary.progress);
-      if (distance > .055) continue;
-      const energy = 1 - distance / .055;
-      glow(boundary.point, (8 + energy * 14) * pulse.intensity, energy * .62, pulse.palette);
+      if (distance > .040) continue;
+      const energy = 1 - distance / .040;
+      glow(boundary.point, (5 + energy * 7) * pulse.intensity, energy * .44, pulse.palette);
     }
   }
 
@@ -423,19 +426,27 @@
       const outward = routes.filter((route) => route.sourceHub);
       const available = outward.length ? outward : routes;
       const ambientCount = pulses.filter((pulse) => pulse.ambient).length;
-      if (available.length && ambientCount < 4 && pulses.length < MAX_PULSES) {
-        const route = available[ambientCursor % available.length];
+
+      if (available.length && ambientCount < 3 && pulses.length < MAX_PULSES) {
+        const seedRoute = available[ambientCursor % available.length];
         ambientCursor += 1;
-        fireSynapse(
-          route.sourceId,
-          route.targetId,
-          {
-            ambient: true,
-            palette: route.palette || 'cyan',
-            intensity: .88 + Math.random() * .24,
-            duration: 1350 + Math.random() * 760
-          }
-        );
+
+        const sameCore = available.filter((route) => route.sourceId === seedRoute.sourceId);
+        const burst = (sameCore.length ? sameCore : [seedRoute]).slice(0, Math.min(3, MAX_PULSES - pulses.length));
+
+        burst.forEach((route, index) => {
+          fireSynapse(
+            route.sourceId,
+            route.targetId,
+            {
+              ambient: true,
+              palette: route.palette || 'cyan',
+              intensity: .92 + Math.random() * .14,
+              duration: 1200 + Math.random() * 520,
+              delay: index * 75
+            }
+          );
+        });
       }
       scheduleAmbient();
     }, delay);

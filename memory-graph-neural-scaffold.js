@@ -3,7 +3,7 @@
 
   // Approved visual authority:
   // scaffold blob a04fc6d1f23a72df4f76a0e9e8ac5b9cb8f9e45f
-  const VERSION = 8;
+  const VERSION = 9;
   const MAX_DPR = 1.75;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
@@ -382,35 +382,20 @@
     native.stroke.call(context);
   }
 
-  function drawOrganicTube(context, curve, width, accent = accentFor(curve.seed), trunk = false) {
+  function drawOrganicTube(context, curve, width) {
     context.save();
-    context.globalCompositeOperation = 'lighter';
+    context.globalCompositeOperation = 'source-over';
 
-    strokeCurve(context, curve, width * 4.1, 'rgba(10,55,190,.030)');
-    strokeCurve(context, curve, width * 2.55, 'rgba(21,102,245,.075)');
-    strokeCurve(context, curve, width * 1.35, rgba(accent.glow, .18));
-    strokeCurve(context, curve, Math.max(.88, width * .50), rgba(accent.body, .70));
-    strokeCurve(context, curve, Math.max(.34, width * .13), 'rgba(247,254,255,.92)');
+    // CodePen-style idea: the neuron exists as quiet neutral tissue.
+    // Colour belongs to the travelling signal layer, not the scaffold.
+    strokeCurve(context, curve, width * 1.9, 'rgba(65,82,104,.055)');
+    strokeCurve(context, curve, width, 'rgba(142,158,178,.16)');
+    strokeCurve(context, curve, Math.max(.32, width * .28), 'rgba(222,232,240,.24)');
 
-    const fibreCount = trunk ? 3 : 2;
-    for (let lane = 0; lane < fibreCount; lane += 1) {
-      const fibreAccent = trunk ? accentFor(curve.seed + lane * .319, lane + 1) : accent;
-      const endT = .84 + hash(curve.seed, lane + 31, 1) * .15;
-      const fibreEnd = pointOnCurve(curve, endT);
-      const fibre = controlPoints(
-        curve.p0,
-        fibreEnd,
-        curve.seed + .611 + lane * .417,
-        .38 + hash(curve.seed, lane + 32, 2) * .36,
-        lane + 9
-      );
-      strokeCurve(context, fibre, trunk ? .62 : .46, rgba(fibreAccent.glow, trunk ? .48 : .34));
-      strokeCurve(context, fibre, trunk ? .22 : .18, rgba(fibreAccent.body, trunk ? .82 : .68));
-    }
     context.restore();
   }
 
-  function drawNeurite(context, origin, tangent, seed, reach, accent, mobile, forkBias = .52) {
+  function drawNeurite(context, origin, tangent, seed, reach, mobile, forkBias = .52) {
     const px = -tangent.y;
     const py = tangent.x;
     const side = hash(seed, 2, 3) > .5 ? 1 : -1;
@@ -431,8 +416,8 @@
     context.beginPath();
     context.moveTo(origin.x, origin.y);
     context.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
-    context.lineWidth = mobile ? .34 : .46;
-    context.strokeStyle = rgba(accent.glow, .34);
+    context.lineWidth = mobile ? .26 : .34;
+    context.strokeStyle = 'rgba(181,196,210,.16)';
     native.stroke.call(context);
 
     const branchBase = lerpPoint(c1, c2, .62);
@@ -453,17 +438,17 @@
         forkEnd.x,
         forkEnd.y
       );
-      context.lineWidth = mobile ? .22 : .28;
-      context.strokeStyle = rgba(accent.body, .29);
+      context.lineWidth = mobile ? .18 : .22;
+      context.strokeStyle = 'rgba(205,216,226,.12)';
       native.stroke.call(context);
     }
   }
 
-  function drawDendrites(context, curve, seed, density, mobile, accent = accentFor(seed)) {
+  function drawDendrites(context, curve, seed, density, mobile) {
     const divisor = mobile ? 54 : 38;
     const count = clamp(Math.round(curve.length / divisor * density), 3, mobile ? 7 : 11);
     context.save();
-    context.globalCompositeOperation = 'lighter';
+    context.globalCompositeOperation = 'source-over';
     context.lineCap = 'round';
     context.lineJoin = 'round';
     for (let index = 0; index < count; index += 1) {
@@ -472,8 +457,7 @@
       const origin = pointOnCurve(curve, t);
       const tangent = tangentOnCurve(curve, t);
       const reach = 20 + hash(localSeed, 5, 6) * (mobile ? 34 : 64);
-      const branchAccent = hash(localSeed, 14, 15) > .72 ? accentFor(localSeed, index + 2) : accent;
-      drawNeurite(context, origin, tangent, localSeed, reach, branchAccent, mobile, mobile ? .68 : .46);
+      drawNeurite(context, origin, tangent, localSeed, reach, mobile, mobile ? .68 : .46);
     }
     context.restore();
   }
@@ -484,47 +468,46 @@
     context.globalCompositeOperation = 'lighter';
     const gradient = context.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
     gradient.addColorStop(0, 'rgba(246,254,255,.30)');
-    gradient.addColorStop(.25, 'rgba(117,220,255,.22)');
-    gradient.addColorStop(.72, 'rgba(44,124,255,.10)');
-    gradient.addColorStop(1, 'rgba(30,82,255,0)');
+    gradient.addColorStop(.25, 'rgba(195,210,222,.12)');
+    gradient.addColorStop(.72, 'rgba(120,138,158,.06)');
+    gradient.addColorStop(1, 'rgba(90,105,125,0)');
     context.beginPath();
     context.arc(point.x, point.y, radius, 0, Math.PI * 2);
     context.fillStyle = gradient;
     context.fill();
     context.beginPath();
     context.arc(point.x, point.y, Math.max(1.1, radius * .16), 0, Math.PI * 2);
-    context.fillStyle = 'rgba(248,254,255,.88)';
+    context.fillStyle = 'rgba(232,240,246,.42)';
     context.fill();
     context.restore();
   }
 
   function drawCentreMass(context, network, mobile) {
     if (!network.hub) return;
-    const radius = mobile ? 40 : 58;
+    const radius = mobile ? 18 : 24;
     const centre = network.centre;
     const networkSeed = hashText(network.sourceId || 'hub') * 1000;
 
     context.save();
-    context.globalCompositeOperation = 'lighter';
-    const gradient = context.createRadialGradient(centre.x, centre.y, 0, centre.x, centre.y, radius * 1.22);
-    gradient.addColorStop(0, 'rgba(250,255,255,.26)');
-    gradient.addColorStop(.16, 'rgba(101,224,255,.24)');
-    gradient.addColorStop(.42, 'rgba(44,141,255,.15)');
-    gradient.addColorStop(.78, 'rgba(26,73,225,.07)');
-    gradient.addColorStop(1, 'rgba(17,55,210,0)');
+    context.globalCompositeOperation = 'source-over';
+
+    const gradient = context.createRadialGradient(centre.x, centre.y, 0, centre.x, centre.y, radius);
+    gradient.addColorStop(0, 'rgba(244,249,252,.24)');
+    gradient.addColorStop(.35, 'rgba(170,190,208,.11)');
+    gradient.addColorStop(1, 'rgba(90,108,130,0)');
     context.beginPath();
-    context.arc(centre.x, centre.y, radius * 1.22, 0, Math.PI * 2);
+    context.arc(centre.x, centre.y, radius, 0, Math.PI * 2);
     context.fillStyle = gradient;
     context.fill();
 
-    const tendrilCount = mobile ? 10 : 18;
+    const tendrilCount = mobile ? 8 : 12;
     for (let index = 0; index < tendrilCount; index += 1) {
       const localSeed = networkSeed + index * .419;
-      const angle = (index / tendrilCount) * Math.PI * 2 + (hash(localSeed, 1, 2) - .5) * .34;
+      const angle = (index / tendrilCount) * Math.PI * 2 + (hash(localSeed, 1, 2) - .5) * .42;
       const direction = { x: Math.cos(angle), y: Math.sin(angle) };
       const normal = { x: -direction.y, y: direction.x };
-      const reach = radius * (.72 + hash(localSeed, 3, 4) * 1.15);
-      const sway = (hash(localSeed, 5, 6) - .5) * radius * .58;
+      const reach = radius * (1.15 + hash(localSeed, 3, 4) * 1.55);
+      const sway = (hash(localSeed, 5, 6) - .5) * radius * .72;
       const end = {
         x: centre.x + direction.x * reach + normal.x * sway * .34,
         y: centre.y + direction.y * reach + normal.y * sway * .34
@@ -543,48 +526,26 @@
         length: reach,
         seed: localSeed
       };
-      const accent = accentFor(localSeed, index);
-      strokeCurve(context, curve, mobile ? 1.05 : 1.32, rgba(accent.glow, .18));
-      strokeCurve(context, curve, mobile ? .32 : .40, rgba(accent.body, .52));
-      if (hash(localSeed, 7, 8) > .34) {
-        const origin = pointOnCurve(curve, .52 + hash(localSeed, 9, 10) * .16);
-        const tangent = tangentOnCurve(curve, .58);
-        drawNeurite(context, origin, tangent, localSeed + .77, reach * .52, accent, mobile, .40);
-      }
-    }
-
-    for (let index = 0; index < network.clusters.length; index += 1) {
-      const direction = averageDirection(network.clusters[index], centre);
-      const rootEnd = {
-        x: centre.x + direction.x * radius * (.70 + hash(index + 1.7, 1, 2) * .28),
-        y: centre.y + direction.y * radius * (.70 + hash(index + 1.7, 1, 2) * .28)
-      };
-      const accent = accentFor(networkSeed + index * .293, index);
-      const root = controlPoints(centre, rootEnd, networkSeed + index * .377 + 1.3, .42, index);
-      strokeCurve(context, root, mobile ? 1.0 : 1.25, rgba(accent.glow, .28));
-      strokeCurve(context, root, .34, rgba(accent.body, .68));
+      strokeCurve(context, curve, mobile ? .28 : .36, 'rgba(188,202,214,.15)');
     }
     context.restore();
   }
 
   function drawCluster(context, geometry, mobile) {
-    const trunkWidth = clamp(geometry.trunk.length * .052, 4.8, 10.8);
-    const trunkAccent = accentFor(geometry.seed, 0);
-    drawOrganicTube(context, geometry.trunk, trunkWidth, trunkAccent, true);
-    drawDendrites(context, geometry.trunk, geometry.seed, 1.18, mobile, trunkAccent);
-    drawJunction(context, geometry.junction, .94);
+    const trunkWidth = clamp(geometry.trunk.length * .020, 1.6, 3.8);
+    drawOrganicTube(context, geometry.trunk, trunkWidth);
+    drawDendrites(context, geometry.trunk, geometry.seed, 1.12, mobile);
+    drawJunction(context, geometry.junction, .48);
 
     for (const child of geometry.children) {
-      const accent = child.accent || accentFor(child.seed);
       if (child.stem) {
-        const stemWidth = clamp(child.stem.length * .040, 2.3, 5.8);
-        drawOrganicTube(context, child.stem, stemWidth, accent, false);
-        drawDendrites(context, child.stem, child.seed + 1.1, .70, mobile, accent);
-        if (hash(child.seed, 11, 12) > .35) drawJunction(context, child.shared, .56);
+        const stemWidth = clamp(child.stem.length * .018, 1.1, 2.7);
+        drawOrganicTube(context, child.stem, stemWidth);
+        drawDendrites(context, child.stem, child.seed + 1.1, .66, mobile);
       }
-      const branchWidth = clamp(child.branch.length * .030, 2.0, 5.5);
-      drawOrganicTube(context, child.branch, branchWidth, accent, false);
-      drawDendrites(context, child.branch, child.seed + 2.3, .82, mobile, accent);
+      const branchWidth = clamp(child.branch.length * .016, .85, 2.15);
+      drawOrganicTube(context, child.branch, branchWidth);
+      drawDendrites(context, child.branch, child.seed + 2.3, .78, mobile);
     }
   }
 
