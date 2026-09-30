@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 18;
+  const VERSION = 14;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -916,13 +916,9 @@
 
     const previousSpaceId = graph?.spaceNode?.id || null;
     const savedState = savedStateForSpace(data.space.id);
-    const initialPresentation = !previousSpaceId;
-    const layoutState = initialPresentation && savedState
-      ? { ...savedState, view: null, memoryRoot: null, nodes: {} }
-      : savedState;
     if (previousSpaceId && previousSpaceId !== data.space.id) resetView();
 
-    graph = buildGraph(data, width, height, layoutState, liveRoot);
+    graph = buildGraph(data, width, height, savedState, liveRoot);
     if (liveRoot && liveRoot.id === String(graph.spaceNode.id)) {
       graph.spaceNode.x = liveRoot.x;
       graph.spaceNode.y = liveRoot.y;
@@ -941,10 +937,8 @@
     for (const node of graph.nodes) {
       if (!node.fixed) containNode(node);
     }
-    const restored = initialPresentation ? false : restoreSavedView(savedState?.view, width, height);
-    if (initialPresentation || homePresentation || (!restored || Math.abs(view.scale - 1) < .01)) {
-      frameUniverse({ padding: initialPresentation ? 1.08 : 1 });
-    }
+    const restored = restoreSavedView(savedState?.view, width, height);
+    if (homePresentation || (!previousSpaceId && (!restored || Math.abs(view.scale - 1) < .01))) frameUniverse();
     if (count) count.textContent = String(graph.memoryNodes.length + 1);
     simulationFrames = 0;
 
@@ -1002,20 +996,9 @@
 
     const memories = data.memories;
     const memoryNodes = memories.map((memory, index) => {
-      // Match the compact manual-group presentation on first layout: eight
-      // memories per ring, small stepped rings and a slight phase turn between
-      // rings. This gives the Memory cluster the same neat stacked/crown shape
-      // as a titled memory group instead of a loose all-around spray.
-      const slotsPerRing = 8;
-      const ring = Math.floor(index / slotsPerRing);
-      const slot = index % slotsPerRing;
-      const slotsOnRing = Math.min(slotsPerRing, Math.max(1, memories.length - ring * slotsPerRing));
-      const phase = -Math.PI / 2 + ring * 0.36;
-      const angle = phase + (slot / slotsOnRing) * Math.PI * 2;
-      // Mirror the manual-group member spacing: first ring about 76px out,
-      // then compact 21px ring steps.
-      const localOrbit = 76 + ring * 21;
+      const angle = -Math.PI / 2 + (index / Math.max(1, memories.length)) * Math.PI * 2;
       const profile = memoryProfile(memory, data.allMemories);
+      const localOrbit = directAppChildOrbit(index);
       const savedNode = savedState?.nodes?.[memory.id];
       const savedOffsetX = Number(savedNode?.offsetX);
       const savedOffsetY = Number(savedNode?.offsetY);
@@ -1031,7 +1014,6 @@
         radius: profile.radius,
         targetOrbit: localOrbit,
         localOrbit,
-        layoutAngle: angle,
         gravityWeight: profile.gravityWeight,
         parentId: spaceNode.id,
         relationshipCount: profile.relationshipCount,
@@ -1049,25 +1031,8 @@
     const appDefinitions = globalThis.UniversalAppAdapters?.getAppDefinitions?.() || [];
     const appNodes = [];
     const appEdges = [];
-    const preferredSlots = new Map([
-      ['code-space', { x: 0.32, y: 0.50 }],
-      ['example-settings', { x: 0.68, y: 0.50 }],
-      ['email', { x: 0.32, y: 0.78 }],
-      ['office', { x: 0.68, y: 0.78 }]
-    ]);
     appDefinitions.forEach((appDefinition, appIndex, definitions) => {
-      const fallbackColumns = Math.min(2, Math.max(1, definitions.length));
-      const fallbackRow = Math.floor(appIndex / fallbackColumns);
-      const fallbackColumn = appIndex % fallbackColumns;
-      const fallbackRows = Math.max(1, Math.ceil(definitions.length / fallbackColumns));
-      const fallbackSlot = {
-        x: fallbackColumns === 1 ? 0.5 : (fallbackColumn === 0 ? 0.32 : 0.68),
-        y: fallbackRows === 1 ? 0.62 : 0.50 + (fallbackRow / Math.max(1, fallbackRows - 1)) * 0.28
-      };
-      const slot = preferredSlots.get(String(appDefinition.id)) || fallbackSlot;
-      const appX = width * slot.x;
-      const appY = height * slot.y;
-      const appAngle = Math.atan2(appY - universeCentreY, appX - universeCentreX);
+      const appAngle = Math.PI * 0.78 + (appIndex / Math.max(1, definitions.length)) * Math.PI * 2;
       const appRoot = {
         id: appDefinition.id,
         appId: appDefinition.id,
@@ -1076,8 +1041,8 @@
         appRoot: true,
         clusterRoot: true,
         label: appDefinition.name,
-        x: appX,
-        y: appY,
+        x: universeCentreX + Math.cos(appAngle) * appOrbit,
+        y: universeCentreY + Math.sin(appAngle) * appOrbit,
         vx: 0,
         vy: 0,
         radius: 34,
@@ -1451,29 +1416,14 @@
         ? graph.nodes.find((candidate) => !candidate.hidden
           && String(candidate.id) === String(node.parentId))
         : null;
-      const compactMemoryChild = node.kind === 'memory'
-        && localParent === graph.spaceNode
-        && !node.__manualGroupId;
       if (localParent && !localParent.hidden) {
         const dx = node.x - localParent.x;
         const dy = node.y - localParent.y;
-
-        if (compactMemoryChild && Number.isFinite(node.layoutAngle)) {
-          // A radial spring alone lets the memories slide around the ring and
-          // bunch to one side. Lock each direct Memory child to a soft angular
-          // slot, the same visual principle used by titled manual groups.
-          const orbit = node.localOrbit || node.targetOrbit || graph.orbitRadius;
-          const targetX = localParent.x + Math.cos(node.layoutAngle) * orbit;
-          const targetY = localParent.y + Math.sin(node.layoutAngle) * orbit;
-          fx += (targetX - node.x) * 0.012;
-          fy += (targetY - node.y) * 0.012;
-        } else {
-          const distance = Math.max(1, Math.hypot(dx, dy));
-          const radialOffset = distance - (node.localOrbit || node.targetOrbit || graph.orbitRadius);
-          const radialForce = -radialOffset * 0.0019 * Math.max(0.8, node.gravityWeight || 1);
-          fx += (dx / distance) * radialForce;
-          fy += (dy / distance) * radialForce;
-        }
+        const distance = Math.max(1, Math.hypot(dx, dy));
+        const radialOffset = distance - (node.localOrbit || node.targetOrbit || graph.orbitRadius);
+        const radialForce = -radialOffset * 0.0019 * Math.max(0.8, node.gravityWeight || 1);
+        fx += (dx / distance) * radialForce;
+        fy += (dy / distance) * radialForce;
       }
 
       if (node.clusterRoot && !expansionAnchored) {
@@ -1489,11 +1439,7 @@
         const pairY = node.y - other.y;
         const pairDistanceSq = Math.max(100, pairX * pairX + pairY * pairY);
         const pairDistance = Math.sqrt(pairDistanceSq);
-        let repulsion = Math.min(0.9, 900 / pairDistanceSq);
-        const otherCompactMemoryChild = other.kind === 'memory'
-          && String(other.parentId || '') === String(graph.spaceNode?.id || '')
-          && !other.__manualGroupId;
-        if (compactMemoryChild && otherCompactMemoryChild) repulsion *= 0.08;
+        const repulsion = Math.min(0.9, 900 / pairDistanceSq);
         const pushX = (pairX / pairDistance) * repulsion;
         const pushY = (pairY / pairDistance) * repulsion;
         fx += pushX / Math.max(0.85, node.gravityWeight || 1);
