@@ -4,7 +4,7 @@
   // Pulse routing follows the approved August renderer (blob
   // 6feadb2985a4179620fd55ae9b95c6afd12bb3fb) while retaining the current
   // pulse-only, capped and visibility-aware animation lifecycle.
-  const VERSION = 14;
+  const VERSION = 15;
   const MAX_DPR = 1.75;
   const MAX_PULSES = 10;
   const FRAME_MS = 1000 / 30;
@@ -151,6 +151,18 @@
     return {
       points: curvePoints(from, to, String(sourceId).length * 31 + String(targetId).length * 17),
       boundaries: []
+    };
+  }
+
+  function resolveVisualPath(sourceId, targetId) {
+    const route = resolvePath(sourceId, targetId);
+    if (!route?.points?.length) return null;
+    return {
+      points: route.points.map((point) => ({ x: Number(point.x) || 0, y: Number(point.y) || 0 })),
+      boundaries: (route.boundaries || []).map((boundary) => ({
+        progress: Number(boundary.progress) || 0,
+        point: boundary.point ? { x: Number(boundary.point.x) || 0, y: Number(boundary.point.y) || 0 } : null
+      })).filter((boundary) => boundary.point)
     };
   }
 
@@ -422,6 +434,16 @@
     if (ambientTimer) clearTimeout(ambientTimer);
     ambientTimer = 0;
     if (document.hidden || reducedMotion.matches) return;
+
+    const shaderLightshow = globalThis.MemoryGraphNeuralLightshow;
+    if (shaderLightshow?.ready?.()) {
+      ambientTimer = window.setTimeout(() => {
+        ambientTimer = 0;
+        scheduleAmbient();
+      }, 2400);
+      return;
+    }
+
     const delay = AMBIENT_MIN_MS + Math.random() * (AMBIENT_MAX_MS - AMBIENT_MIN_MS);
     ambientTimer = window.setTimeout(() => {
       ambientTimer = 0;
@@ -514,6 +536,7 @@
   const api = Object.freeze({
     version: VERSION,
     captureAnchor,
+    resolveVisualPath,
     fireSynapse,
     activePulseCount: () => pulses.length,
     pulseLimit: MAX_PULSES,
