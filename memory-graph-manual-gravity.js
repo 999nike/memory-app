@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 12;
+  const VERSION = 13;
   const GROUP_KEY = 'memory-graph-folders-v1';
   const GROUP_PREFIX = 'manual-group:';
   const PERSIST_DELAY_MS = 420;
@@ -39,9 +39,28 @@
     return `${GROUP_PREFIX}${String(groupId || '')}`;
   }
 
+  function clusterRadiusForCount(count) {
+    return 35 + Math.min(21, Math.sqrt(Math.max(0, Number(count) || 0)) * 7.2);
+  }
+
+  function clusterMemberLayout(count, nodeRadius, index, phase = 0) {
+    const total = Math.max(1, Number(count) || 1);
+    const slotsPerRing = 8;
+    const ring = Math.floor(index / slotsPerRing);
+    const slot = index % slotsPerRing;
+    const slotsOnRing = Math.min(slotsPerRing, Math.max(1, total - ring * slotsPerRing));
+    const angle = Number(phase || 0) + (slot / slotsOnRing) * Math.PI * 2 + ring * 0.36;
+    const orbit = clusterRadiusForCount(total) + 20 + ring * 21;
+    return {
+      angle,
+      orbit,
+      radius: Math.max(7, Number(nodeRadius || 12) * 0.60)
+    };
+  }
+
   function groupRadius(group) {
     const count = Array.isArray(group?.members) ? group.members.length : 0;
-    return 35 + Math.min(21, Math.sqrt(count) * 7.2);
+    return clusterRadiusForCount(count);
   }
 
   function groupOrbit(graph) {
@@ -72,20 +91,20 @@
 
   function memberLayout(group, node, index) {
     const members = Array.isArray(group?.members) ? group.members.map(String) : [];
-    const count = Math.max(1, members.length);
-    const slotsPerRing = 8;
-    const ring = Math.floor(index / slotsPerRing);
-    const slot = index % slotsPerRing;
-    const slotsOnRing = Math.min(slotsPerRing, Math.max(1, count - ring * slotsPerRing));
-    const phase = Number(group?.phase || 0);
-    const angle = phase + (slot / slotsOnRing) * Math.PI * 2 + ring * 0.36;
-    const orbit = groupRadius(group) + 20 + ring * 21;
-    return {
-      angle,
-      orbit,
-      radius: Math.max(7, Number(node?.__manualGroupOriginalRadius || node?.radius || 12) * 0.60)
-    };
+    return clusterMemberLayout(
+      Math.max(1, members.length),
+      Number(node?.__manualGroupOriginalRadius || node?.radius || 12),
+      index,
+      Number(group?.phase || 0)
+    );
   }
+
+  globalThis.MemoryGraphClusterLayout = Object.freeze({
+    version: 1,
+    radiusForCount: clusterRadiusForCount,
+    memberLayout: ({ count, nodeRadius, index, phase = 0 } = {}) =>
+      clusterMemberLayout(count, nodeRadius, index, phase)
+  });
 
   function restoreUngroupedNode(node) {
     if (!node?.__manualGroupId) return false;
