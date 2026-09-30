@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 4;
+  const VERSION = 5;
   const THREE_MODULE = './vendor/three/three.module.min.js';
   const MAX_DPR = 1.5;
   const params = new URLSearchParams(location.search);
@@ -16,6 +16,13 @@
   let scene = null;
   let camera = null;
   let structure = null;
+  let pulseGroup = null;
+  let pulseTexture = null;
+  let pulseFrame = 0;
+  let pulseSequence = 0;
+  let pulseHiddenAt = 0;
+  const pulses = [];
+  const routeCurves = new Map();
   let rootMaterial = null;
   let rootHazeMaterial = null;
   let somaMaterial = null;
@@ -27,6 +34,27 @@
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const scaffold = () => globalThis.MemoryGraphNeuralScaffold || null;
+  const PULSE_LIMIT = 10;
+  const PULSE_TRAIL_SPRITES = 6;
+  const paletteColours = Object.freeze({
+    blue: 0x66e1ff,
+    cyan: 0x5ff0ff,
+    lime: 0xc1ff4f,
+    violet: 0xe774ff,
+    magenta: 0xff5cdb,
+    yellow: 0xffe848,
+    green: 0x94ff7d,
+    purple: 0xe273ff,
+    orange: 0xffbe4a
+  });
+
+  function routeKey(sourceId, targetId) {
+    return String(sourceId || '') + '\u0000' + String(targetId || '');
+  }
+
+  function paletteColour(name) {
+    return paletteColours[String(name || 'cyan').toLowerCase()] || paletteColours.cyan;
+  }
 
   function hashText(value) {
     let result = 2166136261;
@@ -55,7 +83,7 @@
     style.id = 'memoryGraphNeuralThreeStyles';
     style.textContent =
       '#memoryGraphSurface.memory-neural-three-active .memory-graph-neural-scaffold-canvas{opacity:0!important;visibility:hidden!important}' +
-      '#memoryGraphSurface.memory-neural-three-active .memory-graph-neural-flow-canvas{display:block!important;visibility:visible!important;opacity:1!important}' +
+      '#memoryGraphSurface.memory-neural-three-active .memory-graph-neural-flow-canvas{display:none!important}' +
       '.memory-graph-neural-three-canvas{position:absolute;inset:0;z-index:1;display:block;width:100%;height:100%;pointer-events:none}';
     document.head.appendChild(style);
   }
@@ -64,6 +92,57 @@
     if (!structure) return;
     structure.traverse((object) => object.geometry?.dispose?.());
     while (structure.children.length) structure.remove(structure.children[0]);
+    routeCurves.clear();
+  }
+
+  function makePulseTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const context = canvas.getContext('2d');
+    const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.16, 'rgba(255,255,255,.96)');
+    gradient.addColorStop(0.42, 'rgba(255,255,255,.42)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 64, 64);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  function makeGlowSprite(colour, opacity = 1) {
+    const material = new THREE.SpriteMaterial({
+      map: pulseTexture,
+      color: colour,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.renderOrder = 20;
+    pulseGroup.add(sprite);
+    return sprite;
+  }
+
+  function disposePulse(pulse) {
+    pulse.line?.geometry?.dispose?.();
+    pulse.line?.material?.dispose?.();
+    pulse.core?.material?.dispose?.();
+    pulse.front?.material?.dispose?.();
+    pulse.source?.material?.dispose?.();
+    pulse.arrival?.material?.dispose?.();
+    for (const sprite of pulse.trail || []) sprite.material?.dispose?.();
+    pulseGroup?.remove(pulse.line, pulse.core, pulse.front, pulse.source, pulse.arrival, ...(pulse.trail || []));
+  }
+
+  function clearPulses() {
+    while (pulses.length) disposePulse(pulses.pop());
+    if (pulseFrame) cancelAnimationFrame(pulseFrame);
+    pulseFrame = 0;
   }
 
   function ensureLayer() {
@@ -98,6 +177,11 @@
     structure = new THREE.Group();
     scene.add(structure);
 
+    pulseGroup = new THREE.Group();
+    pulseGroup.renderOrder = 20;
+    scene.add(pulseGroup);
+    pulseTexture = makePulseTexture();
+
     rootMaterial = new THREE.MeshStandardMaterial({
       color: 0x31545d,
       roughness: 0.52,
@@ -131,9 +215,8 @@
     rim.position.set(220, 180, 120);
     scene.add(rim);
 
-    // Keep the approved pulse canvas visible above the Three tissue. It supplies
-    // the reference-style core launch, travelling branch energy, email activity
-    // and orange job-route signals while Three owns the resting root geometry.
+    // Three now owns the travelling light visuals. The existing Canvas flow
+    // controller still owns timing, Email/job activity and route semantics.
     installStyles();
     surface.classList.add('memory-neural-three-active');
     return resize();
@@ -453,15 +536,219 @@
           branchCurve.getLength(),
           0.75
         );
+
+        // Preserve the exact Three path used by this visible root so existing
+        // semantic activity can light the new geometry without changing the
+        // Email/job workflow code.
+        const routePath = new THREE.CurvePath();
+        routePath.add(trunk);
+        routePath.add(branchCurve);
+        routeCurves.set(routeKey(route.sourceId, route.targetId), routePath);
+        routeCurves.set(routeKey(route.targetId, route.sourceId), {
+          getLength: () => routePath.getLength(),
+          getPointAt: (value) => routePath.getPointAt(1 - clamp(value, 0, 1))
+        });
       });
     });
   }
+
+
+  function fallbackPulseCurve(sourceNodeId, targetNodeId) {
+    const route = scaffold()?.routeBetween?.(sourceNodeId, targetNodeId);
+    if (!route?.points?.length || route.points.length < 2) return null;
+    const points = route.points.map((point, index) => new THREE.Vector3(
+      Number(point.x) || 0,
+      Number(point.y) || 0,
+      Math.sin(index * 0.73) * 2.4
+    ));
+    return new THREE.CatmullRomCurve3(points, false, 'centripetal', 0.5);
+  }
+
+  function pulseCurve(sourceNodeId, targetNodeId) {
+    return routeCurves.get(routeKey(sourceNodeId, targetNodeId))
+      || fallbackPulseCurve(sourceNodeId, targetNodeId);
+  }
+
+  function createPulse(sourceNodeId, targetNodeId, options = {}) {
+    if (!THREE || !renderer || !pulseGroup) return false;
+    const curve = pulseCurve(sourceNodeId, targetNodeId);
+    if (!curve) return false;
+
+    if (pulses.length >= PULSE_LIMIT) {
+      const ambientIndex = pulses.findIndex((pulse) => pulse.ambient);
+      if (ambientIndex >= 0) disposePulse(pulses.splice(ambientIndex, 1)[0]);
+      else return false;
+    }
+
+    const palette = String(options.palette || 'cyan').toLowerCase();
+    const colour = paletteColour(palette);
+    const intensity = clamp(Number(options.intensity) || 1, 0.45, 1.8);
+    const duration = clamp(Number(options.duration) || 1750, 650, 4200);
+    const samples = 72;
+    const sampled = [];
+    for (let index = 0; index <= samples; index += 1) {
+      sampled.push(curve.getPointAt(index / samples));
+    }
+
+    const lineGeometry = new THREE.BufferGeometry().setFromPoints(sampled);
+    lineGeometry.setDrawRange(0, 2);
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color: colour,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending
+    });
+    const line = new THREE.Line(lineGeometry, lineMaterial);
+    line.renderOrder = 18;
+    pulseGroup.add(line);
+
+    const front = makeGlowSprite(colour, 0.95);
+    const core = makeGlowSprite(0xffffff, 1);
+    const source = makeGlowSprite(colour, 0);
+    const arrival = makeGlowSprite(colour, 0);
+    const trail = Array.from({ length: PULSE_TRAIL_SPRITES }, () => makeGlowSprite(colour, 0));
+
+    const pulse = {
+      id: 'three-synapse-' + (++pulseSequence),
+      sourceNodeId: String(sourceNodeId || ''),
+      targetNodeId: String(targetNodeId || ''),
+      palette,
+      curve,
+      line,
+      front,
+      core,
+      source,
+      arrival,
+      trail,
+      intensity,
+      ambient: options.ambient === true,
+      startedAt: performance.now() + clamp(Number(options.delay) || 0, 0, 900),
+      duration,
+      destinationRadius: clamp(Number(options.destinationRadius) || 16, 8, 42),
+      arrivalDetail: options.arrivalDetail || null,
+      arrived: false
+    };
+
+    const start = curve.getPointAt(0);
+    source.position.copy(start);
+    source.scale.setScalar(18 * intensity);
+    const end = curve.getPointAt(1);
+    arrival.position.copy(end);
+    arrival.scale.setScalar(pulse.destinationRadius * 1.4);
+
+    pulses.push(pulse);
+    startPulseLoop();
+    return pulse.id;
+  }
+
+  function updatePulse(pulse, timestamp) {
+    const elapsed = timestamp - pulse.startedAt;
+    if (elapsed < 0) return true;
+
+    const progress = clamp(elapsed / pulse.duration, 0, 1);
+    const eased = progress * progress * (3 - 2 * progress);
+    const point = pulse.curve.getPointAt(eased);
+
+    const drawCount = Math.max(2, Math.min(73, Math.floor(eased * 72) + 1));
+    pulse.line.geometry.setDrawRange(0, drawCount);
+    pulse.line.material.opacity = 0.30 + 0.42 * Math.sin(Math.min(1, progress) * Math.PI);
+
+    const frontSize = (18 + 7 * Math.sin(progress * Math.PI * 5)) * pulse.intensity;
+    pulse.front.position.copy(point);
+    pulse.front.scale.setScalar(frontSize);
+    pulse.front.material.opacity = 0.88;
+
+    pulse.core.position.copy(point);
+    pulse.core.scale.setScalar(Math.max(3.2, 5.2 * pulse.intensity));
+    pulse.core.material.opacity = 0.98;
+
+    const launchEnergy = progress < 0.18 ? (1 - progress / 0.18) : 0;
+    pulse.source.material.opacity = launchEnergy * 0.92;
+    pulse.source.scale.setScalar((18 + launchEnergy * 24) * pulse.intensity);
+
+    for (let index = 0; index < pulse.trail.length; index += 1) {
+      const sprite = pulse.trail[index];
+      const back = eased - (index + 1) * 0.022;
+      if (back <= 0) {
+        sprite.material.opacity = 0;
+        continue;
+      }
+      sprite.position.copy(pulse.curve.getPointAt(back));
+      const fade = 1 - index / pulse.trail.length;
+      sprite.scale.setScalar((12 * fade + 3) * pulse.intensity);
+      sprite.material.opacity = 0.42 * fade;
+    }
+
+    if (progress >= 1 && !pulse.arrived) {
+      pulse.arrived = true;
+      pulse.arrivedAt = timestamp;
+      pulse.front.material.opacity = 0;
+      pulse.core.material.opacity = 0;
+      pulse.line.material.opacity = 0.62;
+      if (pulse.arrivalDetail) {
+        window.dispatchEvent(new CustomEvent('universal-route-pulse-arrived', {
+          detail: pulse.arrivalDetail
+        }));
+      }
+    }
+
+    if (pulse.arrived) {
+      const arrivalProgress = clamp((timestamp - pulse.arrivedAt) / 520, 0, 1);
+      const energy = Math.sin(arrivalProgress * Math.PI);
+      pulse.arrival.material.opacity = energy * 0.96;
+      pulse.arrival.scale.setScalar(
+        pulse.destinationRadius * (0.75 + arrivalProgress * 1.65) * pulse.intensity
+      );
+      pulse.line.material.opacity = Math.max(0, 0.62 * (1 - arrivalProgress));
+      if (arrivalProgress >= 1) return false;
+    }
+
+    return true;
+  }
+
+  function pulseLoop(timestamp) {
+    pulseFrame = 0;
+    if (document.hidden || !renderer || !scene || !camera) return;
+
+    for (let index = pulses.length - 1; index >= 0; index -= 1) {
+      if (updatePulse(pulses[index], timestamp)) continue;
+      disposePulse(pulses.splice(index, 1)[0]);
+    }
+
+    renderer.render(scene, camera);
+    if (pulses.length) pulseFrame = requestAnimationFrame(pulseLoop);
+  }
+
+  function startPulseLoop() {
+    if (!pulseFrame && !document.hidden && pulses.length) {
+      pulseFrame = requestAnimationFrame(pulseLoop);
+    }
+  }
+
+  function handlePulseVisibility() {
+    if (document.hidden) {
+      pulseHiddenAt = performance.now();
+      if (pulseFrame) cancelAnimationFrame(pulseFrame);
+      pulseFrame = 0;
+      return;
+    }
+    if (pulseHiddenAt) {
+      const paused = performance.now() - pulseHiddenAt;
+      for (const pulse of pulses) pulse.startedAt += paused;
+      pulseHiddenAt = 0;
+    }
+    startPulseLoop();
+  }
+
 
   function renderStructure() {
     const api = scaffold();
     if (!THREE || !api || !ensureLayer() || !resize()) return;
 
     const groups = hubGroups(api.routes());
+    clearPulses();
     disposeStructure();
 
     if (!groups.length) {
@@ -495,11 +782,15 @@
 
   window.addEventListener('memory-neural-routes-changed', queueRender);
   window.addEventListener('resize', queueRender);
+  document.addEventListener('visibilitychange', handlePulseVisibility);
 
   globalThis.MemoryGraphNeuralThree = Object.freeze({
     version: VERSION,
     renderer: 'three',
-    structureOnly: true,
+    structureOnly: false,
+    lightshow: true,
+    fireSynapse: createPulse,
+    activePulseCount: () => pulses.length,
     activeHubs: () => [...activeHubIds],
     redraw: queueRender
   });

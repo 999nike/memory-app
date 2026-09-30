@@ -4,7 +4,7 @@
   // Pulse routing follows the approved August renderer (blob
   // 6feadb2985a4179620fd55ae9b95c6afd12bb3fb) while retaining the current
   // pulse-only, capped and visibility-aware animation lifecycle.
-  const VERSION = 13;
+  const VERSION = 14;
   const MAX_DPR = 1.75;
   const MAX_PULSES = 10;
   const FRAME_MS = 1000 / 30;
@@ -173,6 +173,11 @@
   }
 
   function fireSynapse(sourceNodeId, targetNodeId, options = {}) {
+    const three = globalThis.MemoryGraphNeuralThree;
+    if (three?.renderer === 'three' && typeof three.fireSynapse === 'function') {
+      return three.fireSynapse(sourceNodeId, targetNodeId, options);
+    }
+
     const route = resolvePath(sourceNodeId, targetNodeId);
     const points = route?.points;
     if (!points?.length || !ensureLayer()) return false;
