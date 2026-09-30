@@ -35,6 +35,9 @@
   let hiddenAt = 0;
   let shaderTime = 0;
   let pulseSequence = 0;
+  let ambientTimer = 0;
+  let ambientCursor = 0;
+  let lastError = null;
   const pulses = [];
 
   const palettes = Object.freeze({
@@ -205,28 +208,37 @@
     camera = new THREE.OrthographicCamera(0, 1, 0, 1, 1, 500);
     camera.position.set(0, 0, 220);
 
+    setupComposer();
+
+    installStyles();
+    return resize();
+  }
+
+  function setupComposer() {
+    if (!renderer || !scene || !camera || !EffectComposer || !RenderPass || !UnrealBloomPass) return false;
+    composer?.dispose?.();
     const renderPass = new RenderPass(scene, camera);
-    bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 1.5, 0.8, 1.0);
+    bloomPass = new UnrealBloomPass(new THREE.Vector2(Math.max(1, width), Math.max(1, height)), 1.5, 0.8, 1.0);
     bloomPass.threshold = 1.0;
     bloomPass.strength = 1.5;
     bloomPass.radius = 0.8;
     composer = new EffectComposer(renderer);
     composer.addPass(renderPass);
     composer.addPass(bloomPass);
-
-    installStyles();
-    return resize();
+    return true;
   }
 
   function resize() {
-    if (!renderer || !composer || !sourceCanvas || !camera) return false;
+    if (!renderer || !sourceCanvas || !camera) return false;
     width = Math.max(1, Math.round(sourceCanvas.clientWidth));
     height = Math.max(1, Math.round(sourceCanvas.clientHeight));
     const dpr = clamp(window.devicePixelRatio || 1, 1, MAX_DPR);
     renderer.setPixelRatio(dpr);
     renderer.setSize(width, height, false);
-    composer.setPixelRatio(dpr);
-    composer.setSize(width, height);
+    if (composer) {
+      composer.setPixelRatio(dpr);
+      composer.setSize(width, height);
+    }
     layer.style.width = width + 'px';
     layer.style.height = height + 'px';
     camera.left = 0;
@@ -418,7 +430,7 @@
 
   function renderFrame(timestamp) {
     frame = 0;
-    if (document.hidden || !renderer || !composer) return;
+    if (document.hidden || !renderer || !scene || !camera) return;
     if (lastFrameAt && timestamp - lastFrameAt < FRAME_MS) {
       frame = requestAnimationFrame(renderFrame);
       return;
@@ -433,7 +445,8 @@
       disposePulse(pulses.splice(index, 1)[0]);
     }
 
-    composer.render();
+    if (composer) composer.render();
+    else renderer.render(scene, camera);
     if (pulses.length) frame = requestAnimationFrame(renderFrame);
     else {
       lastFrameAt = 0;
@@ -443,6 +456,36 @@
 
   function startLoop() {
     if (!frame && !document.hidden && pulses.length) frame = requestAnimationFrame(renderFrame);
+  }
+
+  function scheduleAmbient() {
+    if (ambientTimer) clearTimeout(ambientTimer);
+    ambientTimer = 0;
+    if (document.hidden) return;
+    ambientTimer = window.setTimeout(() => {
+      ambientTimer = 0;
+      const scaffold = globalThis.MemoryGraphNeuralScaffold;
+      const api = threeApi();
+      const routes = (scaffold?.routes?.() || []).filter((route) =>
+        route?.sourceId && route?.targetId && api?.routeSurface?.(route.sourceId, route.targetId)
+      );
+      if (routes.length && pulses.filter((pulse) => pulse.ambient).length < 6) {
+        const seedRoute = routes[ambientCursor % routes.length];
+        ambientCursor += 1;
+        const sameHub = routes.filter((route) => route.sourceId === seedRoute.sourceId);
+        const burst = (sameHub.length ? sameHub : [seedRoute]).slice(0, 4);
+        burst.forEach((route, index) => {
+          fireSynapse(route.sourceId, route.targetId, {
+            ambient: true,
+            palette: route.palette || ['cyan', 'lime', 'violet', 'magenta'][index % 4],
+            intensity: 1.25 + index * 0.05,
+            duration: 1850 + index * 120,
+            delay: index * 110
+          });
+        });
+      }
+      scheduleAmbient();
+    }, 650 + Math.random() * 350);
   }
 
   function clearPulses() {
@@ -456,6 +499,8 @@
   function handleVisibility() {
     if (document.hidden) {
       hiddenAt = performance.now();
+      if (ambientTimer) clearTimeout(ambientTimer);
+      ambientTimer = 0;
       if (frame) cancelAnimationFrame(frame);
       frame = 0;
       lastFrameAt = 0;
@@ -467,6 +512,7 @@
       hiddenAt = 0;
     }
     startLoop();
+    scheduleAmbient();
   }
 
   function handleStructureChange() {
@@ -474,6 +520,7 @@
     if (THREE) {
       ensureLayer();
       resize();
+      scheduleAmbient();
     }
   }
 
@@ -488,25 +535,41 @@
     version: VERSION,
     renderer: 'three-shader-bloom',
     sourceTechnique: 'VoXelo Neural Synapse Simulation (MIT)',
-    ready: () => Boolean(THREE && composer),
+    ready: () => Boolean(THREE && renderer),
     fireSynapse,
     activePulseCount: () => pulses.length,
+    status: () => ({
+      ready: Boolean(THREE && renderer),
+      bloom: Boolean(composer && bloomPass),
+      pulses: pulses.length,
+      lastError: lastError ? String(lastError.message || lastError) : null
+    }),
     clear: clearPulses
   });
   globalThis.MemoryGraphNeuralLightshow = api;
 
-  Promise.all([
-    import(THREE_MODULE),
-    import(EFFECT_COMPOSER_MODULE),
-    import(RENDER_PASS_MODULE),
-    import(BLOOM_PASS_MODULE)
-  ]).then(([threeModule, composerModule, renderPassModule, bloomModule]) => {
+  import(THREE_MODULE).then((threeModule) => {
     THREE = threeModule;
+    ensureLayer();
+    scheduleAmbient();
+    return Promise.all([
+      import(EFFECT_COMPOSER_MODULE),
+      import(RENDER_PASS_MODULE),
+      import(BLOOM_PASS_MODULE)
+    ]);
+  }).then(([composerModule, renderPassModule, bloomModule]) => {
     EffectComposer = composerModule.EffectComposer;
     RenderPass = renderPassModule.RenderPass;
     UnrealBloomPass = bloomModule.UnrealBloomPass;
-    ensureLayer();
+    setupComposer();
+    resize();
+    scheduleAmbient();
   }).catch((error) => {
-    console.error('Memory Space neural shader lightshow failed to load:', error);
+    lastError = error;
+    console.error('Memory Space neural bloom modules failed; shader fallback stays active:', error);
+    if (THREE) {
+      ensureLayer();
+      scheduleAmbient();
+    }
   });
 })();
