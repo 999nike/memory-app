@@ -4,7 +4,7 @@
   // Shader activation + bloom treatment adapted from VoXelo's public
   // "Neural Synapse Simulation" CodePen (MIT). See THIRD_PARTY_NOTICES.md.
   // This layer reuses Memory Space's approved Three.js root geometry exactly.
-  const VERSION = 3;
+  const VERSION = 4;
   const THREE_MODULE = './vendor/three/three.module.min.js';
   const EFFECT_COMPOSER_MODULE = './vendor/three/addons/postprocessing/EffectComposer.js';
   const RENDER_PASS_MODULE = './vendor/three/addons/postprocessing/RenderPass.js';
@@ -384,12 +384,37 @@
     return { route, totalLength, material, meshes: [trunk, branch], soma, somaMaterial, ownedGeometries: [] };
   }
 
-  function disposePulse(pulse) {
+  function disposePulseVisual(pulse) {
     for (const mesh of pulse.meshes || []) scene?.remove(mesh);
     if (pulse.soma) scene?.remove(pulse.soma);
     for (const geometry of pulse.ownedGeometries || []) geometry?.dispose?.();
     pulse.material?.dispose?.();
     pulse.somaMaterial?.dispose?.();
+  }
+
+  function disposePulse(pulse) {
+    disposePulseVisual(pulse);
+  }
+
+  // The graph can move while a pulse is mid-flight. Three rebuilds the approved
+  // root geometry from the latest projected graph coordinates, so rebind every
+  // live pulse to those new surfaces instead of letting it continue on stale
+  // geometry from the previous frame/layout.
+  function rebindActivePulses() {
+    if (!THREE || !scene || !pulses.length) return;
+    for (const pulse of pulses) {
+      const next = buildPulseMeshes(pulse.sourceNodeId, pulse.targetNodeId, pulse.palette);
+      if (!next) continue;
+      disposePulseVisual(pulse);
+      pulse.route = next.route;
+      pulse.totalLength = next.totalLength;
+      pulse.material = next.material;
+      pulse.meshes = next.meshes;
+      pulse.soma = next.soma;
+      pulse.somaMaterial = next.somaMaterial;
+      pulse.ownedGeometries = next.ownedGeometries || [];
+    }
+    startLoop();
   }
 
   function clearAmbientPulses() {
@@ -628,11 +653,19 @@
     }
   }
 
+  function handleThreeRendered() {
+    if (!THREE) return;
+    ensureLayer();
+    resize();
+    rebindActivePulses();
+    scheduleAmbient();
+  }
+
   window.addEventListener('resize', () => {
     if (THREE && ensureLayer()) resize();
   });
   window.addEventListener('memory-neural-routes-changed', handleStructureChange);
-  window.addEventListener('memory-neural-three-rendered', handleStructureChange);
+  window.addEventListener('memory-neural-three-rendered', handleThreeRendered);
   document.addEventListener('visibilitychange', handleVisibility);
 
   const api = Object.freeze({
