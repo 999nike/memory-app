@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 17;
+  const VERSION = 18;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -1012,7 +1012,9 @@
       const slotsOnRing = Math.min(slotsPerRing, Math.max(1, memories.length - ring * slotsPerRing));
       const phase = -Math.PI / 2 + ring * 0.36;
       const angle = phase + (slot / slotsOnRing) * Math.PI * 2;
-      const localOrbit = 58 + ring * 24;
+      // Mirror the manual-group member spacing: first ring about 76px out,
+      // then compact 21px ring steps.
+      const localOrbit = 76 + ring * 21;
       const profile = memoryProfile(memory, data.allMemories);
       const savedNode = savedState?.nodes?.[memory.id];
       const savedOffsetX = Number(savedNode?.offsetX);
@@ -1029,6 +1031,7 @@
         radius: profile.radius,
         targetOrbit: localOrbit,
         localOrbit,
+        layoutAngle: angle,
         gravityWeight: profile.gravityWeight,
         parentId: spaceNode.id,
         relationshipCount: profile.relationshipCount,
@@ -1454,12 +1457,23 @@
       if (localParent && !localParent.hidden) {
         const dx = node.x - localParent.x;
         const dy = node.y - localParent.y;
-        const distance = Math.max(1, Math.hypot(dx, dy));
-        const radialOffset = distance - (node.localOrbit || node.targetOrbit || graph.orbitRadius);
-        const radialSpring = compactMemoryChild ? 0.0072 : 0.0019;
-        const radialForce = -radialOffset * radialSpring * Math.max(0.8, node.gravityWeight || 1);
-        fx += (dx / distance) * radialForce;
-        fy += (dy / distance) * radialForce;
+
+        if (compactMemoryChild && Number.isFinite(node.layoutAngle)) {
+          // A radial spring alone lets the memories slide around the ring and
+          // bunch to one side. Lock each direct Memory child to a soft angular
+          // slot, the same visual principle used by titled manual groups.
+          const orbit = node.localOrbit || node.targetOrbit || graph.orbitRadius;
+          const targetX = localParent.x + Math.cos(node.layoutAngle) * orbit;
+          const targetY = localParent.y + Math.sin(node.layoutAngle) * orbit;
+          fx += (targetX - node.x) * 0.012;
+          fy += (targetY - node.y) * 0.012;
+        } else {
+          const distance = Math.max(1, Math.hypot(dx, dy));
+          const radialOffset = distance - (node.localOrbit || node.targetOrbit || graph.orbitRadius);
+          const radialForce = -radialOffset * 0.0019 * Math.max(0.8, node.gravityWeight || 1);
+          fx += (dx / distance) * radialForce;
+          fy += (dy / distance) * radialForce;
+        }
       }
 
       if (node.clusterRoot && !expansionAnchored) {
@@ -1479,7 +1493,7 @@
         const otherCompactMemoryChild = other.kind === 'memory'
           && String(other.parentId || '') === String(graph.spaceNode?.id || '')
           && !other.__manualGroupId;
-        if (compactMemoryChild && otherCompactMemoryChild) repulsion *= 0.18;
+        if (compactMemoryChild && otherCompactMemoryChild) repulsion *= 0.08;
         const pushX = (pairX / pairDistance) * repulsion;
         const pushY = (pairY / pairDistance) * repulsion;
         fx += pushX / Math.max(0.85, node.gravityWeight || 1);
