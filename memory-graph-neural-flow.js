@@ -4,18 +4,19 @@
   // Pulse routing follows the approved August renderer (blob
   // 6feadb2985a4179620fd55ae9b95c6afd12bb3fb) while retaining the current
   // pulse-only, capped and visibility-aware animation lifecycle.
-  const VERSION = 8;
+  const VERSION = 9;
   const MAX_DPR = 1.75;
   const MAX_PULSES = 10;
   const FRAME_MS = 1000 / 30;
-  const AMBIENT_MIN_MS = 1100;
-  const AMBIENT_MAX_MS = 2600;
+  const AMBIENT_MIN_MS = 850;
+  const AMBIENT_MAX_MS = 1700;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const palettes = {
     blue: ['255,255,255', '102,225,255', '37,126,255'],
     cyan: ['255,255,255', '95,240,255', '27,170,255'],
     lime: ['255,255,244', '193,255,79', '60,211,102'],
     violet: ['255,255,255', '231,116,255', '142,62,255'],
+    magenta: ['255,255,255', '255,92,219', '213,44,180'],
     yellow: ['255,255,255', '255,232,72', '255,145,35'],
     green: ['255,255,255', '148,255,125', '37,190,98'],
     purple: ['255,255,255', '226,115,255', '150,54,255'],
@@ -33,6 +34,7 @@
   let hiddenAt = 0;
   let pulseSequence = 0;
   let lastActivitySync = 0;
+  let ambientCursor = 0;
   const pulses = [];
   const blooms = [];
   const anchors = new Map();
@@ -174,7 +176,7 @@
     const route = resolvePath(sourceNodeId, targetNodeId);
     const points = route?.points;
     if (!points?.length || !ensureLayer()) return false;
-    const palette = paletteName(options.palette, 'blue');
+    const palette = paletteName(options.palette || route.palette, 'cyan');
     const intensity = clamp(Number(options.intensity) || 1, .45, 1.8);
     const id = `synapse-${++pulseSequence}`;
     if (reducedMotion.matches) {
@@ -202,6 +204,7 @@
       destinationRadius: clamp(Number(options.destinationRadius) || 16, 8, 42),
       arrivalDetail: options.arrivalDetail || null
     };
+    addBloom(points[0], palette, intensity * .62, clamp(8 + intensity * 4, 8, 16));
     pulses.push(pulse);
     startLoop();
     return id;
@@ -239,7 +242,13 @@
   function drawPulse(pulse, progress) {
     const eased = easeElectrical(progress);
     const point = pointAt(pulse, eased);
+    const source = pulse.points[0];
     const colours = palettes[pulse.palette] || palettes.blue;
+    if (progress < .18) {
+      const launchEnergy = 1 - progress / .18;
+      glow(source, (22 + 18 * launchEnergy) * pulse.intensity, .36 * launchEnergy, pulse.palette);
+      glow(source, (8 + 8 * launchEnergy) * pulse.intensity, .72 * launchEnergy, pulse.palette);
+    }
     const tailSpan = .21 + Math.min(.07, pulse.intensity * .04);
     const tailStart = Math.max(0, eased - tailSpan);
     const first = pointAt(pulse, tailStart);
@@ -410,17 +419,22 @@
     const delay = AMBIENT_MIN_MS + Math.random() * (AMBIENT_MAX_MS - AMBIENT_MIN_MS);
     ambientTimer = window.setTimeout(() => {
       ambientTimer = 0;
-      const available = scaffold()?.routes?.() || [];
+      const routes = scaffold()?.routes?.() || [];
+      const outward = routes.filter((route) => route.sourceHub);
+      const available = outward.length ? outward : routes;
       const ambientCount = pulses.filter((pulse) => pulse.ambient).length;
       if (available.length && ambientCount < 4 && pulses.length < MAX_PULSES) {
-        const route = available[Math.floor(Math.random() * available.length)];
-        const reverse = Math.random() < .24;
-        const accentRoll = Math.random();
-        const palette = accentRoll > .94 ? 'yellow' : accentRoll > .88 ? 'violet' : accentRoll > .80 ? 'lime' : 'blue';
+        const route = available[ambientCursor % available.length];
+        ambientCursor += 1;
         fireSynapse(
-          reverse ? route.targetId : route.sourceId,
-          reverse ? route.sourceId : route.targetId,
-          { ambient: true, palette, intensity: .82 + Math.random() * .28, duration: 1500 + Math.random() * 900 }
+          route.sourceId,
+          route.targetId,
+          {
+            ambient: true,
+            palette: route.palette || 'cyan',
+            intensity: .88 + Math.random() * .24,
+            duration: 1350 + Math.random() * 760
+          }
         );
       }
       scheduleAmbient();

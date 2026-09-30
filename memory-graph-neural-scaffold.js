@@ -3,7 +3,7 @@
 
   // Approved visual authority:
   // scaffold blob a04fc6d1f23a72df4f76a0e9e8ac5b9cb8f9e45f
-  const VERSION = 7;
+  const VERSION = 8;
   const MAX_DPR = 1.75;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
@@ -31,6 +31,22 @@
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const distance = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
   const lerpPoint = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+
+  const ACCENTS = [
+    { name: 'cyan', body: '83,236,255', glow: '24,166,255' },
+    { name: 'lime', body: '196,255,78', glow: '70,221,103' },
+    { name: 'magenta', body: '255,83,215', glow: '219,46,184' },
+    { name: 'violet', body: '218,111,255', glow: '139,67,255' },
+    { name: 'yellow', body: '255,235,83', glow: '255,169,42' },
+    { name: 'green', body: '130,255,133', glow: '43,204,98' }
+  ];
+
+  function accentFor(seed, lane = 0) {
+    const value = Math.abs(Math.floor((Number(seed) || 0) * 100003 + lane * 37));
+    return ACCENTS[value % ACCENTS.length];
+  }
+
+  const rgba = (rgb, alpha) => `rgba(${rgb},${alpha})`;
 
   function hashText(value) {
     let result = 2166136261;
@@ -274,14 +290,16 @@
           stem: controlPoints(junction, shared, childSeed + .33, .66, index + 4),
           branch: controlPoints(shared, segment.to, childSeed + .71, .82, index + 7),
           shared,
-          seed: childSeed
+          seed: childSeed,
+          accent: accentFor(childSeed, index)
         });
       } else {
         children.push({
           segment,
           branch: controlPoints(junction, segment.to, childSeed, .88, index + 2),
           shared: junction,
-          seed: childSeed
+          seed: childSeed,
+          accent: accentFor(childSeed, index)
         });
       }
     }
@@ -319,6 +337,7 @@
       from: segment.from,
       to: segment.to,
       seed: child.seed,
+      palette: child.accent?.name || accentFor(child.seed).name,
       curves,
       points,
       boundaries
@@ -363,70 +382,98 @@
     native.stroke.call(context);
   }
 
-  function drawOrganicTube(context, curve, width) {
+  function drawOrganicTube(context, curve, width, accent = accentFor(curve.seed), trunk = false) {
     context.save();
     context.globalCompositeOperation = 'lighter';
-    strokeCurve(context, curve, width * 4.2, 'rgba(10,55,190,.035)');
-    strokeCurve(context, curve, width * 2.7, 'rgba(21,102,245,.070)');
-    strokeCurve(context, curve, width * 1.55, 'rgba(39,149,255,.16)');
-    strokeCurve(context, curve, Math.max(.9, width * .52), 'rgba(104,215,255,.58)');
-    strokeCurve(context, curve, Math.max(.35, width * .13), 'rgba(244,253,255,.88)');
-    for (let lane = 1; lane <= 4; lane += 1) {
-      const companion = controlPoints(curve.p0, curve.p3, curve.seed + lane * .271, .68 + lane * .09, lane);
-      strokeCurve(context, companion, .38 + lane * .07, `rgba(149,232,255,${(.16 + lane * .035).toFixed(3)})`);
+
+    strokeCurve(context, curve, width * 4.1, 'rgba(10,55,190,.030)');
+    strokeCurve(context, curve, width * 2.55, 'rgba(21,102,245,.075)');
+    strokeCurve(context, curve, width * 1.35, rgba(accent.glow, .18));
+    strokeCurve(context, curve, Math.max(.88, width * .50), rgba(accent.body, .70));
+    strokeCurve(context, curve, Math.max(.34, width * .13), 'rgba(247,254,255,.92)');
+
+    const fibreCount = trunk ? 3 : 2;
+    for (let lane = 0; lane < fibreCount; lane += 1) {
+      const fibreAccent = trunk ? accentFor(curve.seed + lane * .319, lane + 1) : accent;
+      const endT = .84 + hash(curve.seed, lane + 31, 1) * .15;
+      const fibreEnd = pointOnCurve(curve, endT);
+      const fibre = controlPoints(
+        curve.p0,
+        fibreEnd,
+        curve.seed + .611 + lane * .417,
+        .38 + hash(curve.seed, lane + 32, 2) * .36,
+        lane + 9
+      );
+      strokeCurve(context, fibre, trunk ? .62 : .46, rgba(fibreAccent.glow, trunk ? .48 : .34));
+      strokeCurve(context, fibre, trunk ? .22 : .18, rgba(fibreAccent.body, trunk ? .82 : .68));
     }
     context.restore();
   }
 
-  function drawDendrites(context, curve, seed, density, mobile) {
-    const divisor = mobile ? 50 : 34;
-    const count = clamp(Math.round(curve.length / divisor * density), 3, mobile ? 7 : 13);
+  function drawNeurite(context, origin, tangent, seed, reach, accent, mobile, forkBias = .52) {
+    const px = -tangent.y;
+    const py = tangent.x;
+    const side = hash(seed, 2, 3) > .5 ? 1 : -1;
+    const forward = (hash(seed, 4, 5) - .28) * reach * .72;
+    const end = {
+      x: origin.x + px * side * reach + tangent.x * forward,
+      y: origin.y + py * side * reach + tangent.y * forward
+    };
+    const c1 = {
+      x: origin.x + px * side * reach * .20 + tangent.x * forward * .12,
+      y: origin.y + py * side * reach * .20 + tangent.y * forward * .12
+    };
+    const c2 = {
+      x: origin.x + px * side * reach * .68 + tangent.x * forward * .67,
+      y: origin.y + py * side * reach * .68 + tangent.y * forward * .67
+    };
+
+    context.beginPath();
+    context.moveTo(origin.x, origin.y);
+    context.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
+    context.lineWidth = mobile ? .34 : .46;
+    context.strokeStyle = rgba(accent.glow, .34);
+    native.stroke.call(context);
+
+    const branchBase = lerpPoint(c1, c2, .62);
+    if (hash(seed, 6, 7) > forkBias) {
+      const forkSide = hash(seed, 8, 9) > .5 ? 1 : -1;
+      const forkReach = reach * (.42 + hash(seed, 10, 11) * .28);
+      const forkEnd = {
+        x: branchBase.x + px * forkSide * forkReach + tangent.x * forkReach * (.05 + hash(seed, 12, 13) * .28),
+        y: branchBase.y + py * forkSide * forkReach + tangent.y * forkReach * (.05 + hash(seed, 12, 13) * .28)
+      };
+      context.beginPath();
+      context.moveTo(branchBase.x, branchBase.y);
+      context.bezierCurveTo(
+        branchBase.x + px * forkSide * forkReach * .22,
+        branchBase.y + py * forkSide * forkReach * .22,
+        forkEnd.x - tangent.x * forkReach * .18,
+        forkEnd.y - tangent.y * forkReach * .18,
+        forkEnd.x,
+        forkEnd.y
+      );
+      context.lineWidth = mobile ? .22 : .28;
+      context.strokeStyle = rgba(accent.body, .29);
+      native.stroke.call(context);
+    }
+  }
+
+  function drawDendrites(context, curve, seed, density, mobile, accent = accentFor(seed)) {
+    const divisor = mobile ? 54 : 38;
+    const count = clamp(Math.round(curve.length / divisor * density), 3, mobile ? 7 : 11);
     context.save();
     context.globalCompositeOperation = 'lighter';
     context.lineCap = 'round';
     context.lineJoin = 'round';
     for (let index = 0; index < count; index += 1) {
       const localSeed = seed + index * .347;
-      const t = .10 + ((index + .35 + hash(localSeed, 1, 2) * .55) / (count + 1)) * .80;
+      const t = .08 + ((index + .32 + hash(localSeed, 1, 2) * .56) / (count + 1)) * .84;
       const origin = pointOnCurve(curve, t);
       const tangent = tangentOnCurve(curve, t);
-      const px = -tangent.y;
-      const py = tangent.x;
-      const side = hash(localSeed, 3, 4) > .5 ? 1 : -1;
-      const reach = 16 + hash(localSeed, 5, 6) * (mobile ? 34 : 58);
-      const forward = (hash(localSeed, 7, 8) - .35) * reach * .55;
-      const mid = {
-        x: origin.x + px * side * reach * .52 + tangent.x * forward * .42,
-        y: origin.y + py * side * reach * .52 + tangent.y * forward * .42
-      };
-      const end = {
-        x: origin.x + px * side * reach + tangent.x * forward,
-        y: origin.y + py * side * reach + tangent.y * forward
-      };
-      context.beginPath();
-      context.moveTo(origin.x, origin.y);
-      context.quadraticCurveTo(mid.x, mid.y, end.x, end.y);
-      context.lineWidth = .48;
-      context.strokeStyle = 'rgba(157,229,255,.28)';
-      native.stroke.call(context);
-      if (hash(localSeed, 9, 10) > (mobile ? .66 : .44)) {
-        const forkSide = hash(localSeed, 11, 12) > .5 ? 1 : -1;
-        const fork = {
-          x: mid.x + px * forkSide * reach * .44 + tangent.x * reach * .15,
-          y: mid.y + py * forkSide * reach * .44 + tangent.y * reach * .15
-        };
-        context.beginPath();
-        context.moveTo(mid.x, mid.y);
-        context.quadraticCurveTo(
-          (mid.x + fork.x) * .5 + px * forkSide * 3,
-          (mid.y + fork.y) * .5 + py * forkSide * 3,
-          fork.x,
-          fork.y
-        );
-        context.lineWidth = .24;
-        context.strokeStyle = 'rgba(210,246,255,.22)';
-        native.stroke.call(context);
-      }
+      const reach = 20 + hash(localSeed, 5, 6) * (mobile ? 34 : 64);
+      const branchAccent = hash(localSeed, 14, 15) > .72 ? accentFor(localSeed, index + 2) : accent;
+      drawNeurite(context, origin, tangent, localSeed, reach, branchAccent, mobile, mobile ? .68 : .46);
     }
     context.restore();
   }
@@ -453,45 +500,91 @@
 
   function drawCentreMass(context, network, mobile) {
     if (!network.hub) return;
-    const radius = mobile ? 42 : 62;
+    const radius = mobile ? 40 : 58;
     const centre = network.centre;
+    const networkSeed = hashText(network.sourceId || 'hub') * 1000;
+
     context.save();
     context.globalCompositeOperation = 'lighter';
-    const gradient = context.createRadialGradient(centre.x, centre.y, 0, centre.x, centre.y, radius);
-    gradient.addColorStop(0, 'rgba(232,253,255,.10)');
-    gradient.addColorStop(.24, 'rgba(81,190,255,.12)');
-    gradient.addColorStop(.62, 'rgba(29,104,255,.075)');
+    const gradient = context.createRadialGradient(centre.x, centre.y, 0, centre.x, centre.y, radius * 1.22);
+    gradient.addColorStop(0, 'rgba(250,255,255,.26)');
+    gradient.addColorStop(.16, 'rgba(101,224,255,.24)');
+    gradient.addColorStop(.42, 'rgba(44,141,255,.15)');
+    gradient.addColorStop(.78, 'rgba(26,73,225,.07)');
     gradient.addColorStop(1, 'rgba(17,55,210,0)');
     context.beginPath();
-    context.arc(centre.x, centre.y, radius, 0, Math.PI * 2);
+    context.arc(centre.x, centre.y, radius * 1.22, 0, Math.PI * 2);
     context.fillStyle = gradient;
     context.fill();
+
+    const tendrilCount = mobile ? 10 : 18;
+    for (let index = 0; index < tendrilCount; index += 1) {
+      const localSeed = networkSeed + index * .419;
+      const angle = (index / tendrilCount) * Math.PI * 2 + (hash(localSeed, 1, 2) - .5) * .34;
+      const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+      const normal = { x: -direction.y, y: direction.x };
+      const reach = radius * (.72 + hash(localSeed, 3, 4) * 1.15);
+      const sway = (hash(localSeed, 5, 6) - .5) * radius * .58;
+      const end = {
+        x: centre.x + direction.x * reach + normal.x * sway * .34,
+        y: centre.y + direction.y * reach + normal.y * sway * .34
+      };
+      const curve = {
+        p0: centre,
+        p1: {
+          x: centre.x + direction.x * reach * .22 + normal.x * sway * .18,
+          y: centre.y + direction.y * reach * .22 + normal.y * sway * .18
+        },
+        p2: {
+          x: centre.x + direction.x * reach * .64 + normal.x * sway,
+          y: centre.y + direction.y * reach * .64 + normal.y * sway
+        },
+        p3: end,
+        length: reach,
+        seed: localSeed
+      };
+      const accent = accentFor(localSeed, index);
+      strokeCurve(context, curve, mobile ? 1.05 : 1.32, rgba(accent.glow, .18));
+      strokeCurve(context, curve, mobile ? .32 : .40, rgba(accent.body, .52));
+      if (hash(localSeed, 7, 8) > .34) {
+        const origin = pointOnCurve(curve, .52 + hash(localSeed, 9, 10) * .16);
+        const tangent = tangentOnCurve(curve, .58);
+        drawNeurite(context, origin, tangent, localSeed + .77, reach * .52, accent, mobile, .40);
+      }
+    }
+
     for (let index = 0; index < network.clusters.length; index += 1) {
       const direction = averageDirection(network.clusters[index], centre);
       const rootEnd = {
-        x: centre.x + direction.x * radius * (.65 + hash(index + 1.7, 1, 2) * .30),
-        y: centre.y + direction.y * radius * (.65 + hash(index + 1.7, 1, 2) * .30)
+        x: centre.x + direction.x * radius * (.70 + hash(index + 1.7, 1, 2) * .28),
+        y: centre.y + direction.y * radius * (.70 + hash(index + 1.7, 1, 2) * .28)
       };
-      strokeCurve(context, controlPoints(centre, rootEnd, index * .377 + 1.3, .45, index), .55, 'rgba(171,235,255,.24)');
+      const accent = accentFor(networkSeed + index * .293, index);
+      const root = controlPoints(centre, rootEnd, networkSeed + index * .377 + 1.3, .42, index);
+      strokeCurve(context, root, mobile ? 1.0 : 1.25, rgba(accent.glow, .28));
+      strokeCurve(context, root, .34, rgba(accent.body, .68));
     }
     context.restore();
   }
 
   function drawCluster(context, geometry, mobile) {
-    const trunkWidth = clamp(geometry.trunk.length * .058, 5.4, 12.5);
-    drawOrganicTube(context, geometry.trunk, trunkWidth);
-    drawDendrites(context, geometry.trunk, geometry.seed, 1.25, mobile);
-    drawJunction(context, geometry.junction, .92);
+    const trunkWidth = clamp(geometry.trunk.length * .052, 4.8, 10.8);
+    const trunkAccent = accentFor(geometry.seed, 0);
+    drawOrganicTube(context, geometry.trunk, trunkWidth, trunkAccent, true);
+    drawDendrites(context, geometry.trunk, geometry.seed, 1.18, mobile, trunkAccent);
+    drawJunction(context, geometry.junction, .94);
+
     for (const child of geometry.children) {
+      const accent = child.accent || accentFor(child.seed);
       if (child.stem) {
-        const stemWidth = clamp(child.stem.length * .045, 2.6, 6.4);
-        drawOrganicTube(context, child.stem, stemWidth);
-        drawDendrites(context, child.stem, child.seed + 1.1, .72, mobile);
-        if (hash(child.seed, 11, 12) > .35) drawJunction(context, child.shared, .54);
+        const stemWidth = clamp(child.stem.length * .040, 2.3, 5.8);
+        drawOrganicTube(context, child.stem, stemWidth, accent, false);
+        drawDendrites(context, child.stem, child.seed + 1.1, .70, mobile, accent);
+        if (hash(child.seed, 11, 12) > .35) drawJunction(context, child.shared, .56);
       }
-      const branchWidth = clamp(child.branch.length * .034, 2.4, 6.8);
-      drawOrganicTube(context, child.branch, branchWidth);
-      drawDendrites(context, child.branch, child.seed + 2.3, .88, mobile);
+      const branchWidth = clamp(child.branch.length * .030, 2.0, 5.5);
+      drawOrganicTube(context, child.branch, branchWidth, accent, false);
+      drawDendrites(context, child.branch, child.seed + 2.3, .82, mobile, accent);
     }
   }
 
@@ -558,7 +651,7 @@
         boundaries.push({ progress: travelled / total, point: { ...leg.points[leg.points.length - 1] } });
       }
     }
-    return { sourceId, targetId, points, boundaries, legs: legs.map((leg) => leg.route.id) };
+    return { sourceId, targetId, points, boundaries, palette: legs[0]?.route?.palette || 'cyan', legs: legs.map((leg) => leg.route.id) };
   }
 
   function routeBetween(sourceId, targetId) {

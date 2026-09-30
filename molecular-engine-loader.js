@@ -8,8 +8,8 @@
     ? [
       './memory-graph-visuals.js?v=static-neural-20260930',
       './memory-graph-neural-width.js?v=approved-neural-width-20260930',
-      './memory-graph-neural-scaffold.js?v=approved-shared-scaffold-20260930',
-      './memory-graph-neural-flow.js?v=approved-routed-flow-20260930',
+      './memory-graph-neural-scaffold.js?v=neuron-synapse-v1-20260930',
+      './memory-graph-neural-flow.js?v=neuron-synapse-v1-20260930',
       './molecular-engine.js?v=2',
       './memory-molecular-adapter.js?v=2',
       './memory-graph-nebula.js?v=space-junkz-video-20260921'
@@ -20,8 +20,8 @@
       './memory-graph-rotation.js?v=1',
       './memory-graph-manual-groups.js?v=1',
       './memory-graph-neural-width.js?v=approved-neural-width-20260930',
-      './memory-graph-neural-scaffold.js?v=approved-shared-scaffold-20260930',
-      './memory-graph-neural-flow.js?v=approved-routed-flow-20260930',
+      './memory-graph-neural-scaffold.js?v=neuron-synapse-v1-20260930',
+      './memory-graph-neural-flow.js?v=neuron-synapse-v1-20260930',
       './memory-graph-manual-gravity.js?v=2',
       './memory-graph-orb-matrix-guard.js?v=1',
       './memory-graph.js?v=neural-renderer-20260930',
