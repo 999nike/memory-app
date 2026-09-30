@@ -124,14 +124,14 @@
       );
       vec3 signalColour = mix(rainbow, uSignalColor, 0.34);
       vec3 colour = signalColour * activity * 1.55;
-      colour += vec3(1.0, 0.92, 0.82) * hotCore * 4.0;
+      colour += vec3(1.0, 0.92, 0.82) * hotCore * 2.0;
 
       vec3 viewDir = normalize(uCameraPos - vWorldPos);
       float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.2);
       colour += signalColour * fresnel * waveFront * 1.8;
       colour *= uEnvelope;
 
-      float alpha = clamp((activity * 0.23 + hotCore * 0.90) * uEnvelope, 0.0, 1.0);
+      float alpha = clamp((activity * 0.23 + hotCore * 0.62) * uEnvelope, 0.0, 1.0);
       if (alpha < 0.008) discard;
       gl_FragColor = vec4(colour, alpha);
     }
@@ -156,8 +156,8 @@
       vec3 viewDir = normalize(uCameraPos - vWorldPos);
       float fresnel = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.4);
       float n = 0.75 + 0.25 * hash(floor(vWorldPos * 0.12 + uTime * 4.0));
-      vec3 whiteHot = vec3(1.0, 0.94, 0.86) * 3.5;
-      vec3 colour = mix(uSignalColor * 2.2, whiteHot, 0.62 + fresnel * 0.25) * n * uEnvelope;
+      vec3 whiteHot = vec3(1.0, 0.94, 0.86) * 2.0;
+      vec3 colour = mix(uSignalColor * 1.55, whiteHot, 0.56 + fresnel * 0.22) * n * uEnvelope;
       float alpha = clamp((0.48 + fresnel * 0.52) * uEnvelope, 0.0, 1.0);
       if (alpha < 0.008) discard;
       gl_FragColor = vec4(colour, alpha);
@@ -218,9 +218,9 @@
     if (!renderer || !scene || !camera || !EffectComposer || !RenderPass || !UnrealBloomPass) return false;
     composer?.dispose?.();
     const renderPass = new RenderPass(scene, camera);
-    bloomPass = new UnrealBloomPass(new THREE.Vector2(Math.max(1, width), Math.max(1, height)), 1.2, 0.8, 1.0);
+    bloomPass = new UnrealBloomPass(new THREE.Vector2(Math.max(1, width), Math.max(1, height)), 0.75, 0.8, 1.0);
     bloomPass.threshold = 1.0;
-    bloomPass.strength = 1.2;
+    bloomPass.strength = 0.75;
     bloomPass.radius = 0.8;
     composer = new EffectComposer(renderer);
     composer.addPass(renderPass);
@@ -406,7 +406,7 @@
     if (pulse.somaMaterial) {
       const launch = progress < 0.18 ? 1 - progress / 0.18 : 0;
       pulse.somaMaterial.uniforms.uTime.value = shaderTime;
-      pulse.somaMaterial.uniforms.uEnvelope.value = launch * pulse.intensity * 1.28;
+      pulse.somaMaterial.uniforms.uEnvelope.value = launch * pulse.intensity * 0.92;
       pulse.somaMaterial.uniforms.uSignalColor.value.setHex(colourHex(pulse.palette));
       pulse.somaMaterial.uniforms.uCameraPos.value.set(width * 0.5, height * 0.5, 220);
     }
@@ -459,9 +459,7 @@
   }
 
   function scheduleAmbient() {
-    if (ambientTimer) clearTimeout(ambientTimer);
-    ambientTimer = 0;
-    if (document.hidden) return;
+    if (ambientTimer || document.hidden) return;
     ambientTimer = window.setTimeout(() => {
       ambientTimer = 0;
       const scaffold = globalThis.MemoryGraphNeuralScaffold;
@@ -516,7 +514,6 @@
   }
 
   function handleStructureChange() {
-    clearPulses();
     if (THREE) {
       ensureLayer();
       resize();
