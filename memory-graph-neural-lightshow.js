@@ -4,13 +4,13 @@
   // Shader activation + bloom treatment adapted from VoXelo's public
   // "Neural Synapse Simulation" CodePen (MIT). See THIRD_PARTY_NOTICES.md.
   // This layer reuses Memory Space's approved Three.js root geometry exactly.
-  const VERSION = 2;
+  const VERSION = 3;
   const THREE_MODULE = './vendor/three/three.module.min.js';
   const EFFECT_COMPOSER_MODULE = './vendor/three/addons/postprocessing/EffectComposer.js';
   const RENDER_PASS_MODULE = './vendor/three/addons/postprocessing/RenderPass.js';
   const BLOOM_PASS_MODULE = './vendor/three/addons/postprocessing/UnrealBloomPass.js';
   const MAX_DPR = 1.5;
-  const MAX_PULSES = 14;
+  const MAX_PULSES = 32;
   const FRAME_MS = 1000 / 30;
   const params = new URLSearchParams(location.search);
 
@@ -37,6 +37,7 @@
   let pulseSequence = 0;
   let ambientTimer = 0;
   let ambientCursor = 0;
+  const ambientHubCursors = new Map();
   let semanticQuietUntil = 0;
   let lastError = null;
   const pulses = [];
@@ -567,18 +568,29 @@
       const hubs = [...byHub.entries()];
       hubs.forEach(([hubId, hubRoutes], hubIndex) => {
         if (!hubRoutes.length) return;
-        const route = hubRoutes[(ambientCursor + hubIndex) % hubRoutes.length];
-        fireSynapse(route.sourceId, route.targetId, {
-          ambient: true,
-          palette: route.palette || ['cyan', 'lime', 'violet', 'magenta', 'yellow'][hubIndex % 5],
-          intensity: 1.25 + (hubIndex % 3) * 0.04,
-          duration: 3400 + (hubIndex % 4) * 240,
-          delay: hubIndex * 180
-        });
+
+        // Restore the dense approved Memory-style burst on every cluster:
+        // several branches per hub at once, then rotate to the next branches.
+        const burstCount = Math.min(4, hubRoutes.length);
+        const base = ambientHubCursors.get(hubId) || 0;
+
+        for (let localIndex = 0; localIndex < burstCount; localIndex += 1) {
+          const route = hubRoutes[(base + localIndex) % hubRoutes.length];
+          fireSynapse(route.sourceId, route.targetId, {
+            ambient: true,
+            palette: route.palette || ['cyan', 'lime', 'violet', 'magenta', 'yellow'][(hubIndex + localIndex) % 5],
+            intensity: 1.23 + ((hubIndex + localIndex) % 3) * 0.04,
+            duration: 4100 + localIndex * 220 + (hubIndex % 3) * 120,
+            delay: localIndex * 220 + hubIndex * 80
+          });
+        }
+
+        ambientHubCursors.set(hubId, (base + burstCount) % hubRoutes.length);
       });
+
       ambientCursor += 1;
       scheduleAmbient();
-    }, 2200 + Math.random() * 650);
+    }, 3600 + Math.random() * 700);
   }
 
   function clearPulses() {
