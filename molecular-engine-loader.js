@@ -6,10 +6,10 @@
   const molecular = new URLSearchParams(location.search).get('molecularEngine') === '1';
   const scripts = molecular
     ? [
-      './memory-graph-visuals.js?v=hub-circulation-20260921',
-      './memory-graph-neural-width.js?v=5',
-      './memory-graph-neural-scaffold.js?v=hub-circulation-20260921',
-      './memory-graph-neural-flow.js?v=pulse-zoom-20260921',
+      './memory-graph-visuals.js?v=static-neural-20260930',
+      './memory-graph-neural-width.js?v=approved-neural-width-20260930',
+      './memory-graph-neural-scaffold.js?v=approved-shared-scaffold-20260930',
+      './memory-graph-neural-flow.js?v=approved-routed-flow-20260930',
       './molecular-engine.js?v=2',
       './memory-molecular-adapter.js?v=2',
       './memory-graph-nebula.js?v=space-junkz-video-20260921'
@@ -19,12 +19,12 @@
       './memory-graph-mobile.js?v=1',
       './memory-graph-rotation.js?v=1',
       './memory-graph-manual-groups.js?v=1',
-      './memory-graph-neural-width.js?v=1',
-      './memory-graph-neural-scaffold.js?v=hub-circulation-20260921',
-      './memory-graph-neural-flow.js?v=pulse-zoom-20260921',
+      './memory-graph-neural-width.js?v=approved-neural-width-20260930',
+      './memory-graph-neural-scaffold.js?v=approved-shared-scaffold-20260930',
+      './memory-graph-neural-flow.js?v=approved-routed-flow-20260930',
       './memory-graph-manual-gravity.js?v=2',
       './memory-graph-orb-matrix-guard.js?v=1',
-      './memory-graph.js?v=6',
+      './memory-graph.js?v=neural-renderer-20260930',
       './memory-graph-folder-startup-settle.js?v=1',
       './memory-graph-nebula.js?v=space-junkz-video-20260921'
     ];

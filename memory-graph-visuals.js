@@ -24,6 +24,7 @@
   const SPRITE_QUALITY = 2;
   const spriteCache = new Map();
   const hubReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const ELECTRIC_CONNECTORS_ENABLED = false;
 
   let electricCanvas = null;
   let electricContext = null;
@@ -342,6 +343,7 @@
   }
 
   function ensureElectricLayer(sourceCanvas) {
+    if (!ELECTRIC_CONNECTORS_ENABLED) return false;
     if (!sourceCanvas?.parentElement) return false;
 
     if (!electricCanvas || electricSourceCanvas !== sourceCanvas || !electricCanvas.isConnected) {
@@ -399,6 +401,7 @@
   }
 
   function startElectricLoop() {
+    if (!ELECTRIC_CONNECTORS_ENABLED) return;
     if (electricFrame) return;
     electricFrame = requestAnimationFrame(drawElectricFrame);
   }

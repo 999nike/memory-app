@@ -1,81 +1,68 @@
 (() => {
   'use strict';
 
-  const VERSION = 3;
-  const proto = globalThis.CanvasRenderingContext2D?.prototype;
-  if (!proto || proto.__memoryGraphNeuralFlowInstalled) return;
-  Object.defineProperty(proto, '__memoryGraphNeuralFlowInstalled', { value: true });
+  // Pulse routing follows the approved August renderer (blob
+  // 6feadb2985a4179620fd55ae9b95c6afd12bb3fb) while retaining the current
+  // pulse-only, capped and visibility-aware animation lifecycle.
+  const VERSION = 8;
+  const MAX_DPR = 1.75;
+  const MAX_PULSES = 10;
+  const FRAME_MS = 1000 / 30;
+  const AMBIENT_MIN_MS = 1100;
+  const AMBIENT_MAX_MS = 2600;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const palettes = {
+    blue: ['255,255,255', '102,225,255', '37,126,255'],
+    cyan: ['255,255,255', '95,240,255', '27,170,255'],
+    lime: ['255,255,244', '193,255,79', '60,211,102'],
+    violet: ['255,255,255', '231,116,255', '142,62,255'],
+    yellow: ['255,255,255', '255,232,72', '255,145,35'],
+    green: ['255,255,255', '148,255,125', '37,190,98'],
+    purple: ['255,255,255', '226,115,255', '150,54,255'],
+    orange: ['255,255,255', '255,190,74', '255,87,25']
+  };
 
-  const previousBeginPath = proto.beginPath;
-  const previousMoveTo = proto.moveTo;
-  const previousLineTo = proto.lineTo;
-  const previousClearRect = proto.clearRect;
-  const previousStroke = proto.stroke;
-
-  const mainSegments = [];
-  const manualSegments = [];
   let sourceCanvas = null;
   let layer = null;
   let ctx = null;
+  let width = 1;
+  let height = 1;
   let frame = 0;
   let lastPaint = 0;
-  let graphZoom = 1;
+  let ambientTimer = 0;
+  let hiddenAt = 0;
+  let pulseSequence = 0;
+  let lastActivitySync = 0;
+  const pulses = [];
+  const blooms = [];
   const anchors = new Map();
-  const arrivedVisualActivities = new Set();
-  const hubSignals = [];
+  const activityKeys = new Map();
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-  const distance = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
-  const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
-  const hash = (seed, a = 0, b = 0) => {
-    const value = Math.sin(seed * 9041.713 + a * 67.731 + b * 181.913) * 43758.5453;
-    return value - Math.floor(value);
-  };
 
-  function pulseZoomStyle() {
-    const zoom = clamp(graphZoom, 0.45, 1);
-    const progress = (zoom - 0.45) / 0.55;
-    const eased = progress * progress * (3 - 2 * progress);
-    return { size: 0.46 + eased * 0.54, alpha: 0.38 + eased * 0.62 };
+  function scaffold() {
+    return globalThis.MemoryGraphNeuralScaffold || null;
   }
 
-  function visiblePulseCount(base) {
-    if (graphZoom >= 0.90) return base;
-    if (graphZoom >= 0.65) return Math.max(2, base - 1);
-    return Math.min(2, base);
-  }
-
-  function isMainGraph(context) {
-    return context?.canvas?.classList?.contains('memory-graph-canvas') === true;
-  }
-
-  function isManualOverlay(context) {
-    return context?.canvas?.classList?.contains('memory-graph-manual-gravity-canvas') === true;
-  }
-
-  function isSemanticBlueLine(context) {
-    if (!context?.__memoryFlowStart || !context?.__memoryFlowEnd) return false;
-    const style = String(context.strokeStyle || '');
-    return style.includes('120, 184, 255') || style.includes('55, 139, 255') || style.includes('241, 251, 255');
-  }
-
-  function ensureLayer(canvas) {
+  function ensureLayer(canvas = sourceCanvas || document.querySelector('.memory-graph-canvas')) {
     if (!canvas?.parentElement) return false;
     if (!layer || sourceCanvas !== canvas || !layer.isConnected) {
       layer?.remove();
+      sourceCanvas = canvas;
       layer = document.createElement('canvas');
       layer.className = 'memory-graph-neural-flow-canvas';
       layer.setAttribute('aria-hidden', 'true');
       canvas.parentElement.appendChild(layer);
       ctx = layer.getContext('2d');
-      sourceCanvas = canvas;
     }
-    if (!ctx) return false;
+    return Boolean(ctx);
+  }
 
-    const rect = canvas.getBoundingClientRect();
-    const width = Math.max(1, Math.round(rect.width));
-    const height = Math.max(1, Math.round(rect.height));
-    const dpr = Math.max(1, canvas.width / Math.max(1, width));
+  function syncLayerSize() {
+    if (!ensureLayer()) return false;
+    width = Math.max(1, Math.round(sourceCanvas.clientWidth));
+    height = Math.max(1, Math.round(sourceCanvas.clientHeight));
+    const dpr = clamp(window.devicePixelRatio || 1, 1, MAX_DPR);
     const pixelWidth = Math.max(1, Math.round(width * dpr));
     const pixelHeight = Math.max(1, Math.round(height * dpr));
     if (layer.width !== pixelWidth || layer.height !== pixelHeight) {
@@ -85,545 +72,409 @@
     }
     layer.style.width = `${width}px`;
     layer.style.height = `${height}px`;
-    if (!frame) frame = requestAnimationFrame(drawFrame);
     return true;
   }
 
-  function transformedEndpoints(context) {
-    const start = context.__memoryFlowStart;
-    const end = context.__memoryFlowEnd;
-    if (!start || !end) return null;
-    const canvas = context.canvas;
-    const rect = canvas.getBoundingClientRect();
-    const dpr = Math.max(1, canvas.width / Math.max(1, rect.width));
+  function captureAnchor(id, context, point) {
+    const key = String(id || '');
+    if (!key || !context?.canvas || !point || !ensureLayer(context.canvas)) return false;
+    const canvasWidth = Math.max(1, context.canvas.clientWidth);
+    const dpr = Math.max(1, context.canvas.width / canvasWidth);
     const matrix = context.getTransform();
-    const project = (point) => ({
-      x: (matrix.a * point.x + matrix.c * point.y + matrix.e) / dpr,
-      y: (matrix.b * point.x + matrix.d * point.y + matrix.f) / dpr
-    });
-    return { from: project(start), to: project(end) };
-  }
-
-  function captureAnchor(anchorId, context, point) {
-    const id = String(anchorId || '');
-    if (!id || !isMainGraph(context) || !point) return false;
-    const canvas = context.canvas;
-    if (!ensureLayer(canvas)) return false;
-    const rect = canvas.getBoundingClientRect();
-    const dpr = Math.max(1, canvas.width / Math.max(1, rect.width));
-    const matrix = context.getTransform();
-    const scale = Math.max(0.001, Math.hypot(matrix.a, matrix.b) / dpr);
-    anchors.set(id, {
+    anchors.set(key, {
       x: (matrix.a * Number(point.x) + matrix.c * Number(point.y) + matrix.e) / dpr,
       y: (matrix.b * Number(point.x) + matrix.d * Number(point.y) + matrix.f) / dpr,
-      radius: Math.max(1, Number(point.radius) || 1) * scale
+      radius: Math.max(1, Number(point.radius) || 1) * Math.max(.001, Math.hypot(matrix.a, matrix.b) / dpr)
     });
     return true;
   }
 
-  function seedFor(from, to) {
-    return Math.abs(Math.sin(from.x * 0.0173 + from.y * 0.0211 + to.x * 0.0127 + to.y * 0.0281));
-  }
-
-  function capture(context, compact) {
-    const target = sourceCanvas || document.querySelector('.memory-graph-canvas');
-    if (!target || !ensureLayer(target)) return;
-    const points = transformedEndpoints(context);
-    if (!points) return;
-    const length = distance(points.from, points.to);
-    if (length < 4) return;
-    (compact ? manualSegments : mainSegments).push({
-      ...points,
-      compact,
-      length,
-      angle: Math.atan2(points.to.y - points.from.y, points.to.x - points.from.x),
-      seed: seedFor(points.from, points.to),
-      activityTarget: context.__memoryFlowActivityTarget
-        ? { ...context.__memoryFlowActivityTarget }
-        : null
+  function curvePoints(from, to, seed = 0) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const distance = Math.max(1, Math.hypot(dx, dy));
+    const nx = -dy / distance;
+    const ny = dx / distance;
+    const bend = (seed % 2 ? 1 : -1) * clamp(distance * (.16 + (seed % 17) / 140), 10, 104);
+    const p1 = { x: from.x + dx * .28 + nx * bend * .78, y: from.y + dy * .28 + ny * bend * .78 };
+    const p2 = { x: from.x + dx * .72 - nx * bend * .86, y: from.y + dy * .72 - ny * bend * .86 };
+    return Array.from({ length: 43 }, (_, index) => {
+      const t = index / 42;
+      const mt = 1 - t;
+      return {
+        x: from.x * mt * mt * mt + 3 * p1.x * mt * mt * t + 3 * p2.x * mt * t * t + to.x * t * t * t,
+        y: from.y * mt * mt * mt + 3 * p1.y * mt * mt * t + 3 * p2.y * mt * t * t + to.y * t * t * t
+      };
     });
   }
 
-  function centrePoint(segments) {
-    if (!segments.length) return null;
-    let x = 0;
-    let y = 0;
-    for (const segment of segments) {
-      x += segment.from.x;
-      y += segment.from.y;
+  function pathMetrics(points) {
+    const lengths = [];
+    const cumulative = [0];
+    let total = 0;
+    for (let index = 1; index < points.length; index += 1) {
+      const length = Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y);
+      lengths.push(length);
+      total += length;
+      cumulative.push(total);
     }
-    return { x: x / segments.length, y: y / segments.length };
+    return { lengths, cumulative, total: Math.max(1, total) };
   }
 
-  function angleDelta(a, b) {
-    let delta = b - a;
-    while (delta > Math.PI) delta -= Math.PI * 2;
-    while (delta < -Math.PI) delta += Math.PI * 2;
-    return Math.abs(delta);
-  }
-
-  function makeClusters(segments, centre, compact = false) {
-    const sorted = segments.map((segment) => ({
-      ...segment,
-      angle: Math.atan2(segment.to.y - centre.y, segment.to.x - centre.x),
-      radius: distance(centre, segment.to)
-    })).sort((a, b) => a.angle - b.angle);
-
-    const gapLimit = compact ? 0.58 : 0.62;
-    const maxCluster = compact ? 4 : 5;
-    const clusters = [];
-    let current = [];
-    for (const segment of sorted) {
-      const previous = current[current.length - 1];
-      if (!previous || (angleDelta(previous.angle, segment.angle) <= gapLimit && current.length < maxCluster)) current.push(segment);
-      else {
-        clusters.push(current);
-        current = [segment];
+  function positionAt(pulse, progress) {
+    const target = clamp(progress, 0, 1) * pulse.metrics.total;
+    for (let index = 0; index < pulse.metrics.lengths.length; index += 1) {
+      const travelled = pulse.metrics.cumulative[index];
+      const next = pulse.metrics.cumulative[index + 1];
+      if (target <= next || index === pulse.metrics.lengths.length - 1) {
+        const local = clamp((target - travelled) / Math.max(.001, pulse.metrics.lengths[index]), 0, 1);
+        const a = pulse.points[index];
+        const b = pulse.points[index + 1];
+        return { index, point: { x: a.x + (b.x - a.x) * local, y: a.y + (b.y - a.y) * local } };
       }
     }
-    if (current.length) clusters.push(current);
-
-    if (clusters.length > 1) {
-      const first = clusters[0];
-      const last = clusters[clusters.length - 1];
-      if (first.length + last.length <= maxCluster && angleDelta(last[last.length - 1].angle, first[0].angle) <= gapLimit) {
-        clusters[0] = [...last, ...first];
-        clusters.pop();
-      }
-    }
-    return clusters;
+    return { index: pulse.points.length - 2, point: pulse.points[pulse.points.length - 1] };
   }
 
-  function averageDirection(cluster, centre) {
-    let x = 0;
-    let y = 0;
-    let radius = 0;
-    for (const segment of cluster) {
-      const dx = segment.to.x - centre.x;
-      const dy = segment.to.y - centre.y;
-      const length = Math.max(1, Math.hypot(dx, dy));
-      x += dx / length;
-      y += dy / length;
-      radius += length;
-    }
-    const norm = Math.max(0.001, Math.hypot(x, y));
-    return { x: x / norm, y: y / norm, radius: radius / cluster.length };
+  function pointAt(pulse, progress) {
+    return positionAt(pulse, progress).point;
   }
 
-  function controlPoints(from, to, seed, bendScale = 1, lane = 0) {
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    const px = -dy / length;
-    const py = dx / length;
-    const side = hash(seed, lane, 1) > 0.5 ? 1 : -1;
-    const bend = side * clamp(length * (0.07 + hash(seed, lane, 2) * 0.08), 5, 58) * bendScale;
-    const skew = (hash(seed, lane, 3) - 0.5) * 0.14;
+  function resolvePath(sourceId, targetId) {
+    const direct = scaffold()?.routeBetween?.(sourceId, targetId);
+    if (direct?.points?.length > 1) return direct;
+    const from = anchors.get(String(sourceId || '')) || scaffold()?.nodePoint?.(sourceId);
+    const to = anchors.get(String(targetId || '')) || scaffold()?.nodePoint?.(targetId);
+    if (!from || !to) return null;
     return {
-      p0: from,
-      p1: { x: from.x + dx * (0.28 + skew) + px * bend * 0.72, y: from.y + dy * (0.28 + skew) + py * bend * 0.72 },
-      p2: { x: from.x + dx * (0.70 - skew) + px * bend, y: from.y + dy * (0.70 - skew) + py * bend },
-      p3: to,
-      length,
-      seed
+      points: curvePoints(from, to, String(sourceId).length * 31 + String(targetId).length * 17),
+      boundaries: []
     };
   }
 
-  function pointOnCurve(curve, t) {
-    const mt = 1 - t;
-    const mt2 = mt * mt;
-    const t2 = t * t;
-    return {
-      x: curve.p0.x * mt2 * mt + 3 * curve.p1.x * mt2 * t + 3 * curve.p2.x * mt * t2 + curve.p3.x * t2 * t,
-      y: curve.p0.y * mt2 * mt + 3 * curve.p1.y * mt2 * t + 3 * curve.p2.y * mt * t2 + curve.p3.y * t2 * t
+  function paletteName(value, fallback = 'blue') {
+    const key = String(value || fallback).toLowerCase();
+    return palettes[key] ? key : fallback;
+  }
+
+  function addBloom(point, palette, intensity = 1, radius = 10) {
+    blooms.push({
+      point: { ...point },
+      palette,
+      intensity,
+      radius,
+      startedAt: performance.now(),
+      duration: 560
+    });
+    if (blooms.length > MAX_PULSES) blooms.splice(0, blooms.length - MAX_PULSES);
+    startLoop();
+  }
+
+  function fireSynapse(sourceNodeId, targetNodeId, options = {}) {
+    const route = resolvePath(sourceNodeId, targetNodeId);
+    const points = route?.points;
+    if (!points?.length || !ensureLayer()) return false;
+    const palette = paletteName(options.palette, 'blue');
+    const intensity = clamp(Number(options.intensity) || 1, .45, 1.8);
+    const id = `synapse-${++pulseSequence}`;
+    if (reducedMotion.matches) {
+      addBloom(points[points.length - 1], palette, intensity, Number(options.destinationRadius) || 12);
+      return id;
+    }
+    if (pulses.length >= MAX_PULSES) {
+      const ambientIndex = pulses.findIndex((pulse) => pulse.ambient);
+      if (ambientIndex >= 0) pulses.splice(ambientIndex, 1);
+      else return false;
+    }
+    const metrics = pathMetrics(points);
+    const pulse = {
+      id,
+      sourceNodeId: String(sourceNodeId || ''),
+      targetNodeId: String(targetNodeId || ''),
+      points,
+      boundaries: Array.isArray(route.boundaries) ? route.boundaries : [],
+      metrics,
+      palette,
+      intensity,
+      ambient: options.ambient === true,
+      startedAt: performance.now(),
+      duration: clamp(Number(options.duration) || (1050 + Math.min(1000, metrics.total * 2.2)), 650, 4200),
+      destinationRadius: clamp(Number(options.destinationRadius) || 16, 8, 42),
+      arrivalDetail: options.arrivalDetail || null
     };
+    pulses.push(pulse);
+    startLoop();
+    return id;
   }
 
-  function buildClusterGeometry(cluster, centre, clusterIndex, compact = false) {
-    const direction = averageDirection(cluster, centre);
-    const spread = cluster.length;
-    const junctionDistance = clamp(direction.radius * (compact ? 0.30 : 0.34) + spread * 3.5, compact ? 28 : 42, compact ? 74 : 126);
-    const side = hash(clusterIndex + direction.radius, 1, 2) > 0.5 ? 1 : -1;
-    const px = -direction.y;
-    const py = direction.x;
-    const jitter = (hash(clusterIndex + direction.radius, 3, 4) - 0.5) * (compact ? 12 : 28);
-    const junction = {
-      x: centre.x + direction.x * junctionDistance + px * side * jitter,
-      y: centre.y + direction.y * junctionDistance + py * side * jitter
-    };
-    const trunkSeed = Math.abs(Math.sin(cluster.reduce((sum, segment) => sum + segment.seed, 0) + clusterIndex * 0.713));
-    const trunk = controlPoints(centre, junction, trunkSeed, compact ? 0.72 : 0.86, clusterIndex);
-
-    const children = [];
-    const ordered = [...cluster].sort((a, b) => a.angle - b.angle);
-    for (let i = 0; i < ordered.length; i += 1) {
-      const segment = ordered[i];
-      const childSeed = segment.seed + clusterIndex * 0.419 + i * 0.271;
-      const target = segment.to;
-      if (!compact && ordered.length >= 4 && i >= 2) {
-        const subgroupAnchor = lerp(junction, target, 0.30 + hash(childSeed, 5, 6) * 0.10);
-        const sibling = ordered[i - 1];
-        const siblingAnchor = lerp(junction, sibling.to, 0.30 + hash(childSeed, 7, 8) * 0.10);
-        const shared = lerp(subgroupAnchor, siblingAnchor, 0.5);
-        children.push({
-          stem: controlPoints(junction, shared, childSeed + 0.33, 0.66, i + 4),
-          branch: controlPoints(shared, target, childSeed + 0.71, 0.82, i + 7),
-          shared,
-          seed: childSeed,
-          activityTarget: segment.activityTarget
-        });
-      } else {
-        children.push({
-          branch: controlPoints(junction, target, childSeed, compact ? 0.72 : 0.88, i + 2),
-          shared: junction,
-          seed: childSeed,
-          activityTarget: segment.activityTarget
-        });
-      }
-    }
-    return { trunk, junction, children, seed: trunkSeed };
+  function easeElectrical(progress) {
+    const smooth = progress * progress * (3 - 2 * progress);
+    return clamp(smooth + Math.sin(progress * Math.PI * 8) * Math.sin(progress * Math.PI) * .012, 0, 1);
   }
 
-  function routeMetrics(curves) {
-    const lengths = curves.map((curve) => Math.max(1, curve.length));
-    const total = lengths.reduce((sum, value) => sum + value, 0);
-    const boundaries = [];
-    let running = 0;
-    for (let i = 0; i < lengths.length - 1; i += 1) {
-      running += lengths[i];
-      boundaries.push({ progress: running / total, point: curves[i].p3 });
-    }
-    return { lengths, total, boundaries };
-  }
-
-  function routePoint(curves, metrics, progress) {
-    const target = clamp(progress, 0, 1) * metrics.total;
-    let running = 0;
-    for (let i = 0; i < curves.length; i += 1) {
-      const next = running + metrics.lengths[i];
-      if (target <= next || i === curves.length - 1) {
-        const local = clamp((target - running) / metrics.lengths[i], 0, 1);
-        return pointOnCurve(curves[i], local);
-      }
-      running = next;
-    }
-    return curves[curves.length - 1].p3;
-  }
-
-  function glow(point, radius, alpha, hot = false, palette = 'blue') {
+  function glow(point, radius, alpha, palette) {
+    const colours = palettes[palette] || palettes.blue;
     const gradient = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-    gradient.addColorStop(0, `rgba(255,255,255,${alpha.toFixed(3)})`);
-    if (palette === 'green') {
-      gradient.addColorStop(0.25, hot ? `rgba(211,255,193,${(alpha * 0.94).toFixed(3)})` : `rgba(104,245,150,${(alpha * 0.84).toFixed(3)})`);
-      gradient.addColorStop(0.62, `rgba(35,191,103,${(alpha * 0.48).toFixed(3)})`);
-      gradient.addColorStop(1, 'rgba(9,113,60,0)');
-    } else if (palette === 'purple') {
-      gradient.addColorStop(0.25, hot ? `rgba(239,184,255,${(alpha * 0.94).toFixed(3)})` : `rgba(214,118,255,${(alpha * 0.84).toFixed(3)})`);
-      gradient.addColorStop(0.62, `rgba(178,64,255,${(alpha * 0.48).toFixed(3)})`);
-      gradient.addColorStop(1, 'rgba(102,0,255,0)');
-    } else if (palette === 'orange') {
-      gradient.addColorStop(0.25, hot ? `rgba(255,234,164,${(alpha * 0.94).toFixed(3)})` : `rgba(255,177,64,${(alpha * 0.84).toFixed(3)})`);
-      gradient.addColorStop(0.62, `rgba(255,101,20,${(alpha * 0.48).toFixed(3)})`);
-      gradient.addColorStop(1, 'rgba(214,57,0,0)');
-    } else {
-      gradient.addColorStop(0.25, hot ? `rgba(173,240,255,${(alpha * 0.84).toFixed(3)})` : `rgba(108,222,255,${(alpha * 0.72).toFixed(3)})`);
-      gradient.addColorStop(0.62, `rgba(49,144,255,${(alpha * 0.34).toFixed(3)})`);
-      gradient.addColorStop(1, 'rgba(30,88,255,0)');
-    }
+    gradient.addColorStop(0, `rgba(${colours[0]},${alpha})`);
+    gradient.addColorStop(.24, `rgba(${colours[1]},${alpha * .92})`);
+    gradient.addColorStop(.62, `rgba(${colours[2]},${alpha * .45})`);
+    gradient.addColorStop(1, `rgba(${colours[2]},0)`);
+    ctx.fillStyle = gradient;
     ctx.beginPath();
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = gradient;
     ctx.fill();
   }
 
-  function drawRoutePulse(curves, seed, timestamp, phase, compact, options = {}) {
-    if (!curves.length) return;
-    const metrics = options.metrics || routeMetrics(curves);
-    const duration = (compact ? 3000 : 3400) + seed * 1500;
-    const raw = Number.isFinite(options.progress)
-      ? clamp(options.progress, 0, 1)
-      : ((timestamp + phase * duration + seed * 1100) % duration) / duration;
-    const activity = options.activity === true;
-    const reverse = options.reverse !== false;
-    const reach = options.reach ?? 1;
-    const routeProgress = activity ? (reverse ? 1 - raw : raw) : reach * (0.5 - 0.5 * Math.cos(raw * Math.PI * 2));
-    if (options.circulation) {
-      // One brief core response as the same pulse arrives at / leaves the hub.
-      hubSignals.push({ point: curves[0].p0, energy: Math.max(0, 1 - Math.min(raw, 1 - raw) / 0.045), at: timestamp });
+  function traceTail(pulse, fromProgress, toProgress) {
+    const start = positionAt(pulse, fromProgress);
+    const end = positionAt(pulse, toProgress);
+    ctx.beginPath();
+    ctx.moveTo(start.point.x, start.point.y);
+    for (let index = start.index + 1; index <= end.index; index += 1) {
+      ctx.lineTo(pulse.points[index].x, pulse.points[index].y);
     }
-    if (options.visible === false) return;
-    const point = routePoint(curves, metrics, routeProgress);
-    const direction = activity ? (reverse ? -1 : 1) : raw < 0.5 ? 1 : -1;
-    const emphasis = options.emphasis || null;
-    const pulse = emphasis === 'strong' ? 0.52 + 0.48 * (0.5 + Math.sin(timestamp * 0.011) * 0.5) : 1;
-    const intensity = emphasis === 'strong' ? 1.28 * pulse : emphasis === 'steady' ? 0.62 : 1;
-    // Captured route coordinates already include view.scale. Only the fixed
-    // screen-space pulse footprint needs a zoom response here.
-    const zoomStyle = pulseZoomStyle();
-    const radius = (compact ? 8.5 : 11.5) * (activity ? 1.18 : 1) * intensity * zoomStyle.size;
-    const palette = options.palette || (activity ? 'purple' : 'blue');
-
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = zoomStyle.alpha;
-
-    const trailCount = options.circulation ? (sourceCanvas?.clientWidth < 760 ? 1 : 2) : 3;
-    for (let i = trailCount; i >= 1; i -= 1) {
-      const trailProgress = clamp(routeProgress - direction * i * 0.012, 0, 1);
-      const trailPoint = routePoint(curves, metrics, trailProgress);
-      glow(trailPoint, radius * (0.34 + i * 0.09), 0.10 + (4 - i) * 0.035, false, palette);
-    }
-    glow(point, radius * (activity ? 1.88 : 1.75), activity ? 0.34 : compact ? 0.20 : 0.26, false, palette);
-    glow(point, radius, activity || options.circulation ? 1 : compact ? 0.74 : 0.92, true, palette);
-
-    for (const boundary of metrics.boundaries) {
-      const delta = Math.abs(routeProgress - boundary.progress);
-      if (delta < 0.052) {
-        const strength = 1 - delta / 0.052;
-        glow(boundary.point, radius * (1.10 + strength * 0.95), 0.16 + strength * (activity ? 0.52 : 0.40), true, palette);
-      }
-    }
-    ctx.restore();
+    ctx.lineTo(end.point.x, end.point.y);
   }
 
-  function reverseCurve(curve) {
-    return {
-      ...curve,
-      p0: curve.p3,
-      p1: curve.p2,
-      p2: curve.p1,
-      p3: curve.p0
-    };
+  function drawPulse(pulse, progress) {
+    const eased = easeElectrical(progress);
+    const point = pointAt(pulse, eased);
+    const colours = palettes[pulse.palette] || palettes.blue;
+    const tailSpan = .21 + Math.min(.07, pulse.intensity * .04);
+    const tailStart = Math.max(0, eased - tailSpan);
+    const first = pointAt(pulse, tailStart);
+    const tailGradient = ctx.createLinearGradient(first.x, first.y, point.x, point.y);
+    tailGradient.addColorStop(0, `rgba(${colours[2]},0)`);
+    tailGradient.addColorStop(.34, `rgba(${colours[2]},.16)`);
+    tailGradient.addColorStop(.72, `rgba(${colours[1]},.62)`);
+    tailGradient.addColorStop(1, 'rgba(255,255,255,.96)');
+
+    traceTail(pulse, tailStart, eased);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 16 * pulse.intensity;
+    ctx.strokeStyle = `rgba(${colours[2]},.16)`;
+    ctx.stroke();
+    traceTail(pulse, tailStart, eased);
+    ctx.lineWidth = 6.2 * pulse.intensity;
+    ctx.strokeStyle = tailGradient;
+    ctx.stroke();
+    traceTail(pulse, Math.max(tailStart, eased - tailSpan * .42), eased);
+    ctx.lineWidth = Math.max(1.15, 1.8 * pulse.intensity);
+    ctx.strokeStyle = 'rgba(248,254,255,.94)';
+    ctx.stroke();
+
+    glow(point, 25 * pulse.intensity, .42, pulse.palette);
+    glow(point, 11.5 * pulse.intensity, 1, pulse.palette);
+    ctx.fillStyle = 'rgba(255,255,255,.98)';
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, Math.max(2.1, 3.3 * pulse.intensity), 0, Math.PI * 2);
+    ctx.fill();
+
+    // The approved flow visibly energised shared branch junctions as a signal
+    // crossed trunk -> stem -> child boundaries. These points are precomputed
+    // with the cached route, so this adds no per-frame route reconstruction.
+    for (const boundary of pulse.boundaries) {
+      const distance = Math.abs(eased - boundary.progress);
+      if (distance > .055) continue;
+      const energy = 1 - distance / .055;
+      glow(boundary.point, (8 + energy * 14) * pulse.intensity, energy * .62, pulse.palette);
+    }
   }
 
-  function activityRoute(source, target, trunk, targetRoute = null) {
-    const sourceLeg = [trunk];
-    if (source.stem) sourceLeg.push(source.stem);
-    sourceLeg.push(source.branch);
-    if (source === target) return sourceLeg;
-    if (targetRoute?.length) return sourceLeg.slice().reverse().map(reverseCurve).concat(targetRoute);
-    const targetLeg = [trunk];
-    if (target?.stem) targetLeg.push(target.stem);
-    if (target?.branch) targetLeg.push(target.branch);
-    return sourceLeg.slice().reverse().map(reverseCurve).concat(targetLeg);
+  function drawBloom(bloom, timestamp) {
+    const progress = clamp((timestamp - bloom.startedAt) / bloom.duration, 0, 1);
+    const energy = Math.sin(progress * Math.PI);
+    const radius = bloom.radius + progress * 24;
+    glow(bloom.point, radius * 1.9, energy * .66 * bloom.intensity, bloom.palette);
+    glow(bloom.point, radius * .72, energy * .92 * bloom.intensity, bloom.palette);
+    ctx.beginPath();
+    ctx.arc(bloom.point.x, bloom.point.y, radius, 0, Math.PI * 2);
+    ctx.lineWidth = 1.8;
+    ctx.strokeStyle = `rgba(${(palettes[bloom.palette] || palettes.blue)[1]},${energy * .72})`;
+    ctx.stroke();
+    if (progress < .48) {
+      ctx.fillStyle = `rgba(255,255,255,${(1 - progress / .48) * .92})`;
+      ctx.beginPath();
+      ctx.arc(bloom.point.x, bloom.point.y, Math.max(1.5, bloom.radius * .18), 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
-  function collectActivityContext(segments, centre, compact = false) {
-    const activeByApp = new Map();
-    for (const segment of segments) {
-      const activity = activityFor(segment.activityTarget);
-      const appId = segment.activityTarget?.appId;
-      if (!activity || !appId || activeByApp.has(appId)) continue;
-      const targetGeometry = buildClusterGeometry([segment], centre, -1, compact);
-      const targetChild = targetGeometry.children[0] || null;
-      activeByApp.set(appId, {
-        target: segment.activityTarget,
-        activity,
-        targetRoute: targetChild ? [targetGeometry.trunk, ...(targetChild.stem ? [targetChild.stem] : []), targetChild.branch] : []
+  function completePulse(pulse) {
+    const destination = pulse.points[pulse.points.length - 1];
+    addBloom(destination, pulse.palette, pulse.intensity, pulse.destinationRadius);
+    if (pulse.arrivalDetail) {
+      window.dispatchEvent(new CustomEvent('universal-route-pulse-arrived', { detail: pulse.arrivalDetail }));
+    }
+  }
+
+  function syncVisualActivities(timestamp) {
+    if (timestamp - lastActivitySync < 750) return;
+    lastActivitySync = timestamp;
+    const registry = globalThis.UniversalAppAdapters;
+    const activeKeys = new Set();
+    for (const activity of registry?.getVisualActivities?.() || []) {
+      if (!activity?.pending || (activity.expiresAt && timestamp >= activity.expiresAt)) continue;
+      const key = `${activity.targetId || ''}:${activity.startedAt || 0}:${activity.from || ''}:${activity.to || ''}`;
+      activeKeys.add(key);
+      if (activityKeys.has(key) || !activity.from || !activity.to) continue;
+      activityKeys.set(key, timestamp);
+      fireSynapse(activity.from, activity.to, {
+        palette: activity.palette || (activity.kind === 'job' ? 'orange' : 'violet'),
+        intensity: activity.emphasis === 'strong' ? 1.35 : 1.08,
+        duration: 1700,
+        arrivalDetail: activity.oneShot ? {
+          targetId: activity.targetId,
+          jobId: activity.jobId,
+          from: activity.from,
+          to: activity.to
+        } : null
       });
     }
-    return activeByApp;
-  }
-
-  function activityFor(target) {
-    if (!target?.appId || !target?.nodeId) return null;
-    const activity = globalThis.UniversalAppAdapters?.getAppActivity?.(target.appId, target.nodeId);
-    return activity?.pending ? activity : null;
-  }
-
-  function paletteForActivity(activity) {
-    if (activity?.palette === 'green') return 'green';
-    return activity?.kind === 'job' ? 'orange' : 'purple';
-  }
-
-  function drawActivityHeartbeat(point, count, timestamp, palette = 'purple', minimumRadius = 0, emphasis = null) {
-    const pulse = emphasis === 'steady' ? 0.5 : 0.5 + Math.sin(timestamp * 0.0042) * 0.5;
-    const intensity = emphasis === 'strong' ? 1.28 : emphasis === 'steady' ? 0.62 : 1;
-    const strength = Math.min(1, 0.42 + Math.log2(Math.max(1, Number(count || 1)) + 1) * 0.12);
-    glow(point, Math.max((15 + pulse * 5) * intensity, minimumRadius), strength * (0.24 + pulse * 0.12) * intensity, false, palette);
-  }
-
-  function drawVisualActivities(timestamp) {
-    const activities = globalThis.UniversalAppAdapters?.getVisualActivities?.() || [];
-    const activeOneShots = new Set();
-    for (const activity of activities) {
-      if (!activity.pending || (activity.expiresAt && timestamp >= activity.expiresAt)) continue;
-      const palette = paletteForActivity(activity);
-      if (activity.from && activity.to) {
-        const from = anchors.get(activity.from);
-        const to = anchors.get(activity.to);
-        if (!from || !to) continue;
-        const seed = seedFor(from, to);
-        const oneShotKey = `${activity.targetId}:${activity.startedAt}`;
-        const oneShot = activity.oneShot === true && activity.startedAt > 0;
-        if (oneShot) activeOneShots.add(oneShotKey);
-        const duration = 3400 + seed * 1500;
-        const progress = oneShot ? clamp((timestamp - activity.startedAt) / duration, 0, 1) : null;
-        drawRoutePulse([controlPoints(from, to, seed, 0.86, 0)], seed, timestamp, 0, false, {
-          activity: true,
-          palette,
-          reverse: false,
-          progress
-        });
-        if (oneShot && progress >= 1 && !arrivedVisualActivities.has(oneShotKey)) {
-          arrivedVisualActivities.add(oneShotKey);
-          window.dispatchEvent(new CustomEvent('universal-route-pulse-arrived', {
-            detail: { targetId: activity.targetId, jobId: activity.jobId, from: activity.from, to: activity.to }
-          }));
-        }
-        continue;
-      }
-      const anchor = anchors.get(activity.targetId);
-      if (anchor) drawActivityHeartbeat(anchor, activity.count, timestamp, palette, anchor.radius + 14 + Math.sin(timestamp * 0.0042) * 6);
+    for (const [key, createdAt] of activityKeys) {
+      if (!activeKeys.has(key) && timestamp - createdAt > 5000) activityKeys.delete(key);
     }
-    for (const key of arrivedVisualActivities) {
-      if (!activeOneShots.has(key)) arrivedVisualActivities.delete(key);
+
+    for (const route of scaffold()?.routes?.() || []) {
+      const target = route.activityTarget;
+      if (!target?.appId || !target?.nodeId) continue;
+      const activity = registry?.getAppActivity?.(target.appId, target.nodeId);
+      if (!activity?.pending) continue;
+      const key = `app:${target.appId}:${target.nodeId}`;
+      const previous = activityKeys.get(key) || 0;
+      if (timestamp - previous < 2400) continue;
+      activityKeys.set(key, timestamp);
+      fireSynapse(route.sourceId, route.targetId, {
+        palette: activity.palette || (activity.kind === 'job' ? 'orange' : 'violet'),
+        intensity: activity.emphasis === 'strong' ? 1.3 : 1.08,
+        duration: 1450
+      });
     }
-  }
-
-  function drawNetworkFlow(segments, timestamp, compact = false, activityContext = null) {
-    if (!segments.length) return;
-    const centre = centrePoint(segments);
-    if (!centre) return;
-    const activeByApp = activityContext || collectActivityContext(segments, centre, compact);
-    const clusters = makeClusters(segments, centre, compact);
-
-    for (let clusterIndex = 0; clusterIndex < clusters.length; clusterIndex += 1) {
-      const geometry = buildClusterGeometry(clusters[clusterIndex], centre, clusterIndex, compact);
-      const children = geometry.children;
-      if (!children.length) {
-        drawRoutePulse([geometry.trunk], geometry.seed, timestamp, clusterIndex * 0.21, compact);
-        continue;
-      }
-      const pulseCount = compact || sourceCanvas?.clientWidth < 760 ? 3 : 4;
-      const visibleCount = visiblePulseCount(pulseCount);
-      for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
-        const child = children[childIndex];
-        const route = [geometry.trunk];
-        if (child.stem) route.push(child.stem);
-        route.push(child.branch);
-        const metrics = routeMetrics(route);
-        for (let pulseIndex = 0; pulseIndex < pulseCount; pulseIndex += 1) {
-          const seed = child.seed + geometry.seed + pulseIndex * 0.173;
-          drawRoutePulse(route, seed, timestamp,
-            clusterIndex * 0.17 + childIndex * 0.23 + pulseIndex / pulseCount, compact, {
-              circulation: true, metrics,
-              visible: pulseIndex < visibleCount - 1 || pulseIndex === pulseCount - 1,
-              reach: pulseIndex === pulseCount - 1 ? 1 : 0.40 + hash(seed, 18, 7) * 0.10
-            });
-        }
-      }
-
-      let pendingCount = 0;
-      let pendingPalette = 'purple';
-      let pendingEmphasis = null;
-      for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
-        const child = children[childIndex];
-        const appId = child.activityTarget?.appId;
-        const active = appId ? activeByApp.get(appId) : null;
-        if (!active) continue;
-        const isTarget = child.activityTarget.nodeId === active.target.nodeId;
-        const targetChild = children.find((candidate) => candidate.activityTarget?.nodeId === active.target.nodeId);
-        const route = isTarget && targetChild
-          ? activityRoute(child, child, geometry.trunk)
-          : activityRoute(child, targetChild, geometry.trunk, active.targetRoute);
-        drawRoutePulse(route, child.seed + geometry.seed, timestamp, clusterIndex * 0.17 + childIndex * 0.083, compact, {
-          activity: true,
-          activityTarget: active.target,
-          palette: paletteForActivity(active.activity),
-          emphasis: active.activity.emphasis,
-          reverse: false
-        });
-        if (isTarget) {
-          pendingCount += active.activity.count;
-          pendingPalette = paletteForActivity(active.activity);
-          pendingEmphasis = active.activity.emphasis;
-        }
-      }
-      if (pendingCount > 0) drawActivityHeartbeat(centre, pendingCount, timestamp, pendingPalette, 0, pendingEmphasis);
-    }
-  }
-
-  function groupManualSegments(segments) {
-    const groups = [];
-    const tolerance = 12;
-    for (const segment of segments) {
-      let group = groups.find((candidate) => distance(candidate.centre, segment.from) <= tolerance);
-      if (!group) {
-        group = { centre: segment.from, segments: [] };
-        groups.push(group);
-      }
-      group.segments.push(segment);
-    }
-    return groups;
   }
 
   function drawFrame(timestamp) {
-    frame = requestAnimationFrame(drawFrame);
-    if (!ctx || !layer || !sourceCanvas?.isConnected || document.hidden) return;
-    const interacting = sourceCanvas.dataset.interacting === 'true';
-    const frameMs = interacting ? 72 : 34;
-    if (timestamp - lastPaint < frameMs) return;
+    frame = 0;
+    if (document.hidden || !ctx || !layer?.isConnected) return;
+    if (timestamp - lastPaint < FRAME_MS) {
+      frame = requestAnimationFrame(drawFrame);
+      return;
+    }
     lastPaint = timestamp;
-    const currentZoom = Number(globalThis.MemoryGraph?.presentationState?.()?.view?.scale);
-    graphZoom = Number.isFinite(currentZoom) ? currentZoom : 1;
-    hubSignals.length = 0;
+    syncVisualActivities(timestamp);
+    ctx.clearRect(0, 0, width, height);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
 
-    const rect = sourceCanvas.getBoundingClientRect();
-    if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) return;
-    ctx.clearRect(0, 0, rect.width, rect.height);
-    if (!interacting) {
-      for (const group of groupManualSegments(mainSegments)) {
-        const centre = centrePoint(group.segments);
-        drawNetworkFlow(group.segments, timestamp, false, centre ? collectActivityContext(group.segments, centre, false) : null);
+    for (let index = pulses.length - 1; index >= 0; index -= 1) {
+      const pulse = pulses[index];
+      const progress = (timestamp - pulse.startedAt) / pulse.duration;
+      if (progress >= 1) {
+        pulses.splice(index, 1);
+        completePulse(pulse);
+        continue;
       }
-      drawVisualActivities(timestamp);
+      if (progress >= 0) drawPulse(pulse, progress);
     }
 
-    if (!interacting) {
-      for (const group of groupManualSegments(manualSegments)) {
-        // Folder pulses use the same route geometry, pulse count and glow size
-        // as normal memory routes; grouping remains semantic only.
-        drawNetworkFlow(group.segments, timestamp, false);
+    for (let index = blooms.length - 1; index >= 0; index -= 1) {
+      const bloom = blooms[index];
+      if (timestamp - bloom.startedAt >= bloom.duration) {
+        blooms.splice(index, 1);
+        continue;
       }
+      drawBloom(bloom, timestamp);
+    }
+    ctx.restore();
+
+    if ((pulses.length || blooms.length) && !frame) frame = requestAnimationFrame(drawFrame);
+  }
+
+  function startLoop() {
+    if (!frame && !document.hidden && (pulses.length || blooms.length)) {
+      frame = requestAnimationFrame(drawFrame);
     }
   }
 
-  proto.beginPath = function memoryGraphNeuralFlowBeginPath(...args) {
-    if (isMainGraph(this) || isManualOverlay(this)) {
-      this.__memoryFlowStart = null;
-      this.__memoryFlowEnd = null;
+  function stopLoop(clear = false) {
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+    lastPaint = 0;
+    if (clear && ctx) ctx.clearRect(0, 0, width, height);
+  }
+
+  function scheduleAmbient() {
+    if (ambientTimer) clearTimeout(ambientTimer);
+    ambientTimer = 0;
+    if (document.hidden || reducedMotion.matches) return;
+    const delay = AMBIENT_MIN_MS + Math.random() * (AMBIENT_MAX_MS - AMBIENT_MIN_MS);
+    ambientTimer = window.setTimeout(() => {
+      ambientTimer = 0;
+      const available = scaffold()?.routes?.() || [];
+      const ambientCount = pulses.filter((pulse) => pulse.ambient).length;
+      if (available.length && ambientCount < 4 && pulses.length < MAX_PULSES) {
+        const route = available[Math.floor(Math.random() * available.length)];
+        const reverse = Math.random() < .24;
+        const accentRoll = Math.random();
+        const palette = accentRoll > .94 ? 'yellow' : accentRoll > .88 ? 'violet' : accentRoll > .80 ? 'lime' : 'blue';
+        fireSynapse(
+          reverse ? route.targetId : route.sourceId,
+          reverse ? route.sourceId : route.targetId,
+          { ambient: true, palette, intensity: .82 + Math.random() * .28, duration: 1500 + Math.random() * 900 }
+        );
+      }
+      scheduleAmbient();
+    }, delay);
+  }
+
+  function handleRouteChange() {
+    pulses.length = 0;
+    blooms.length = 0;
+    syncLayerSize();
+    stopLoop(true);
+    scheduleAmbient();
+  }
+
+  function handleVisibility() {
+    if (document.hidden) {
+      hiddenAt = performance.now();
+      if (ambientTimer) clearTimeout(ambientTimer);
+      ambientTimer = 0;
+      stopLoop(false);
+      return;
     }
-    return previousBeginPath.apply(this, args);
-  };
-
-  proto.moveTo = function memoryGraphNeuralFlowMoveTo(x, y, ...rest) {
-    if (isMainGraph(this) || isManualOverlay(this)) {
-      this.__memoryFlowStart = { x: Number(x), y: Number(y) };
-      this.__memoryFlowEnd = null;
+    if (hiddenAt) {
+      const pause = performance.now() - hiddenAt;
+      for (const pulse of pulses) pulse.startedAt += pause;
+      for (const bloom of blooms) bloom.startedAt += pause;
+      hiddenAt = 0;
     }
-    return previousMoveTo.call(this, x, y, ...rest);
-  };
+    startLoop();
+    scheduleAmbient();
+  }
 
-  proto.lineTo = function memoryGraphNeuralFlowLineTo(x, y, ...rest) {
-    if ((isMainGraph(this) || isManualOverlay(this)) && this.__memoryFlowStart) this.__memoryFlowEnd = { x: Number(x), y: Number(y) };
-    return previousLineTo.call(this, x, y, ...rest);
-  };
-
-  proto.clearRect = function memoryGraphNeuralFlowClearRect(...args) {
-    if (isMainGraph(this)) {
-      mainSegments.length = 0;
-      anchors.clear();
+  function handleReducedMotion() {
+    if (reducedMotion.matches) {
+      if (ambientTimer) clearTimeout(ambientTimer);
+      ambientTimer = 0;
+      for (let index = pulses.length - 1; index >= 0; index -= 1) {
+        if (pulses[index].ambient) pulses.splice(index, 1);
+      }
+    } else {
+      scheduleAmbient();
     }
-    if (isManualOverlay(this)) manualSegments.length = 0;
-    return previousClearRect.apply(this, args);
-  };
+  }
 
-  proto.stroke = function memoryGraphNeuralFlowStroke(...args) {
-    if (isMainGraph(this) && isSemanticBlueLine(this) && Number(this.lineWidth || 1) <= 1.6) capture(this, false);
-    else if (isManualOverlay(this) && isSemanticBlueLine(this) && String(this.strokeStyle || '').includes('55, 139, 255')) capture(this, true);
-    return previousStroke.apply(this, args);
-  };
+  function handleActivityChange() {
+    lastActivitySync = 0;
+    syncVisualActivities(performance.now());
+    startLoop();
+  }
+
+  window.addEventListener('memory-neural-routes-changed', handleRouteChange);
+  document.addEventListener('visibilitychange', handleVisibility);
+  document.addEventListener('universal-app-activity-change', handleActivityChange);
+  reducedMotion.addEventListener?.('change', handleReducedMotion);
 
   if (!document.getElementById('memoryGraphNeuralFlowStyles')) {
     const style = document.createElement('style');
@@ -632,22 +483,18 @@
     document.head.appendChild(style);
   }
 
-  globalThis.MemoryGraphNeuralFlow = Object.freeze({
+  const api = Object.freeze({
     version: VERSION,
-    mainSegmentCount: () => mainSegments.length,
-    manualSegmentCount: () => manualSegments.length,
     captureAnchor,
-    hubEnergy(context, circle) {
-      const dpr = context.canvas.width / Math.max(1, context.canvas.getBoundingClientRect().width);
-      const m = context.getTransform();
-      const point = { x: (m.a * circle.x + m.c * circle.y + m.e) / dpr, y: (m.b * circle.x + m.d * circle.y + m.f) / dpr };
-      let energy = 0;
-      const now = performance.now();
-      for (const signal of hubSignals) {
-        if (now - signal.at < 120 && distance(point, signal.point) < 3) energy = Math.max(energy, signal.energy);
-      }
-      return energy;
-    },
-    redraw() { lastPaint = 0; }
+    fireSynapse,
+    activePulseCount: () => pulses.length,
+    pulseLimit: MAX_PULSES,
+    hubEnergy: () => 0,
+    redraw() {
+      syncLayerSize();
+      startLoop();
+    }
   });
+  globalThis.MemoryGraphNeuralFlow = api;
+  globalThis.fireSynapse = fireSynapse;
 })();

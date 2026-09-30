@@ -30,6 +30,8 @@
   let canvas = null;
   let context = null;
   let resizeObserver = null;
+  let resizeFrame = 0;
+  let canvasMetrics = null;
   let workspaceObserver = null;
   let inspectorBridgeActive = false;
   let graph = null;
@@ -854,12 +856,18 @@
     return Boolean(context);
   }
 
-  function resizeCanvas() {
+  function resizeCanvas(force = false) {
     if (!surface || !canvas || !context) return;
     const rect = surface.getBoundingClientRect();
     const width = Math.max(1, Math.round(rect.width));
     const height = Math.max(1, Math.round(rect.height));
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+
+    if (!force && canvasMetrics &&
+        Math.abs(canvasMetrics.width - width) < 2 &&
+        Math.abs(canvasMetrics.height - height) < 2 &&
+        canvasMetrics.dpr === dpr) return;
+    canvasMetrics = { width, height, dpr };
 
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
@@ -867,6 +875,14 @@
     canvas.style.height = `${height}px`;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     rebuildGraph(width, height);
+  }
+
+  function scheduleResizeCanvas() {
+    if (resizeFrame) return;
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = 0;
+      resizeCanvas();
+    });
   }
 
   function rebuildGraph(width, height) {
@@ -1633,6 +1649,15 @@
       : null;
 
     context.save();
+    context.__memoryNeuralEdge = {
+      id: `${String(edge.source?.id || '')}->${String(edge.target?.id || '')}:${String(edge.kind || 'space')}`,
+      sourceId: String(edge.source?.id || ''),
+      targetId: String(edge.target?.id || ''),
+      sourceHub: edge.source?.kind === 'space' || edge.source?.appRoot === true || edge.source?.clusterRoot === true,
+      targetHub: edge.target?.kind === 'space' || edge.target?.appRoot === true || edge.target?.clusterRoot === true,
+      kind: String(edge.kind || 'space'),
+      activityTarget
+    };
     context.__memoryFlowActivityTarget = activityTarget;
     context.beginPath();
     context.moveTo(source.x, source.y);
@@ -1643,6 +1668,7 @@
       : 'rgba(120, 184, 255, 0.23)';
     if (revision) context.setLineDash([5, 4]);
     context.stroke();
+    context.__memoryNeuralEdge = null;
     context.__memoryFlowActivityTarget = null;
     context.restore();
   }
@@ -2761,7 +2787,7 @@
 
   function refresh() {
     if (!surface || !canvas) return;
-    resizeCanvas();
+    resizeCanvas(true);
   }
 
   function observeWorkspaceUi() {
@@ -2794,7 +2820,7 @@
     bindAppAdapters();
 
     resizeObserver?.disconnect();
-    resizeObserver = new ResizeObserver(resizeCanvas);
+    resizeObserver = new ResizeObserver(scheduleResizeCanvas);
     resizeObserver.observe(surface);
 
     workspaceObserver?.disconnect();
