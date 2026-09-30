@@ -3,7 +3,7 @@
 
   // Approved visual authority:
   // scaffold blob a04fc6d1f23a72df4f76a0e9e8ac5b9cb8f9e45f
-  const VERSION = 12;
+  const VERSION = 13;
   const MAX_DPR = 1.75;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
@@ -483,96 +483,103 @@
   }
 
   function drawCentreMass(context, network, mobile) {
-    if (!network.hub) return;
+    if (!network.hub || !network.clusters.length) return;
+
     const centre = network.centre;
-    const networkSeed = hashText(network.sourceId || 'hub') * 1000;
-    const somaRadius = mobile ? 30 : 42;
+    const direction = averageDirection(network.clusters[0], centre);
+    const length = mobile ? 66 : 96;
+    const normal = { x: -direction.y, y: direction.x };
+    const seed = hashText(network.sourceId || 'hub') * 1000;
+    const bend = (hash(seed, 1, 2) - .5) * (mobile ? 22 : 34);
+
+    // One wide root only. No radial spokes, no extra soma decoration.
+    const p0 = {
+      x: centre.x + direction.x * (mobile ? 6 : 8),
+      y: centre.y + direction.y * (mobile ? 6 : 8)
+    };
+    const p1 = {
+      x: centre.x + direction.x * length * .36 + normal.x * bend * .30,
+      y: centre.y + direction.y * length * .36 + normal.y * bend * .30
+    };
+    const p2 = {
+      x: centre.x + direction.x * length * .72 + normal.x * bend,
+      y: centre.y + direction.y * length * .72 + normal.y * bend
+    };
+    const p3 = {
+      x: centre.x + direction.x * length + normal.x * bend * .28,
+      y: centre.y + direction.y * length + normal.y * bend * .28
+    };
+
+    const root = { p0, p1, p2, p3, length, seed };
 
     context.save();
     context.globalCompositeOperation = 'source-over';
 
-    const gradient = context.createRadialGradient(
-      centre.x, centre.y, 0,
-      centre.x, centre.y, somaRadius * 1.12
-    );
-    gradient.addColorStop(0, 'rgba(220,233,240,.24)');
-    gradient.addColorStop(.32, 'rgba(122,151,164,.17)');
-    gradient.addColorStop(.68, 'rgba(67,96,110,.09)');
-    gradient.addColorStop(1, 'rgba(38,62,74,0)');
-    context.beginPath();
-    context.arc(centre.x, centre.y, somaRadius * 1.12, 0, Math.PI * 2);
-    context.fillStyle = gradient;
-    context.fill();
+    // Fat close to the blue node.
+    const baseEnd = pointOnCurve(root, .38);
+    const base = controlPoints(p0, baseEnd, seed + .11, .32, 1);
+    strokeCurve(context, base, mobile ? 8.5 : 12.5, 'rgba(66,95,108,.20)');
+    strokeCurve(context, base, mobile ? 5.5 : 8.5, 'rgba(113,143,156,.40)');
+    strokeCurve(context, base, mobile ? 1.5 : 2.2, 'rgba(194,211,219,.34)');
 
-    // Build a small number of real dendritic roots, then branch those roots.
-    // This avoids the old bicycle-wheel/starburst silhouette.
-    const rootCount = mobile ? 5 : 7;
-    const clusterDirection = network.clusters.length
-      ? averageDirection(network.clusters[0], centre)
-      : { x: 1, y: 0 };
-    const baseAngle = Math.atan2(clusterDirection.y, clusterDirection.x);
+    // Then narrow down.
+    const midStart = pointOnCurve(root, .30);
+    const midEnd = pointOnCurve(root, .72);
+    const mid = controlPoints(midStart, midEnd, seed + .22, .26, 2);
+    strokeCurve(context, mid, mobile ? 4.2 : 6.0, 'rgba(85,116,130,.32)');
+    strokeCurve(context, mid, mobile ? 1.1 : 1.6, 'rgba(183,201,210,.30)');
 
-    for (let index = 0; index < rootCount; index += 1) {
-      const localSeed = networkSeed + index * .731;
-      const ringAngle = baseAngle + (index / rootCount) * Math.PI * 2;
-      const angle = ringAngle + (hash(localSeed, 1, 2) - .5) * .95;
-      const direction = { x: Math.cos(angle), y: Math.sin(angle) };
-      const normal = { x: -direction.y, y: direction.x };
+    const tipStart = pointOnCurve(root, .64);
+    const tip = controlPoints(tipStart, p3, seed + .33, .22, 3);
+    strokeCurve(context, tip, mobile ? 2.2 : 3.2, 'rgba(99,132,146,.31)');
+    strokeCurve(context, tip, mobile ? .75 : 1.0, 'rgba(190,207,215,.28)');
 
-      const primary = index === 0;
-      const reach = somaRadius * (
-        primary
-          ? (2.55 + hash(localSeed, 3, 4) * .65)
-          : (1.35 + hash(localSeed, 3, 4) * 1.10)
-      );
-      const sway = (hash(localSeed, 5, 6) - .5) * somaRadius * 1.10;
+    // Split the narrow end into a few thinner branches.
+    const branchCount = 3;
+    for (let index = 0; index < branchCount; index += 1) {
+      const branchSeed = seed + 1 + index * .417;
+      const spread = (index - 1) * (mobile ? .52 : .62) + (hash(branchSeed, 4, 5) - .5) * .22;
+      const ca = Math.cos(spread);
+      const sa = Math.sin(spread);
+      const bx = direction.x * ca - direction.y * sa;
+      const by = direction.x * sa + direction.y * ca;
+      const reach = length * (.44 + hash(branchSeed, 6, 7) * .20);
+      const branchNormal = { x: -by, y: bx };
+      const branchBend = (hash(branchSeed, 8, 9) - .5) * reach * .42;
 
-      const root = {
-        p0: centre,
+      const branch = {
+        p0: p3,
         p1: {
-          x: centre.x + direction.x * reach * .22 + normal.x * sway * .18,
-          y: centre.y + direction.y * reach * .22 + normal.y * sway * .18
+          x: p3.x + bx * reach * .30 + branchNormal.x * branchBend * .30,
+          y: p3.y + by * reach * .30 + branchNormal.y * branchBend * .30
         },
         p2: {
-          x: centre.x + direction.x * reach * .68 + normal.x * sway,
-          y: centre.y + direction.y * reach * .68 + normal.y * sway
+          x: p3.x + bx * reach * .72 + branchNormal.x * branchBend,
+          y: p3.y + by * reach * .72 + branchNormal.y * branchBend
         },
         p3: {
-          x: centre.x + direction.x * reach + normal.x * sway * .28,
-          y: centre.y + direction.y * reach + normal.y * sway * .28
+          x: p3.x + bx * reach,
+          y: p3.y + by * reach
         },
         length: reach,
-        seed: localSeed
+        seed: branchSeed
       };
 
-      const rootWidth = primary
-        ? (mobile ? 1.22 : 1.60)
-        : (mobile ? .72 : .92) + hash(localSeed, 7, 8) * .48;
+      strokeCurve(context, branch, mobile ? 1.15 : 1.55, 'rgba(103,135,149,.30)');
+      strokeCurve(context, branch, mobile ? .38 : .50, 'rgba(187,204,212,.24)');
 
-      strokeCurve(context, root, rootWidth * 2.0, 'rgba(36,63,77,.10)');
-      strokeCurve(context, root, rootWidth, 'rgba(103,136,151,.34)');
-      strokeCurve(context, root, Math.max(.24, rootWidth * .24), 'rgba(188,207,216,.28)');
-
-      const branchCount = primary ? 4 : 2 + Math.floor(hash(localSeed, 9, 10) * 2);
-      for (let branchIndex = 0; branchIndex < branchCount; branchIndex += 1) {
-        const branchSeed = localSeed + branchIndex * .391 + .811;
-        const originT = .30 + ((branchIndex + .35) / (branchCount + .6)) * .56;
-        const origin = pointOnCurve(root, originT);
-        const tangent = tangentOnCurve(root, originT);
-        const branchReach = reach * (
-          .34 + hash(branchSeed, 11, 12) * (primary ? .44 : .34)
-        );
-
-        drawNeurite(
-          context,
-          origin,
-          tangent,
-          branchSeed,
-          branchReach,
-          mobile,
-          primary ? .34 : .48
-        );
-      }
+      // One final hairline fork from each branch.
+      const forkOrigin = pointOnCurve(branch, .62);
+      const forkTangent = tangentOnCurve(branch, .62);
+      drawNeurite(
+        context,
+        forkOrigin,
+        forkTangent,
+        branchSeed + .73,
+        reach * .38,
+        mobile,
+        .72
+      );
     }
 
     context.restore();
@@ -602,10 +609,7 @@
     if (!metrics) return;
     const mobile = metrics.width < 700;
     ctx.clearRect(0, 0, metrics.width, metrics.height);
-    for (const network of networks) {
-      drawCentreMass(ctx, network, mobile);
-      for (const geometry of network.geometries) drawCluster(ctx, geometry, mobile);
-    }
+    for (const network of networks) drawCentreMass(ctx, network, mobile);
   }
 
   function captureSignature(metrics) {
