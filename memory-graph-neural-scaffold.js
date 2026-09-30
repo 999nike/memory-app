@@ -3,7 +3,7 @@
 
   // Approved visual authority:
   // scaffold blob a04fc6d1f23a72df4f76a0e9e8ac5b9cb8f9e45f
-  const VERSION = 9;
+  const VERSION = 10;
   const MAX_DPR = 1.75;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
@@ -388,9 +388,9 @@
 
     // CodePen-style idea: the neuron exists as quiet neutral tissue.
     // Colour belongs to the travelling signal layer, not the scaffold.
-    strokeCurve(context, curve, width * 1.9, 'rgba(65,82,104,.055)');
-    strokeCurve(context, curve, width, 'rgba(142,158,178,.16)');
-    strokeCurve(context, curve, Math.max(.32, width * .28), 'rgba(222,232,240,.24)');
+    strokeCurve(context, curve, width * 2.05, 'rgba(38,66,82,.11)');
+    strokeCurve(context, curve, width, 'rgba(92,123,139,.30)');
+    strokeCurve(context, curve, Math.max(.36, width * .30), 'rgba(184,204,214,.32)');
 
     context.restore();
   }
@@ -416,8 +416,8 @@
     context.beginPath();
     context.moveTo(origin.x, origin.y);
     context.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, end.x, end.y);
-    context.lineWidth = mobile ? .26 : .34;
-    context.strokeStyle = 'rgba(181,196,210,.16)';
+    context.lineWidth = mobile ? .30 : .40;
+    context.strokeStyle = 'rgba(119,151,165,.25)';
     native.stroke.call(context);
 
     const branchBase = lerpPoint(c1, c2, .62);
@@ -438,8 +438,8 @@
         forkEnd.x,
         forkEnd.y
       );
-      context.lineWidth = mobile ? .18 : .22;
-      context.strokeStyle = 'rgba(205,216,226,.12)';
+      context.lineWidth = mobile ? .20 : .25;
+      context.strokeStyle = 'rgba(157,181,192,.20)';
       native.stroke.call(context);
     }
   }
@@ -526,24 +526,24 @@
         length: reach,
         seed: localSeed
       };
-      strokeCurve(context, curve, mobile ? .28 : .36, 'rgba(188,202,214,.15)');
+      strokeCurve(context, curve, mobile ? .34 : .44, 'rgba(118,150,164,.24)');
     }
     context.restore();
   }
 
   function drawCluster(context, geometry, mobile) {
-    const trunkWidth = clamp(geometry.trunk.length * .020, 1.6, 3.8);
+    const trunkWidth = clamp(geometry.trunk.length * .024, 1.9, 4.4);
     drawOrganicTube(context, geometry.trunk, trunkWidth);
     drawDendrites(context, geometry.trunk, geometry.seed, 1.12, mobile);
     drawJunction(context, geometry.junction, .48);
 
     for (const child of geometry.children) {
       if (child.stem) {
-        const stemWidth = clamp(child.stem.length * .018, 1.1, 2.7);
+        const stemWidth = clamp(child.stem.length * .020, 1.25, 3.0);
         drawOrganicTube(context, child.stem, stemWidth);
         drawDendrites(context, child.stem, child.seed + 1.1, .66, mobile);
       }
-      const branchWidth = clamp(child.branch.length * .016, .85, 2.15);
+      const branchWidth = clamp(child.branch.length * .018, 1.0, 2.4);
       drawOrganicTube(context, child.branch, branchWidth);
       drawDendrites(context, child.branch, child.seed + 2.3, .78, mobile);
     }
