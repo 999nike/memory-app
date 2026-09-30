@@ -4,13 +4,13 @@
   // Shader activation + bloom treatment adapted from VoXelo's public
   // "Neural Synapse Simulation" CodePen (MIT). See THIRD_PARTY_NOTICES.md.
   // This layer reuses Memory Space's approved Three.js root geometry exactly.
-  const VERSION = 1;
+  const VERSION = 2;
   const THREE_MODULE = './vendor/three/three.module.min.js';
   const EFFECT_COMPOSER_MODULE = './vendor/three/addons/postprocessing/EffectComposer.js';
   const RENDER_PASS_MODULE = './vendor/three/addons/postprocessing/RenderPass.js';
   const BLOOM_PASS_MODULE = './vendor/three/addons/postprocessing/UnrealBloomPass.js';
   const MAX_DPR = 1.5;
-  const MAX_PULSES = 10;
+  const MAX_PULSES = 14;
   const FRAME_MS = 1000 / 30;
   const params = new URLSearchParams(location.search);
 
@@ -37,6 +37,7 @@
   let pulseSequence = 0;
   let ambientTimer = 0;
   let ambientCursor = 0;
+  let semanticQuietUntil = 0;
   let lastError = null;
   const pulses = [];
 
@@ -218,9 +219,9 @@
     if (!renderer || !scene || !camera || !EffectComposer || !RenderPass || !UnrealBloomPass) return false;
     composer?.dispose?.();
     const renderPass = new RenderPass(scene, camera);
-    bloomPass = new UnrealBloomPass(new THREE.Vector2(Math.max(1, width), Math.max(1, height)), 0.75, 0.8, 1.0);
+    bloomPass = new UnrealBloomPass(new THREE.Vector2(Math.max(1, width), Math.max(1, height)), 0.675, 0.8, 1.0);
     bloomPass.threshold = 1.0;
-    bloomPass.strength = 0.75;
+    bloomPass.strength = 0.675;
     bloomPass.radius = 0.8;
     composer = new EffectComposer(renderer);
     composer.addPass(renderPass);
@@ -307,10 +308,45 @@
     });
   }
 
+  function legacyVisualPath(sourceNodeId, targetNodeId) {
+    const path = globalThis.MemoryGraphNeuralFlow?.resolveVisualPath?.(sourceNodeId, targetNodeId);
+    return path?.points?.length > 1 ? path : null;
+  }
+
+  function buildVirtualRouteMeshes(sourceNodeId, targetNodeId, palette) {
+    const legacy = legacyVisualPath(sourceNodeId, targetNodeId);
+    if (!legacy || !THREE) return null;
+    const points = legacy.points.map((point, index) => new THREE.Vector3(
+      Number(point.x) || 0,
+      Number(point.y) || 0,
+      Math.sin(index * 0.65) * 1.6
+    ));
+    const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal', 0.5);
+    const totalLength = Math.max(1, curve.getLength());
+    const segments = clamp(Math.round(totalLength * 0.32), 24, 120);
+    const geometry = new THREE.TubeGeometry(curve, segments, 1.8, 8, false);
+    addDistanceAttribute(geometry, 0, totalLength);
+    const material = makeMaterial(totalLength, palette);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.renderOrder = 10;
+    scene.add(mesh);
+    return {
+      route: { virtual: true, sourceNodeId, targetNodeId },
+      totalLength,
+      material,
+      meshes: [mesh],
+      soma: null,
+      somaMaterial: null,
+      ownedGeometries: [geometry]
+    };
+  }
+
   function buildPulseMeshes(sourceNodeId, targetNodeId, palette) {
     const api = threeApi();
     const route = api?.routeSurface?.(sourceNodeId, targetNodeId);
-    if (!route?.trunkGeometry || !route?.branchGeometry) return null;
+    if (!route?.trunkGeometry || !route?.branchGeometry) {
+      return buildVirtualRouteMeshes(sourceNodeId, targetNodeId, palette);
+    }
 
     const trunkLength = Math.max(1, Number(route.trunkLength) || 1);
     const branchLength = Math.max(1, Number(route.branchLength) || 1);
@@ -344,18 +380,50 @@
       scene.add(soma);
     }
 
-    return { route, totalLength, material, meshes: [trunk, branch], soma, somaMaterial };
+    return { route, totalLength, material, meshes: [trunk, branch], soma, somaMaterial, ownedGeometries: [] };
   }
 
   function disposePulse(pulse) {
     for (const mesh of pulse.meshes || []) scene?.remove(mesh);
     if (pulse.soma) scene?.remove(pulse.soma);
+    for (const geometry of pulse.ownedGeometries || []) geometry?.dispose?.();
     pulse.material?.dispose?.();
     pulse.somaMaterial?.dispose?.();
   }
 
+  function clearAmbientPulses() {
+    for (let index = pulses.length - 1; index >= 0; index -= 1) {
+      if (!pulses[index].ambient) continue;
+      disposePulse(pulses.splice(index, 1)[0]);
+    }
+  }
+
+  function semanticModeActive(timestamp = performance.now()) {
+    return timestamp < semanticQuietUntil || pulses.some((pulse) => !pulse.ambient);
+  }
+
   function fireSynapse(sourceNodeId, targetNodeId, options = {}) {
     if (!THREE || !ensureLayer()) return false;
+    const ambient = options.ambient === true;
+    const delay = clamp(Number(options.delay) || 0, 0, 1200);
+    const duration = clamp(
+      Number(options.duration) || (ambient ? 3600 : 1750),
+      650,
+      ambient ? 5600 : 4200
+    );
+
+    if (!ambient) {
+      semanticQuietUntil = Math.max(
+        semanticQuietUntil,
+        performance.now() + delay + duration + 900
+      );
+      if (ambientTimer) clearTimeout(ambientTimer);
+      ambientTimer = 0;
+      clearAmbientPulses();
+    } else if (semanticModeActive()) {
+      return false;
+    }
+
     const palette = String(options.palette || 'cyan').toLowerCase();
     const visual = buildPulseMeshes(sourceNodeId, targetNodeId, palette);
     if (!visual) return false;
@@ -375,9 +443,9 @@
       targetNodeId: String(targetNodeId || ''),
       palette,
       intensity: clamp(Number(options.intensity) || 1, 0.45, 1.8),
-      ambient: options.ambient === true,
-      startedAt: performance.now() + clamp(Number(options.delay) || 0, 0, 900),
-      duration: clamp(Number(options.duration) || 1750, 650, 4200),
+      ambient,
+      startedAt: performance.now() + delay,
+      duration,
       arrivalDetail: options.arrivalDetail || null,
       arrived: false,
       ...visual
@@ -451,6 +519,7 @@
     else {
       lastFrameAt = 0;
       renderer.clear();
+      scheduleAmbient();
     }
   }
 
@@ -460,30 +529,56 @@
 
   function scheduleAmbient() {
     if (ambientTimer || document.hidden) return;
+
+    const now = performance.now();
+    if (semanticModeActive(now)) {
+      const wait = Math.max(700, Math.min(2200, semanticQuietUntil - now + 180));
+      ambientTimer = window.setTimeout(() => {
+        ambientTimer = 0;
+        scheduleAmbient();
+      }, wait);
+      return;
+    }
+
     ambientTimer = window.setTimeout(() => {
       ambientTimer = 0;
+      if (semanticModeActive()) {
+        scheduleAmbient();
+        return;
+      }
+
       const scaffold = globalThis.MemoryGraphNeuralScaffold;
       const api = threeApi();
       const routes = (scaffold?.routes?.() || []).filter((route) =>
-        route?.sourceId && route?.targetId && api?.routeSurface?.(route.sourceId, route.targetId)
+        route?.sourceHub === true &&
+        route?.sourceId &&
+        route?.targetId &&
+        api?.routeSurface?.(route.sourceId, route.targetId)
       );
-      if (routes.length && pulses.filter((pulse) => pulse.ambient).length < 6) {
-        const seedRoute = routes[ambientCursor % routes.length];
-        ambientCursor += 1;
-        const sameHub = routes.filter((route) => route.sourceId === seedRoute.sourceId);
-        const burst = (sameHub.length ? sameHub : [seedRoute]).slice(0, 4);
-        burst.forEach((route, index) => {
-          fireSynapse(route.sourceId, route.targetId, {
-            ambient: true,
-            palette: route.palette || ['cyan', 'lime', 'violet', 'magenta'][index % 4],
-            intensity: 1.25 + index * 0.05,
-            duration: 1850 + index * 120,
-            delay: index * 110
-          });
-        });
+
+      const byHub = new Map();
+      for (const route of routes) {
+        const key = String(route.sourceId);
+        const group = byHub.get(key) || [];
+        group.push(route);
+        byHub.set(key, group);
       }
+
+      const hubs = [...byHub.entries()];
+      hubs.forEach(([hubId, hubRoutes], hubIndex) => {
+        if (!hubRoutes.length) return;
+        const route = hubRoutes[(ambientCursor + hubIndex) % hubRoutes.length];
+        fireSynapse(route.sourceId, route.targetId, {
+          ambient: true,
+          palette: route.palette || ['cyan', 'lime', 'violet', 'magenta', 'yellow'][hubIndex % 5],
+          intensity: 1.25 + (hubIndex % 3) * 0.04,
+          duration: 3400 + (hubIndex % 4) * 240,
+          delay: hubIndex * 180
+        });
+      });
+      ambientCursor += 1;
       scheduleAmbient();
-    }, 650 + Math.random() * 350);
+    }, 2200 + Math.random() * 650);
   }
 
   function clearPulses() {
@@ -539,6 +634,9 @@
       ready: Boolean(THREE && renderer),
       bloom: Boolean(composer && bloomPass),
       pulses: pulses.length,
+      ambientPulses: pulses.filter((pulse) => pulse.ambient).length,
+      semanticPulses: pulses.filter((pulse) => !pulse.ambient).length,
+      mode: semanticModeActive() ? 'semantic' : 'ambient',
       lastError: lastError ? String(lastError.message || lastError) : null
     }),
     clear: clearPulses
