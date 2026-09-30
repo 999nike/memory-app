@@ -3,7 +3,7 @@
 
   // Approved visual authority:
   // scaffold blob a04fc6d1f23a72df4f76a0e9e8ac5b9cb8f9e45f
-  const VERSION = 14;
+  const VERSION = 15;
   const MAX_DPR = 1.75;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
@@ -398,6 +398,83 @@
     native.stroke.call(context);
   }
 
+  function makeOrganicPair(from, to, seed, lane = 0) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const ux = dx / length;
+    const uy = dy / length;
+    const nx = -uy;
+    const ny = ux;
+    const side = hash(seed, lane, 1) > .5 ? 1 : -1;
+
+    const kneeT = .40 + (hash(seed, lane, 2) - .5) * .10;
+    const bend = side * length * (.11 + hash(seed, lane, 3) * .10);
+    const knee = {
+      x: from.x + dx * kneeT + nx * bend,
+      y: from.y + dy * kneeT + ny * bend
+    };
+
+    const first = {
+      p0: from,
+      p1: {
+        x: from.x + ux * length * .10 + nx * bend * .28,
+        y: from.y + uy * length * .10 + ny * bend * .28
+      },
+      p2: {
+        x: from.x + ux * length * .30 + nx * bend * .92,
+        y: from.y + uy * length * .30 + ny * bend * .92
+      },
+      p3: knee,
+      length: Math.max(1, distance(from, knee)),
+      seed
+    };
+
+    const secondSide = hash(seed, lane, 4) > .58 ? -side : side;
+    const secondBend = secondSide * length * (.05 + hash(seed, lane, 5) * .10);
+    const second = {
+      p0: knee,
+      p1: {
+        x: knee.x + ux * length * .16 + nx * secondBend,
+        y: knee.y + uy * length * .16 + ny * secondBend
+      },
+      p2: {
+        x: to.x - ux * length * .22 + nx * secondBend * .62,
+        y: to.y - uy * length * .22 + ny * secondBend * .62
+      },
+      p3: to,
+      length: Math.max(1, distance(knee, to)),
+      seed: seed + .37
+    };
+
+    return { first, second };
+  }
+
+  function strokePairRange(context, pair, fromT, toT, width, colour) {
+    const split = pair.first.length / Math.max(1, pair.first.length + pair.second.length);
+
+    if (toT <= split) {
+      strokeCurveRange(context, pair.first, fromT / split, toT / split, width, colour, 10);
+      return;
+    }
+
+    if (fromT >= split) {
+      strokeCurveRange(
+        context,
+        pair.second,
+        (fromT - split) / (1 - split),
+        (toT - split) / (1 - split),
+        width,
+        colour,
+        12
+      );
+      return;
+    }
+
+    strokeCurveRange(context, pair.first, fromT / split, 1, width, colour, 8);
+    strokeCurveRange(context, pair.second, 0, (toT - split) / (1 - split), width, colour, 10);
+  }
+
   function drawOrganicTube(context, curve, width) {
     context.save();
     context.globalCompositeOperation = 'source-over';
@@ -509,63 +586,54 @@
       const segment = network.segments[index];
       const seed = segment.seed + index * .271;
       const target = segment.to;
+      const pair = makeOrganicPair(centre, target, seed + .17, index + 1);
 
-      // Every branch starts at the real middle hub and ends exactly on its
-      // corresponding smaller node. Shape/width vary slightly per node.
-      const bendScale = .48 + hash(seed, 1, 2) * .68;
-      const curve = controlPoints(centre, target, seed + .17, bendScale, index + 1);
-      const widthGain = .86 + hash(seed, 3, 4) * .34;
+      // Reference shape: chunky and irregular beside the soma, then taper
+      // progressively into a thin curved branch at the child node.
+      const widthGain = .90 + hash(seed, 3, 4) * .28;
+      const fatEnd = .24 + hash(seed, 5, 6) * .05;
+      const midEnd = .58 + hash(seed, 7, 8) * .07;
+      const fineEnd = .88 + hash(seed, 9, 10) * .05;
 
-      const fatEnd = .22 + hash(seed, 5, 6) * .08;
-      const midEnd = .56 + hash(seed, 7, 8) * .10;
-      const fineEnd = .88 + hash(seed, 9, 10) * .06;
-
-      // Fat next to the blue middle node.
-      strokeCurveRange(
-        context, curve, 0, fatEnd,
-        (mobile ? 6.2 : 8.8) * widthGain,
-        'rgba(76,105,119,.22)',
-        9
+      // Broad dark body close to the blue centre.
+      strokePairRange(
+        context, pair, 0, fatEnd,
+        (mobile ? 8.0 : 11.5) * widthGain,
+        'rgba(54,82,96,.25)'
       );
-      strokeCurveRange(
-        context, curve, 0, fatEnd,
-        (mobile ? 3.9 : 5.6) * widthGain,
-        'rgba(125,154,167,.42)',
-        9
+      strokePairRange(
+        context, pair, 0, fatEnd,
+        (mobile ? 5.4 : 7.8) * widthGain,
+        'rgba(104,137,151,.48)'
       );
-      strokeCurveRange(
-        context, curve, 0, fatEnd,
-        (mobile ? 1.05 : 1.45) * widthGain,
-        'rgba(197,213,220,.34)',
-        9
+      strokePairRange(
+        context, pair, 0, fatEnd,
+        (mobile ? 1.35 : 1.85) * widthGain,
+        'rgba(190,209,218,.30)'
       );
 
-      // Then taper through the middle.
-      strokeCurveRange(
-        context, curve, Math.max(0, fatEnd - .035), midEnd,
-        (mobile ? 2.7 : 3.8) * widthGain,
-        'rgba(96,127,141,.34)',
-        12
+      // Medium organic section — still visibly tubular, never ruler-straight.
+      strokePairRange(
+        context, pair, Math.max(0, fatEnd - .03), midEnd,
+        (mobile ? 3.8 : 5.3) * widthGain,
+        'rgba(77,108,122,.39)'
       );
-      strokeCurveRange(
-        context, curve, Math.max(0, fatEnd - .035), midEnd,
+      strokePairRange(
+        context, pair, Math.max(0, fatEnd - .03), midEnd,
+        (mobile ? .95 : 1.30) * widthGain,
+        'rgba(177,198,207,.27)'
+      );
+
+      // Narrow outer branch that lands exactly on the matching green node.
+      strokePairRange(
+        context, pair, Math.max(0, midEnd - .025), fineEnd,
+        (mobile ? 2.0 : 2.8) * widthGain,
+        'rgba(88,120,134,.34)'
+      );
+      strokePairRange(
+        context, pair, Math.max(0, fineEnd - .02), 1,
         (mobile ? .72 : 1.0) * widthGain,
-        'rgba(188,205,213,.28)',
-        12
-      );
-
-      // Thin line approaching the small node.
-      strokeCurveRange(
-        context, curve, Math.max(0, midEnd - .025), fineEnd,
-        (mobile ? 1.45 : 2.0) * widthGain,
-        'rgba(105,136,149,.30)',
-        12
-      );
-      strokeCurveRange(
-        context, curve, Math.max(0, fineEnd - .02), 1,
-        (mobile ? .62 : .84) * widthGain,
-        'rgba(174,194,203,.28)',
-        7
+        'rgba(161,185,196,.30)'
       );
     }
 
