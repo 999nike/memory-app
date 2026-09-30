@@ -8,7 +8,7 @@
     ? [
       './memory-graph-visuals.js?v=static-neural-20260930',
       './memory-graph-neural-width.js?v=approved-neural-width-20260930',
-      './memory-graph-neural-scaffold.js?v=single-root-v6-20260930',
+      './memory-graph-neural-scaffold.js?v=node-aligned-v7-20260930',
       './memory-graph-neural-flow.js?v=neutral-synapse-v3-20260930',
       './molecular-engine.js?v=2',
       './memory-molecular-adapter.js?v=2',
@@ -20,7 +20,7 @@
       './memory-graph-rotation.js?v=1',
       './memory-graph-manual-groups.js?v=1',
       './memory-graph-neural-width.js?v=approved-neural-width-20260930',
-      './memory-graph-neural-scaffold.js?v=single-root-v6-20260930',
+      './memory-graph-neural-scaffold.js?v=node-aligned-v7-20260930',
       './memory-graph-neural-flow.js?v=neutral-synapse-v3-20260930',
       './memory-graph-manual-gravity.js?v=2',
       './memory-graph-orb-matrix-guard.js?v=1',

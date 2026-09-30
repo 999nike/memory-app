@@ -3,7 +3,7 @@
 
   // Approved visual authority:
   // scaffold blob a04fc6d1f23a72df4f76a0e9e8ac5b9cb8f9e45f
-  const VERSION = 13;
+  const VERSION = 14;
   const MAX_DPR = 1.75;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
@@ -359,7 +359,7 @@
       const clusters = makeClusters(segments, centre);
       const geometries = clusters.map((cluster, index) => buildClusterGeometry(cluster, centre, index));
       const hub = segments.some((segment) => segment.sourceHub);
-      builtNetworks.push({ sourceId, centre, clusters, geometries, hub });
+      builtNetworks.push({ sourceId, centre, clusters, geometries, segments, hub });
       for (const geometry of geometries) {
         for (const child of geometry.children) builtRoutes.push(routeFromGeometry(geometry, child));
       }
@@ -375,6 +375,22 @@
 
   function strokeCurve(context, curve, width, colour) {
     traceCurve(context, curve);
+    context.lineWidth = width;
+    context.strokeStyle = colour;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    native.stroke.call(context);
+  }
+
+  function strokeCurveRange(context, curve, fromT, toT, width, colour, steps = 12) {
+    const start = pointOnCurve(curve, fromT);
+    context.beginPath();
+    context.moveTo(start.x, start.y);
+    for (let index = 1; index <= steps; index += 1) {
+      const t = fromT + (toT - fromT) * (index / steps);
+      const point = pointOnCurve(curve, t);
+      context.lineTo(point.x, point.y);
+    }
     context.lineWidth = width;
     context.strokeStyle = colour;
     context.lineCap = 'round';
@@ -483,102 +499,73 @@
   }
 
   function drawCentreMass(context, network, mobile) {
-    if (!network.hub || !network.clusters.length) return;
+    if (!network.hub || !network.segments?.length) return;
 
     const centre = network.centre;
-    const direction = averageDirection(network.clusters[0], centre);
-    const length = mobile ? 66 : 96;
-    const normal = { x: -direction.y, y: direction.x };
-    const seed = hashText(network.sourceId || 'hub') * 1000;
-    const bend = (hash(seed, 1, 2) - .5) * (mobile ? 22 : 34);
-
-    // One wide root only. No radial spokes, no extra soma decoration.
-    const p0 = {
-      x: centre.x + direction.x * (mobile ? 6 : 8),
-      y: centre.y + direction.y * (mobile ? 6 : 8)
-    };
-    const p1 = {
-      x: centre.x + direction.x * length * .36 + normal.x * bend * .30,
-      y: centre.y + direction.y * length * .36 + normal.y * bend * .30
-    };
-    const p2 = {
-      x: centre.x + direction.x * length * .72 + normal.x * bend,
-      y: centre.y + direction.y * length * .72 + normal.y * bend
-    };
-    const p3 = {
-      x: centre.x + direction.x * length + normal.x * bend * .28,
-      y: centre.y + direction.y * length + normal.y * bend * .28
-    };
-
-    const root = { p0, p1, p2, p3, length, seed };
-
     context.save();
     context.globalCompositeOperation = 'source-over';
 
-    // Fat close to the blue node.
-    const baseEnd = pointOnCurve(root, .38);
-    const base = controlPoints(p0, baseEnd, seed + .11, .32, 1);
-    strokeCurve(context, base, mobile ? 8.5 : 12.5, 'rgba(66,95,108,.20)');
-    strokeCurve(context, base, mobile ? 5.5 : 8.5, 'rgba(113,143,156,.40)');
-    strokeCurve(context, base, mobile ? 1.5 : 2.2, 'rgba(194,211,219,.34)');
+    for (let index = 0; index < network.segments.length; index += 1) {
+      const segment = network.segments[index];
+      const seed = segment.seed + index * .271;
+      const target = segment.to;
 
-    // Then narrow down.
-    const midStart = pointOnCurve(root, .30);
-    const midEnd = pointOnCurve(root, .72);
-    const mid = controlPoints(midStart, midEnd, seed + .22, .26, 2);
-    strokeCurve(context, mid, mobile ? 4.2 : 6.0, 'rgba(85,116,130,.32)');
-    strokeCurve(context, mid, mobile ? 1.1 : 1.6, 'rgba(183,201,210,.30)');
+      // Every branch starts at the real middle hub and ends exactly on its
+      // corresponding smaller node. Shape/width vary slightly per node.
+      const bendScale = .48 + hash(seed, 1, 2) * .68;
+      const curve = controlPoints(centre, target, seed + .17, bendScale, index + 1);
+      const widthGain = .86 + hash(seed, 3, 4) * .34;
 
-    const tipStart = pointOnCurve(root, .64);
-    const tip = controlPoints(tipStart, p3, seed + .33, .22, 3);
-    strokeCurve(context, tip, mobile ? 2.2 : 3.2, 'rgba(99,132,146,.31)');
-    strokeCurve(context, tip, mobile ? .75 : 1.0, 'rgba(190,207,215,.28)');
+      const fatEnd = .22 + hash(seed, 5, 6) * .08;
+      const midEnd = .56 + hash(seed, 7, 8) * .10;
+      const fineEnd = .88 + hash(seed, 9, 10) * .06;
 
-    // Split the narrow end into a few thinner branches.
-    const branchCount = 3;
-    for (let index = 0; index < branchCount; index += 1) {
-      const branchSeed = seed + 1 + index * .417;
-      const spread = (index - 1) * (mobile ? .52 : .62) + (hash(branchSeed, 4, 5) - .5) * .22;
-      const ca = Math.cos(spread);
-      const sa = Math.sin(spread);
-      const bx = direction.x * ca - direction.y * sa;
-      const by = direction.x * sa + direction.y * ca;
-      const reach = length * (.44 + hash(branchSeed, 6, 7) * .20);
-      const branchNormal = { x: -by, y: bx };
-      const branchBend = (hash(branchSeed, 8, 9) - .5) * reach * .42;
+      // Fat next to the blue middle node.
+      strokeCurveRange(
+        context, curve, 0, fatEnd,
+        (mobile ? 6.2 : 8.8) * widthGain,
+        'rgba(76,105,119,.22)',
+        9
+      );
+      strokeCurveRange(
+        context, curve, 0, fatEnd,
+        (mobile ? 3.9 : 5.6) * widthGain,
+        'rgba(125,154,167,.42)',
+        9
+      );
+      strokeCurveRange(
+        context, curve, 0, fatEnd,
+        (mobile ? 1.05 : 1.45) * widthGain,
+        'rgba(197,213,220,.34)',
+        9
+      );
 
-      const branch = {
-        p0: p3,
-        p1: {
-          x: p3.x + bx * reach * .30 + branchNormal.x * branchBend * .30,
-          y: p3.y + by * reach * .30 + branchNormal.y * branchBend * .30
-        },
-        p2: {
-          x: p3.x + bx * reach * .72 + branchNormal.x * branchBend,
-          y: p3.y + by * reach * .72 + branchNormal.y * branchBend
-        },
-        p3: {
-          x: p3.x + bx * reach,
-          y: p3.y + by * reach
-        },
-        length: reach,
-        seed: branchSeed
-      };
+      // Then taper through the middle.
+      strokeCurveRange(
+        context, curve, Math.max(0, fatEnd - .035), midEnd,
+        (mobile ? 2.7 : 3.8) * widthGain,
+        'rgba(96,127,141,.34)',
+        12
+      );
+      strokeCurveRange(
+        context, curve, Math.max(0, fatEnd - .035), midEnd,
+        (mobile ? .72 : 1.0) * widthGain,
+        'rgba(188,205,213,.28)',
+        12
+      );
 
-      strokeCurve(context, branch, mobile ? 1.15 : 1.55, 'rgba(103,135,149,.30)');
-      strokeCurve(context, branch, mobile ? .38 : .50, 'rgba(187,204,212,.24)');
-
-      // One final hairline fork from each branch.
-      const forkOrigin = pointOnCurve(branch, .62);
-      const forkTangent = tangentOnCurve(branch, .62);
-      drawNeurite(
-        context,
-        forkOrigin,
-        forkTangent,
-        branchSeed + .73,
-        reach * .38,
-        mobile,
-        .72
+      // Thin line approaching the small node.
+      strokeCurveRange(
+        context, curve, Math.max(0, midEnd - .025), fineEnd,
+        (mobile ? 1.45 : 2.0) * widthGain,
+        'rgba(105,136,149,.30)',
+        12
+      );
+      strokeCurveRange(
+        context, curve, Math.max(0, fineEnd - .02), 1,
+        (mobile ? .62 : .84) * widthGain,
+        'rgba(174,194,203,.28)',
+        7
       );
     }
 
