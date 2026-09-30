@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 1;
+  const VERSION = 2;
   const THREE_MODULE = './vendor/three/three.module.min.js';
   const MAX_DPR = 1.5;
   const params = new URLSearchParams(location.search);
@@ -17,6 +17,7 @@
   let camera = null;
   let structure = null;
   let rootMaterial = null;
+  let rootHazeMaterial = null;
   let somaMaterial = null;
   let width = 1;
   let height = 1;
@@ -98,11 +99,19 @@
     scene.add(structure);
 
     rootMaterial = new THREE.MeshStandardMaterial({
-      color: 0x20383f,
-      roughness: 0.58,
-      metalness: 0.03,
-      emissive: 0x061216,
-      emissiveIntensity: 0.42
+      color: 0x31545d,
+      roughness: 0.52,
+      metalness: 0.02,
+      emissive: 0x0b252b,
+      emissiveIntensity: 0.72
+    });
+    rootHazeMaterial = new THREE.MeshBasicMaterial({
+      color: 0x4ba1af,
+      transparent: true,
+      opacity: 0.10,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
     });
     somaMaterial = new THREE.MeshStandardMaterial({
       color: 0x29454d,
@@ -212,6 +221,18 @@
     taperTubeGeometry(geometry, startRadius, endRadius);
     const mesh = new THREE.Mesh(geometry, material);
     structure.add(mesh);
+
+    // Soft neutral tissue envelope. This is deliberately not bloom: it simply
+    // gives the resting tubes a faint cloudy body against the star field.
+    if (material === rootMaterial && rootHazeMaterial) {
+      const hazeStart = startRadius * 1.42;
+      const hazeEnd = Math.max(0.34, endRadius * 1.58);
+      const hazeGeometry = new THREE.TubeGeometry(curve, tubularSegments, hazeStart, 7, false);
+      taperTubeGeometry(hazeGeometry, hazeStart, hazeEnd);
+      const haze = new THREE.Mesh(hazeGeometry, rootHazeMaterial);
+      structure.add(haze);
+    }
+
     return mesh;
   }
 
