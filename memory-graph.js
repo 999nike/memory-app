@@ -1653,8 +1653,8 @@
       id: `${String(edge.source?.id || '')}->${String(edge.target?.id || '')}:${String(edge.kind || 'space')}`,
       sourceId: String(edge.source?.id || ''),
       targetId: String(edge.target?.id || ''),
-      sourceHub: edge.source?.kind === 'space' || edge.source?.appRoot === true || edge.source?.clusterRoot === true,
-      targetHub: edge.target?.kind === 'space' || edge.target?.appRoot === true || edge.target?.clusterRoot === true,
+      sourceHub: edge.source?.kind === 'space' || edge.source?.appRoot === true || edge.source?.clusterRoot === true || edge.source?.__manualGroupCanonical === true,
+      targetHub: edge.target?.kind === 'space' || edge.target?.appRoot === true || edge.target?.clusterRoot === true || edge.target?.__manualGroupCanonical === true,
       kind: String(edge.kind || 'space'),
       activityTarget
     };

@@ -26,7 +26,7 @@
       './memory-graph-neural-three.js?v=structure-v3-20260930',
       './memory-graph-manual-gravity.js?v=2',
       './memory-graph-orb-matrix-guard.js?v=1',
-      './memory-graph.js?v=neural-renderer-20260930',
+      './memory-graph.js?v=manual-group-neural-v2-20260930',
       './memory-graph-folder-startup-settle.js?v=1',
       './memory-graph-nebula.js?v=space-junkz-video-20260921'
     ];
