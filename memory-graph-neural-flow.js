@@ -4,7 +4,7 @@
   // Pulse routing follows the approved August renderer (blob
   // 6feadb2985a4179620fd55ae9b95c6afd12bb3fb) while retaining the current
   // pulse-only, capped and visibility-aware animation lifecycle.
-  const VERSION = 11;
+  const VERSION = 12;
   const MAX_DPR = 1.75;
   const MAX_PULSES = 10;
   const FRAME_MS = 1000 / 30;
@@ -356,7 +356,7 @@
       if (timestamp - previous < 2400) continue;
       activityKeys.set(key, timestamp);
       fireSynapse(route.sourceId, route.targetId, {
-        palette: activity.palette || (activity.kind === 'job' ? 'orange' : 'violet'),
+        palette: activity.palette || (activity.kind === 'job' ? 'orange' : (target.appId === 'email' ? 'cyan' : 'violet')),
         intensity: activity.emphasis === 'strong' ? 1.3 : 1.08,
         duration: 1450
       });

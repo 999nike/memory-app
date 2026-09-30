@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 3;
+  const VERSION = 4;
   const THREE_MODULE = './vendor/three/three.module.min.js';
   const MAX_DPR = 1.5;
   const params = new URLSearchParams(location.search);
@@ -55,7 +55,7 @@
     style.id = 'memoryGraphNeuralThreeStyles';
     style.textContent =
       '#memoryGraphSurface.memory-neural-three-active .memory-graph-neural-scaffold-canvas{opacity:0!important;visibility:hidden!important}' +
-      '#memoryGraphSurface.memory-neural-three-active .memory-graph-neural-flow-canvas{display:none!important}' +
+      '#memoryGraphSurface.memory-neural-three-active .memory-graph-neural-flow-canvas{display:block!important;visibility:visible!important;opacity:1!important}' +
       '.memory-graph-neural-three-canvas{position:absolute;inset:0;z-index:1;display:block;width:100%;height:100%;pointer-events:none}';
     document.head.appendChild(style);
   }
@@ -131,6 +131,9 @@
     rim.position.set(220, 180, 120);
     scene.add(rim);
 
+    // Keep the approved pulse canvas visible above the Three tissue. It supplies
+    // the reference-style core launch, travelling branch energy, email activity
+    // and orange job-route signals while Three owns the resting root geometry.
     installStyles();
     surface.classList.add('memory-neural-three-active');
     return resize();
