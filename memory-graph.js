@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 14;
+  const VERSION = 15;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -973,6 +973,30 @@
     return { x: width * 0.5, y: height * 0.22, vx: 0, vy: 0 };
   }
 
+  function titledClusterLayout(count, nodeRadius, index, phase = 0) {
+    const shared = globalThis.MemoryGraphClusterLayout?.memberLayout?.({
+      count,
+      nodeRadius,
+      index,
+      phase
+    });
+    if (shared && Number.isFinite(shared.angle) && Number.isFinite(shared.orbit)) return shared;
+
+    // Fallback is the exact surviving titled-group formula.
+    const total = Math.max(1, Number(count) || 1);
+    const slotsPerRing = 8;
+    const ring = Math.floor(index / slotsPerRing);
+    const slot = index % slotsPerRing;
+    const slotsOnRing = Math.min(slotsPerRing, Math.max(1, total - ring * slotsPerRing));
+    const angle = Number(phase || 0) + (slot / slotsOnRing) * Math.PI * 2 + ring * 0.36;
+    const radiusForCount = 35 + Math.min(21, Math.sqrt(total) * 7.2);
+    return {
+      angle,
+      orbit: radiusForCount + 20 + ring * 21,
+      radius: Math.max(7, Number(nodeRadius || 12) * 0.60)
+    };
+  }
+
   function buildGraph(data, width, height, savedState = null, liveRoot = null) {
     const universeCentreX = width / 2;
     const universeCentreY = height / 2;
@@ -996,19 +1020,16 @@
 
     const memories = data.memories;
     const memoryNodes = memories.map((memory, index) => {
-      const angle = -Math.PI / 2 + (index / Math.max(1, memories.length)) * Math.PI * 2;
       const profile = memoryProfile(memory, data.allMemories);
-      const localOrbit = directAppChildOrbit(index);
-      const savedNode = savedState?.nodes?.[memory.id];
-      const savedOffsetX = Number(savedNode?.offsetX);
-      const savedOffsetY = Number(savedNode?.offsetY);
-      const hasSavedPosition = Number.isFinite(savedOffsetX) && Number.isFinite(savedOffsetY);
+      const layout = titledClusterLayout(memories.length, profile.radius, index, -Math.PI / 2);
+      const angle = layout.angle;
+      const localOrbit = layout.orbit;
       return {
         id: memory.id,
         kind: 'memory',
         label: memory.title || 'Untitled memory',
-        x: hasSavedPosition ? centreX + savedOffsetX * width : centreX + Math.cos(angle) * localOrbit,
-        y: hasSavedPosition ? centreY + savedOffsetY * height : centreY + Math.sin(angle) * localOrbit,
+        x: centreX + Math.cos(angle) * localOrbit,
+        y: centreY + Math.sin(angle) * localOrbit,
         vx: 0,
         vy: 0,
         radius: profile.radius,
@@ -1066,8 +1087,14 @@
 
       const appendChildren = (children, parent, depth, parentAngle) => {
         children.forEach((definition, index, siblings) => {
-          const angle = parentAngle + (index / Math.max(1, siblings.length)) * Math.PI * 2;
-          const spawnOrbit = depth === 1 ? directAppChildOrbit(index) : 54 + index * 7;
+          const baseRadius = appControlRadius(depth);
+          const clusterLayout = depth === 1
+            ? titledClusterLayout(siblings.length, baseRadius, index, parentAngle)
+            : null;
+          const angle = clusterLayout
+            ? clusterLayout.angle
+            : parentAngle + (index / Math.max(1, siblings.length)) * Math.PI * 2;
+          const spawnOrbit = clusterLayout ? clusterLayout.orbit : 54 + index * 7;
           const current = stateUpdates.get(String(definition.id));
           const node = {
             id: definition.id,
