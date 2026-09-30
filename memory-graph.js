@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 16;
+  const VERSION = 17;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -1448,12 +1448,16 @@
         ? graph.nodes.find((candidate) => !candidate.hidden
           && String(candidate.id) === String(node.parentId))
         : null;
+      const compactMemoryChild = node.kind === 'memory'
+        && localParent === graph.spaceNode
+        && !node.__manualGroupId;
       if (localParent && !localParent.hidden) {
         const dx = node.x - localParent.x;
         const dy = node.y - localParent.y;
         const distance = Math.max(1, Math.hypot(dx, dy));
         const radialOffset = distance - (node.localOrbit || node.targetOrbit || graph.orbitRadius);
-        const radialForce = -radialOffset * 0.0019 * Math.max(0.8, node.gravityWeight || 1);
+        const radialSpring = compactMemoryChild ? 0.0072 : 0.0019;
+        const radialForce = -radialOffset * radialSpring * Math.max(0.8, node.gravityWeight || 1);
         fx += (dx / distance) * radialForce;
         fy += (dy / distance) * radialForce;
       }
@@ -1471,7 +1475,11 @@
         const pairY = node.y - other.y;
         const pairDistanceSq = Math.max(100, pairX * pairX + pairY * pairY);
         const pairDistance = Math.sqrt(pairDistanceSq);
-        const repulsion = Math.min(0.9, 900 / pairDistanceSq);
+        let repulsion = Math.min(0.9, 900 / pairDistanceSq);
+        const otherCompactMemoryChild = other.kind === 'memory'
+          && String(other.parentId || '') === String(graph.spaceNode?.id || '')
+          && !other.__manualGroupId;
+        if (compactMemoryChild && otherCompactMemoryChild) repulsion *= 0.18;
         const pushX = (pairX / pairDistance) * repulsion;
         const pushY = (pairY / pairDistance) * repulsion;
         fx += pushX / Math.max(0.85, node.gravityWeight || 1);
