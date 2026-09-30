@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 15;
+  const VERSION = 16;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -1002,9 +1002,18 @@
 
     const memories = data.memories;
     const memoryNodes = memories.map((memory, index) => {
-      const angle = -Math.PI / 2 + (index / Math.max(1, memories.length)) * Math.PI * 2;
+      // Match the compact manual-group presentation on first layout: eight
+      // memories per ring, small stepped rings and a slight phase turn between
+      // rings. This gives the Memory cluster the same neat stacked/crown shape
+      // as a titled memory group instead of a loose all-around spray.
+      const slotsPerRing = 8;
+      const ring = Math.floor(index / slotsPerRing);
+      const slot = index % slotsPerRing;
+      const slotsOnRing = Math.min(slotsPerRing, Math.max(1, memories.length - ring * slotsPerRing));
+      const phase = -Math.PI / 2 + ring * 0.36;
+      const angle = phase + (slot / slotsOnRing) * Math.PI * 2;
+      const localOrbit = 58 + ring * 24;
       const profile = memoryProfile(memory, data.allMemories);
-      const localOrbit = directAppChildOrbit(index);
       const savedNode = savedState?.nodes?.[memory.id];
       const savedOffsetX = Number(savedNode?.offsetX);
       const savedOffsetY = Number(savedNode?.offsetY);
