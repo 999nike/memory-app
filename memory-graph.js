@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 14;
+  const VERSION = 15;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
