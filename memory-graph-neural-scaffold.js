@@ -3,7 +3,7 @@
 
   // Approved visual authority:
   // scaffold blob a04fc6d1f23a72df4f76a0e9e8ac5b9cb8f9e45f
-  const VERSION = 11;
+  const VERSION = 12;
   const MAX_DPR = 1.75;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
@@ -484,94 +484,116 @@
 
   function drawCentreMass(context, network, mobile) {
     if (!network.hub) return;
-    const radius = mobile ? 34 : 48;
     const centre = network.centre;
     const networkSeed = hashText(network.sourceId || 'hub') * 1000;
+    const somaRadius = mobile ? 30 : 42;
 
     context.save();
     context.globalCompositeOperation = 'source-over';
 
-    // Dense neutral soma/tissue around the real hub. The reference neuron is
-    // visibly present at rest; only the travelling activation supplies colour.
-    const gradient = context.createRadialGradient(centre.x, centre.y, 0, centre.x, centre.y, radius * 1.05);
-    gradient.addColorStop(0, 'rgba(226,236,242,.22)');
-    gradient.addColorStop(.34, 'rgba(123,151,165,.15)');
-    gradient.addColorStop(.72, 'rgba(65,93,108,.08)');
-    gradient.addColorStop(1, 'rgba(42,66,78,0)');
+    const gradient = context.createRadialGradient(
+      centre.x, centre.y, 0,
+      centre.x, centre.y, somaRadius * 1.12
+    );
+    gradient.addColorStop(0, 'rgba(220,233,240,.24)');
+    gradient.addColorStop(.32, 'rgba(122,151,164,.17)');
+    gradient.addColorStop(.68, 'rgba(67,96,110,.09)');
+    gradient.addColorStop(1, 'rgba(38,62,74,0)');
     context.beginPath();
-    context.arc(centre.x, centre.y, radius * 1.05, 0, Math.PI * 2);
+    context.arc(centre.x, centre.y, somaRadius * 1.12, 0, Math.PI * 2);
     context.fillStyle = gradient;
     context.fill();
 
-    const tendrilCount = mobile ? 14 : 22;
-    for (let index = 0; index < tendrilCount; index += 1) {
-      const localSeed = networkSeed + index * .419;
-      const angle = (index / tendrilCount) * Math.PI * 2 + (hash(localSeed, 1, 2) - .5) * .50;
+    // Build a small number of real dendritic roots, then branch those roots.
+    // This avoids the old bicycle-wheel/starburst silhouette.
+    const rootCount = mobile ? 5 : 7;
+    const clusterDirection = network.clusters.length
+      ? averageDirection(network.clusters[0], centre)
+      : { x: 1, y: 0 };
+    const baseAngle = Math.atan2(clusterDirection.y, clusterDirection.x);
+
+    for (let index = 0; index < rootCount; index += 1) {
+      const localSeed = networkSeed + index * .731;
+      const ringAngle = baseAngle + (index / rootCount) * Math.PI * 2;
+      const angle = ringAngle + (hash(localSeed, 1, 2) - .5) * .95;
       const direction = { x: Math.cos(angle), y: Math.sin(angle) };
       const normal = { x: -direction.y, y: direction.x };
-      const reach = radius * (1.10 + hash(localSeed, 3, 4) * 1.55);
-      const sway = (hash(localSeed, 5, 6) - .5) * radius * .95;
-      const end = {
-        x: centre.x + direction.x * reach + normal.x * sway * .30,
-        y: centre.y + direction.y * reach + normal.y * sway * .30
-      };
-      const curve = {
+
+      const primary = index === 0;
+      const reach = somaRadius * (
+        primary
+          ? (2.55 + hash(localSeed, 3, 4) * .65)
+          : (1.35 + hash(localSeed, 3, 4) * 1.10)
+      );
+      const sway = (hash(localSeed, 5, 6) - .5) * somaRadius * 1.10;
+
+      const root = {
         p0: centre,
         p1: {
-          x: centre.x + direction.x * reach * .22 + normal.x * sway * .12,
-          y: centre.y + direction.y * reach * .22 + normal.y * sway * .12
+          x: centre.x + direction.x * reach * .22 + normal.x * sway * .18,
+          y: centre.y + direction.y * reach * .22 + normal.y * sway * .18
         },
         p2: {
-          x: centre.x + direction.x * reach * .66 + normal.x * sway,
-          y: centre.y + direction.y * reach * .66 + normal.y * sway
+          x: centre.x + direction.x * reach * .68 + normal.x * sway,
+          y: centre.y + direction.y * reach * .68 + normal.y * sway
         },
-        p3: end,
+        p3: {
+          x: centre.x + direction.x * reach + normal.x * sway * .28,
+          y: centre.y + direction.y * reach + normal.y * sway * .28
+        },
         length: reach,
         seed: localSeed
       };
 
-      strokeCurve(
-        context,
-        curve,
-        mobile ? (.42 + hash(localSeed, 7, 8) * .40) : (.56 + hash(localSeed, 7, 8) * .58),
-        'rgba(108,140,154,.31)'
-      );
+      const rootWidth = primary
+        ? (mobile ? 1.22 : 1.60)
+        : (mobile ? .72 : .92) + hash(localSeed, 7, 8) * .48;
 
-      // Give the soma the forked neuron silhouette from the reference instead
-      // of a clean radial star. These branches are local tissue only.
-      if (hash(localSeed, 9, 10) > .34) {
-        const originT = .46 + hash(localSeed, 11, 12) * .24;
-        const origin = pointOnCurve(curve, originT);
-        const tangent = tangentOnCurve(curve, originT);
+      strokeCurve(context, root, rootWidth * 2.0, 'rgba(36,63,77,.10)');
+      strokeCurve(context, root, rootWidth, 'rgba(103,136,151,.34)');
+      strokeCurve(context, root, Math.max(.24, rootWidth * .24), 'rgba(188,207,216,.28)');
+
+      const branchCount = primary ? 4 : 2 + Math.floor(hash(localSeed, 9, 10) * 2);
+      for (let branchIndex = 0; branchIndex < branchCount; branchIndex += 1) {
+        const branchSeed = localSeed + branchIndex * .391 + .811;
+        const originT = .30 + ((branchIndex + .35) / (branchCount + .6)) * .56;
+        const origin = pointOnCurve(root, originT);
+        const tangent = tangentOnCurve(root, originT);
+        const branchReach = reach * (
+          .34 + hash(branchSeed, 11, 12) * (primary ? .44 : .34)
+        );
+
         drawNeurite(
           context,
           origin,
           tangent,
-          localSeed + .811,
-          reach * (.42 + hash(localSeed, 13, 14) * .36),
+          branchSeed,
+          branchReach,
           mobile,
-          .42
+          primary ? .34 : .48
         );
       }
     }
+
     context.restore();
   }
 
   function drawCluster(context, geometry, mobile) {
     const trunkWidth = clamp(geometry.trunk.length * .022, 1.7, 4.0);
     drawOrganicTube(context, geometry.trunk, trunkWidth);
-    drawDendrites(context, geometry.trunk, geometry.seed, .86, mobile);
-    drawJunction(context, geometry.junction, .48);
+    // Keep only sparse tissue on the long connector itself. Most branching
+    // belongs to the soma, matching the reference neuron rather than a wire web.
+    drawDendrites(context, geometry.trunk, geometry.seed, .24, mobile);
+    drawJunction(context, geometry.junction, .42);
 
     for (const child of geometry.children) {
       if (child.stem) {
-        const stemWidth = clamp(child.stem.length * .020, 1.25, 3.0);
+        const stemWidth = clamp(child.stem.length * .019, 1.15, 2.8);
         drawOrganicTube(context, child.stem, stemWidth);
-        drawDendrites(context, child.stem, child.seed + 1.1, .66, mobile);
       }
-      const branchWidth = clamp(child.branch.length * .018, 1.0, 2.4);
+
+      const branchWidth = clamp(child.branch.length * .017, .95, 2.25);
       drawOrganicTube(context, child.branch, branchWidth);
-      drawDendrites(context, child.branch, child.seed + 2.3, .78, mobile);
     }
   }
 
