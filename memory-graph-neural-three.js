@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 5;
+  const VERSION = 6;
   const THREE_MODULE = './vendor/three/three.module.min.js';
   const MAX_DPR = 1.5;
   const params = new URLSearchParams(location.search);
@@ -23,6 +23,8 @@
   let pulseHiddenAt = 0;
   const pulses = [];
   const routeCurves = new Map();
+  const routeSurfaces = new Map();
+  const somaSurfaces = new Map();
   let rootMaterial = null;
   let rootHazeMaterial = null;
   let somaMaterial = null;
@@ -93,6 +95,8 @@
     structure.traverse((object) => object.geometry?.dispose?.());
     while (structure.children.length) structure.remove(structure.children[0]);
     routeCurves.clear();
+    routeSurfaces.clear();
+    somaSurfaces.clear();
   }
 
   function makePulseTexture() {
@@ -322,7 +326,7 @@
     return mesh;
   }
 
-  function createSoma(center, radius, seed) {
+  function createSoma(center, radius, seed, hubId) {
     const geometry = new THREE.IcosahedronGeometry(radius, 2);
     const positions = geometry.attributes.position;
     const random = seededRandom(seed ^ 0x51f15e);
@@ -345,6 +349,11 @@
       (random() - 0.5) * 0.45
     );
     structure.add(soma);
+    somaSurfaces.set(String(hubId || ''), {
+      geometry,
+      position: soma.position.clone(),
+      rotation: soma.rotation.clone()
+    });
   }
 
   function addFreeTwigs(curve, baseRadius, seed, pathLength, density = 1) {
@@ -445,7 +454,7 @@
     ) / usable.length;
 
     const somaRadius = clamp(15 + Math.sqrt(usable.length) * 2.1, 18, 27);
-    createSoma(center, somaRadius, seed);
+    createSoma(center, somaRadius, seed, hubId);
 
     const clusters = buildRootClusters(usable, center2);
 
@@ -506,8 +515,9 @@
       );
       const trunkEndRadius = trunkStartRadius * (0.42 + localRandom() * 0.08);
 
-      addTube(trunk, trunkStartRadius, trunkEndRadius);
-      addFreeTwigs(trunk, trunkStartRadius, localSeed, trunk.getLength(), 0.95);
+      const trunkMesh = addTube(trunk, trunkStartRadius, trunkEndRadius);
+      const trunkLength = trunk.getLength();
+      addFreeTwigs(trunk, trunkStartRadius, localSeed, trunkLength, 0.95);
 
       cluster.forEach((route, branchIndex) => {
         const branchSeed = hashText(route.id || (hubId + ':' + branchIndex));
@@ -528,12 +538,14 @@
           trunkEndRadius * (0.66 + branchRandom() * 0.18)
         );
 
-        addTube(branchCurve, branchStartRadius, 0.55 + branchRandom() * 0.22);
+        const branchEndRadius = 0.55 + branchRandom() * 0.22;
+        const branchMesh = addTube(branchCurve, branchStartRadius, branchEndRadius);
+        const branchLength = branchCurve.getLength();
         addFreeTwigs(
           branchCurve,
           branchStartRadius,
           branchSeed,
-          branchCurve.getLength(),
+          branchLength,
           0.75
         );
 
@@ -547,6 +559,25 @@
         routeCurves.set(routeKey(route.targetId, route.sourceId), {
           getLength: () => routePath.getLength(),
           getPointAt: (value) => routePath.getPointAt(1 - clamp(value, 0, 1))
+        });
+
+        const routeSurface = {
+          trunkGeometry: trunkMesh.geometry,
+          branchGeometry: branchMesh.geometry,
+          trunkLength,
+          branchLength,
+          totalLength: routePath.getLength(),
+          reverse: false,
+          hubId: String(hubId || ''),
+          trunkStartRadius,
+          trunkEndRadius,
+          branchStartRadius,
+          branchEndRadius
+        };
+        routeSurfaces.set(routeKey(route.sourceId, route.targetId), routeSurface);
+        routeSurfaces.set(routeKey(route.targetId, route.sourceId), {
+          ...routeSurface,
+          reverse: true
         });
       });
     });
@@ -743,6 +774,15 @@
   }
 
 
+  function fireSynapse(sourceNodeId, targetNodeId, options = {}) {
+    const lightshow = globalThis.MemoryGraphNeuralLightshow;
+    if (lightshow?.ready?.() && typeof lightshow.fireSynapse === 'function') {
+      const result = lightshow.fireSynapse(sourceNodeId, targetNodeId, options);
+      if (result) return result;
+    }
+    return createPulse(sourceNodeId, targetNodeId, options);
+  }
+
   function renderStructure() {
     const api = scaffold();
     if (!THREE || !api || !ensureLayer() || !resize()) return;
@@ -764,6 +804,9 @@
       buildOneNeuron(group.routes, group.id);
     }
     renderer.render(scene, camera);
+    window.dispatchEvent(new CustomEvent('memory-neural-three-rendered', {
+      detail: { version: VERSION, activeHubs: [...activeHubIds] }
+    }));
   }
 
   function queueRender() {
@@ -789,8 +832,13 @@
     renderer: 'three',
     structureOnly: false,
     lightshow: true,
-    fireSynapse: createPulse,
-    activePulseCount: () => pulses.length,
+    fireSynapse,
+    routeSurface: (sourceNodeId, targetNodeId) => routeSurfaces.get(routeKey(sourceNodeId, targetNodeId)) || null,
+    somaSurface: (hubId) => somaSurfaces.get(String(hubId || '')) || null,
+    activePulseCount: () => {
+      const lightshow = globalThis.MemoryGraphNeuralLightshow;
+      return lightshow?.ready?.() ? lightshow.activePulseCount() : pulses.length;
+    },
     activeHubs: () => [...activeHubIds],
     redraw: queueRender
   });
