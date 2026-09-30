@@ -50,7 +50,7 @@
   });
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-  const vertexShader = \`
+  const vertexShader = `
     attribute float aPathDistance;
     varying vec3 vWorldPos;
     varying vec3 vNormal;
@@ -63,12 +63,12 @@
       vPathDistance = aPathDistance;
       gl_Position = projectionMatrix * viewMatrix * worldPos;
     }
-  \`;
+  `;
 
   // This keeps the reference Pen's noise, Fresnel edge energy, cosine palette,
   // white-hot wavefront and coloured residual trail, with distance coefficients
   // rescaled from its small world units to Memory Space's pixel-space roots.
-  const fragmentShader = \`
+  const fragmentShader = `
     uniform float uTime;
     uniform float uActivation;
     uniform float uEnvelope;
@@ -132,9 +132,9 @@
       if (alpha < 0.008) discard;
       gl_FragColor = vec4(colour, alpha);
     }
-  \`;
+  `;
 
-  const somaFragmentShader = \`
+  const somaFragmentShader = `
     uniform float uTime;
     uniform float uEnvelope;
     uniform vec3 uSignalColor;
@@ -159,7 +159,7 @@
       if (alpha < 0.008) discard;
       gl_FragColor = vec4(colour, alpha);
     }
-  \`;
+  `;
 
   function threeApi() {
     return globalThis.MemoryGraphNeuralThree || null;
