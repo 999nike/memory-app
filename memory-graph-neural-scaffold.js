@@ -3,7 +3,7 @@
 
   // Approved visual authority:
   // scaffold blob a04fc6d1f23a72df4f76a0e9e8ac5b9cb8f9e45f
-  const VERSION = 10;
+  const VERSION = 11;
   const MAX_DPR = 1.75;
   const proto = globalThis.CanvasRenderingContext2D?.prototype;
   if (!proto || proto.__memoryGraphNeuralScaffoldInstalled) return;
@@ -484,57 +484,83 @@
 
   function drawCentreMass(context, network, mobile) {
     if (!network.hub) return;
-    const radius = mobile ? 18 : 24;
+    const radius = mobile ? 34 : 48;
     const centre = network.centre;
     const networkSeed = hashText(network.sourceId || 'hub') * 1000;
 
     context.save();
     context.globalCompositeOperation = 'source-over';
 
-    const gradient = context.createRadialGradient(centre.x, centre.y, 0, centre.x, centre.y, radius);
-    gradient.addColorStop(0, 'rgba(244,249,252,.24)');
-    gradient.addColorStop(.35, 'rgba(170,190,208,.11)');
-    gradient.addColorStop(1, 'rgba(90,108,130,0)');
+    // Dense neutral soma/tissue around the real hub. The reference neuron is
+    // visibly present at rest; only the travelling activation supplies colour.
+    const gradient = context.createRadialGradient(centre.x, centre.y, 0, centre.x, centre.y, radius * 1.05);
+    gradient.addColorStop(0, 'rgba(226,236,242,.22)');
+    gradient.addColorStop(.34, 'rgba(123,151,165,.15)');
+    gradient.addColorStop(.72, 'rgba(65,93,108,.08)');
+    gradient.addColorStop(1, 'rgba(42,66,78,0)');
     context.beginPath();
-    context.arc(centre.x, centre.y, radius, 0, Math.PI * 2);
+    context.arc(centre.x, centre.y, radius * 1.05, 0, Math.PI * 2);
     context.fillStyle = gradient;
     context.fill();
 
-    const tendrilCount = mobile ? 8 : 12;
+    const tendrilCount = mobile ? 14 : 22;
     for (let index = 0; index < tendrilCount; index += 1) {
       const localSeed = networkSeed + index * .419;
-      const angle = (index / tendrilCount) * Math.PI * 2 + (hash(localSeed, 1, 2) - .5) * .42;
+      const angle = (index / tendrilCount) * Math.PI * 2 + (hash(localSeed, 1, 2) - .5) * .50;
       const direction = { x: Math.cos(angle), y: Math.sin(angle) };
       const normal = { x: -direction.y, y: direction.x };
-      const reach = radius * (1.15 + hash(localSeed, 3, 4) * 1.55);
-      const sway = (hash(localSeed, 5, 6) - .5) * radius * .72;
+      const reach = radius * (1.10 + hash(localSeed, 3, 4) * 1.55);
+      const sway = (hash(localSeed, 5, 6) - .5) * radius * .95;
       const end = {
-        x: centre.x + direction.x * reach + normal.x * sway * .34,
-        y: centre.y + direction.y * reach + normal.y * sway * .34
+        x: centre.x + direction.x * reach + normal.x * sway * .30,
+        y: centre.y + direction.y * reach + normal.y * sway * .30
       };
       const curve = {
         p0: centre,
         p1: {
-          x: centre.x + direction.x * reach * .22 + normal.x * sway * .18,
-          y: centre.y + direction.y * reach * .22 + normal.y * sway * .18
+          x: centre.x + direction.x * reach * .22 + normal.x * sway * .12,
+          y: centre.y + direction.y * reach * .22 + normal.y * sway * .12
         },
         p2: {
-          x: centre.x + direction.x * reach * .64 + normal.x * sway,
-          y: centre.y + direction.y * reach * .64 + normal.y * sway
+          x: centre.x + direction.x * reach * .66 + normal.x * sway,
+          y: centre.y + direction.y * reach * .66 + normal.y * sway
         },
         p3: end,
         length: reach,
         seed: localSeed
       };
-      strokeCurve(context, curve, mobile ? .34 : .44, 'rgba(118,150,164,.24)');
+
+      strokeCurve(
+        context,
+        curve,
+        mobile ? (.42 + hash(localSeed, 7, 8) * .40) : (.56 + hash(localSeed, 7, 8) * .58),
+        'rgba(108,140,154,.31)'
+      );
+
+      // Give the soma the forked neuron silhouette from the reference instead
+      // of a clean radial star. These branches are local tissue only.
+      if (hash(localSeed, 9, 10) > .34) {
+        const originT = .46 + hash(localSeed, 11, 12) * .24;
+        const origin = pointOnCurve(curve, originT);
+        const tangent = tangentOnCurve(curve, originT);
+        drawNeurite(
+          context,
+          origin,
+          tangent,
+          localSeed + .811,
+          reach * (.42 + hash(localSeed, 13, 14) * .36),
+          mobile,
+          .42
+        );
+      }
     }
     context.restore();
   }
 
   function drawCluster(context, geometry, mobile) {
-    const trunkWidth = clamp(geometry.trunk.length * .024, 1.9, 4.4);
+    const trunkWidth = clamp(geometry.trunk.length * .022, 1.7, 4.0);
     drawOrganicTube(context, geometry.trunk, trunkWidth);
-    drawDendrites(context, geometry.trunk, geometry.seed, 1.12, mobile);
+    drawDendrites(context, geometry.trunk, geometry.seed, .86, mobile);
     drawJunction(context, geometry.junction, .48);
 
     for (const child of geometry.children) {
