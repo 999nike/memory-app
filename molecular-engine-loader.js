@@ -13,7 +13,7 @@
       './memory-graph-neural-three.js?v=structure-v3-20260930',
       './molecular-engine.js?v=2',
       './memory-molecular-adapter.js?v=2',
-      './memory-graph-nebula.js?v=space-junkz-video-20260921'
+      './memory-graph-nebula.js?v=disabled-perf-test-20260930'
     ]
     : [
       './memory-graph-visuals.js?v=hub-circulation-20260921',
@@ -28,7 +28,7 @@
       './memory-graph-orb-matrix-guard.js?v=1',
       './memory-graph.js?v=manual-group-neural-v2-20260930',
       './memory-graph-folder-startup-settle.js?v=1',
-      './memory-graph-nebula.js?v=space-junkz-video-20260921'
+      './memory-graph-nebula.js?v=disabled-perf-test-20260930'
     ];
   for (const src of scripts) document.write(`<script src="${src}" defer><\/script>`);
 })();

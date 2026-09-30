@@ -2,7 +2,7 @@
   'use strict';
 
   const VERSION = 2;
-  const VIDEO_URL = 'https://media.w-i-z-z-lab-studios.com/space-junkz/background_video2.mp4';
+  const VIDEO_URL = null;
 
   let surface = null;
   let video = null;
@@ -20,7 +20,7 @@
   }
 
   function playWhenVisible() {
-    if (!video || document.hidden || video.dataset.failed === 'true') return;
+    if (!VIDEO_URL || !video || document.hidden || video.dataset.failed === 'true') return;
     if (!video.src) video.src = VIDEO_URL;
     video.play().catch(() => setState('paused'));
   }
@@ -39,6 +39,15 @@
     surface = document.getElementById('memoryGraphSurface');
     const graphCanvas = surface?.querySelector('.memory-graph-canvas');
     if (!surface || !graphCanvas) return false;
+
+    if (!VIDEO_URL) {
+      const existing = surface.querySelector('.memory-graph-background-video');
+      existing?.pause?.();
+      existing?.remove?.();
+      video = null;
+      setState('disabled');
+      return true;
+    }
 
     video = surface.querySelector('.memory-graph-background-video');
     if (!video) {
