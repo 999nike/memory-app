@@ -916,9 +916,13 @@
 
     const previousSpaceId = graph?.spaceNode?.id || null;
     const savedState = savedStateForSpace(data.space.id);
+    const initialPresentation = !previousSpaceId;
+    const layoutState = initialPresentation && savedState
+      ? { ...savedState, view: null, memoryRoot: null, nodes: {} }
+      : savedState;
     if (previousSpaceId && previousSpaceId !== data.space.id) resetView();
 
-    graph = buildGraph(data, width, height, savedState, liveRoot);
+    graph = buildGraph(data, width, height, layoutState, liveRoot);
     if (liveRoot && liveRoot.id === String(graph.spaceNode.id)) {
       graph.spaceNode.x = liveRoot.x;
       graph.spaceNode.y = liveRoot.y;
@@ -937,8 +941,10 @@
     for (const node of graph.nodes) {
       if (!node.fixed) containNode(node);
     }
-    const restored = restoreSavedView(savedState?.view, width, height);
-    if (homePresentation || (!previousSpaceId && (!restored || Math.abs(view.scale - 1) < .01))) frameUniverse();
+    const restored = initialPresentation ? false : restoreSavedView(savedState?.view, width, height);
+    if (initialPresentation || homePresentation || (!restored || Math.abs(view.scale - 1) < .01)) {
+      frameUniverse({ padding: initialPresentation ? 1.08 : 1 });
+    }
     if (count) count.textContent = String(graph.memoryNodes.length + 1);
     simulationFrames = 0;
 
@@ -1031,8 +1037,25 @@
     const appDefinitions = globalThis.UniversalAppAdapters?.getAppDefinitions?.() || [];
     const appNodes = [];
     const appEdges = [];
+    const preferredSlots = new Map([
+      ['code-space', { x: 0.32, y: 0.50 }],
+      ['example-settings', { x: 0.68, y: 0.50 }],
+      ['email', { x: 0.32, y: 0.78 }],
+      ['office', { x: 0.68, y: 0.78 }]
+    ]);
     appDefinitions.forEach((appDefinition, appIndex, definitions) => {
-      const appAngle = Math.PI * 0.78 + (appIndex / Math.max(1, definitions.length)) * Math.PI * 2;
+      const fallbackColumns = Math.min(2, Math.max(1, definitions.length));
+      const fallbackRow = Math.floor(appIndex / fallbackColumns);
+      const fallbackColumn = appIndex % fallbackColumns;
+      const fallbackRows = Math.max(1, Math.ceil(definitions.length / fallbackColumns));
+      const fallbackSlot = {
+        x: fallbackColumns === 1 ? 0.5 : (fallbackColumn === 0 ? 0.32 : 0.68),
+        y: fallbackRows === 1 ? 0.62 : 0.50 + (fallbackRow / Math.max(1, fallbackRows - 1)) * 0.28
+      };
+      const slot = preferredSlots.get(String(appDefinition.id)) || fallbackSlot;
+      const appX = width * slot.x;
+      const appY = height * slot.y;
+      const appAngle = Math.atan2(appY - universeCentreY, appX - universeCentreX);
       const appRoot = {
         id: appDefinition.id,
         appId: appDefinition.id,
@@ -1041,8 +1064,8 @@
         appRoot: true,
         clusterRoot: true,
         label: appDefinition.name,
-        x: universeCentreX + Math.cos(appAngle) * appOrbit,
-        y: universeCentreY + Math.sin(appAngle) * appOrbit,
+        x: appX,
+        y: appY,
         vx: 0,
         vy: 0,
         radius: 34,
