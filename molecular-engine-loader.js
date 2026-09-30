@@ -10,7 +10,7 @@
       './memory-graph-neural-width.js?v=approved-neural-width-20260930',
       './memory-graph-neural-scaffold.js?v=organic-node-paths-v8-20260930',
       './memory-graph-neural-flow.js?v=neutral-synapse-v3-20260930',
-      './memory-graph-neural-three.js?v=structure-v2-20260930',
+      './memory-graph-neural-three.js?v=structure-v3-20260930',
       './molecular-engine.js?v=2',
       './memory-molecular-adapter.js?v=2',
       './memory-graph-nebula.js?v=space-junkz-video-20260921'
@@ -23,7 +23,7 @@
       './memory-graph-neural-width.js?v=approved-neural-width-20260930',
       './memory-graph-neural-scaffold.js?v=organic-node-paths-v8-20260930',
       './memory-graph-neural-flow.js?v=neutral-synapse-v3-20260930',
-      './memory-graph-neural-three.js?v=structure-v2-20260930',
+      './memory-graph-neural-three.js?v=structure-v3-20260930',
       './memory-graph-manual-gravity.js?v=2',
       './memory-graph-orb-matrix-guard.js?v=1',
       './memory-graph.js?v=neural-renderer-20260930',

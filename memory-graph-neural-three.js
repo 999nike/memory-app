@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 2;
+  const VERSION = 3;
   const THREE_MODULE = './vendor/three/three.module.min.js';
   const MAX_DPR = 1.5;
   const params = new URLSearchParams(location.search);
@@ -23,7 +23,7 @@
   let height = 1;
   let queued = false;
   let pendingRender = false;
-  let selectedHubId = '';
+  let activeHubIds = [];
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const scaffold = () => globalThis.MemoryGraphNeuralScaffold || null;
@@ -462,14 +462,17 @@
     disposeStructure();
 
     if (!groups.length) {
-      selectedHubId = '';
+      activeHubIds = [];
       renderer.render(scene, camera);
       return;
     }
 
-    const selected = groups[0];
-    selectedHubId = selected.id;
-    buildOneNeuron(selected.routes, selected.id);
+    // The single-hub prototype passed human review. Render one compact neural
+    // organism for every real app hub while preserving each hub's own topology.
+    activeHubIds = groups.map((group) => group.id);
+    for (const group of groups) {
+      buildOneNeuron(group.routes, group.id);
+    }
     renderer.render(scene, camera);
   }
 
@@ -494,7 +497,7 @@
     version: VERSION,
     renderer: 'three',
     structureOnly: true,
-    activeHub: () => selectedHubId,
+    activeHubs: () => [...activeHubIds],
     redraw: queueRender
   });
 
