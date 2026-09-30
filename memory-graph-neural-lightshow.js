@@ -218,9 +218,9 @@
     if (!renderer || !scene || !camera || !EffectComposer || !RenderPass || !UnrealBloomPass) return false;
     composer?.dispose?.();
     const renderPass = new RenderPass(scene, camera);
-    bloomPass = new UnrealBloomPass(new THREE.Vector2(Math.max(1, width), Math.max(1, height)), 1.5, 0.8, 1.0);
+    bloomPass = new UnrealBloomPass(new THREE.Vector2(Math.max(1, width), Math.max(1, height)), 1.2, 0.8, 1.0);
     bloomPass.threshold = 1.0;
-    bloomPass.strength = 1.5;
+    bloomPass.strength = 1.2;
     bloomPass.radius = 0.8;
     composer = new EffectComposer(renderer);
     composer.addPass(renderPass);
