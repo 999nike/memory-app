@@ -4,12 +4,12 @@
   // Pulse routing follows the approved August renderer (blob
   // 6feadb2985a4179620fd55ae9b95c6afd12bb3fb) while retaining the current
   // pulse-only, capped and visibility-aware animation lifecycle.
-  const VERSION = 12;
+  const VERSION = 13;
   const MAX_DPR = 1.75;
   const MAX_PULSES = 10;
   const FRAME_MS = 1000 / 30;
-  const AMBIENT_MIN_MS = 1050;
-  const AMBIENT_MAX_MS = 1900;
+  const AMBIENT_MIN_MS = 550;
+  const AMBIENT_MAX_MS = 900;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const palettes = {
     blue: ['255,255,255', '102,225,255', '37,126,255'],
@@ -165,7 +165,7 @@
       palette,
       intensity,
       radius,
-      startedAt: performance.now() + clamp(Number(options.delay) || 0, 0, 900),
+      startedAt: performance.now(),
       duration: 560
     });
     if (blooms.length > MAX_PULSES) blooms.splice(0, blooms.length - MAX_PULSES);
@@ -439,8 +439,8 @@
             {
               ambient: true,
               palette: route.palette || 'cyan',
-              intensity: .92 + Math.random() * .14,
-              duration: 1650 + Math.random() * 650,
+              intensity: 1.22 + Math.random() * .20,
+              duration: 1750 + Math.random() * 550,
               delay: index * 110
             }
           );
@@ -502,7 +502,7 @@
   if (!document.getElementById('memoryGraphNeuralFlowStyles')) {
     const style = document.createElement('style');
     style.id = 'memoryGraphNeuralFlowStyles';
-    style.textContent = '.memory-graph-neural-flow-canvas{position:absolute;inset:0;z-index:1;display:block;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;opacity:1}';
+    style.textContent = '.memory-graph-neural-flow-canvas{position:absolute;inset:0;z-index:3;display:block;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen;opacity:1}';
     document.head.appendChild(style);
   }
 
@@ -520,4 +520,8 @@
   });
   globalThis.MemoryGraphNeuralFlow = api;
   globalThis.fireSynapse = fireSynapse;
+
+  // Start ambient firing even if the first route-change event already happened.
+  syncLayerSize();
+  scheduleAmbient();
 })();
