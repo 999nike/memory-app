@@ -51,6 +51,7 @@
   let homeRecoveryFrame = 0;
   let homeRecoveryStartedAt = 0;
   let homeTargets = new Map();
+  let settingsHomeTarget = null;
   const presentationControlSpecs = new Map();
   const presentationControlNodes = new Map();
   const expandedAppNodeIds = new Set();
@@ -908,10 +909,11 @@
       // Manual titled groups own their members. Do not pull grouped memories
       // back into the main Memory cluster during the neat-home return.
       if (node.__manualGroupId) continue;
-      homeTargets.set(String(node.id), {
-        x: Number(node.x) || 0,
-        y: Number(node.y) || 0
-      });
+      const id = String(node.id);
+      const target = id === 'settings' && settingsHomeTarget
+        ? settingsHomeTarget
+        : { x: Number(node.x) || 0, y: Number(node.y) || 0 };
+      homeTargets.set(id, { x: target.x, y: target.y });
     }
     return homeTargets.size > 0;
   }
@@ -1266,16 +1268,20 @@
     const nodes = [];
     for (const [id, spec] of presentationControlSpecs) {
       if (spec.parentId) continue;
+      const angle = Number(spec.sectorAngle || 0);
+      const rootOrbit = targetOrbit * clamp(Number(spec.orbitScale) || 1, 0.65, 1.8);
+      const homeX = centreX + Math.cos(angle) * rootOrbit;
+      const homeY = centreY + Math.sin(angle) * rootOrbit * 0.76;
+      if (id === 'settings') settingsHomeTarget = { x: homeX, y: homeY };
+
       let node = presentationControlNodes.get(id);
       if (!node) {
-        const angle = Number(spec.sectorAngle || 0);
-        const rootOrbit = targetOrbit * clamp(Number(spec.orbitScale) || 1, 0.65, 1.8);
         node = {
           id,
           kind: 'control',
           label: String(spec.label || 'Control'),
-          x: centreX + Math.cos(angle) * rootOrbit,
-          y: centreY + Math.sin(angle) * rootOrbit * 0.76,
+          x: homeX,
+          y: homeY,
           vx: 0,
           vy: 0,
           radius: 18,
@@ -2794,6 +2800,7 @@
   function beginPresentationControlDrag(id) {
     const node = presentationControlNode(id);
     if (!node || rotationActive()) return false;
+    if (String(node.id) === 'settings') cancelHomeRecovery();
     stopViewTransition();
     stopSimulation();
     node.dragging = true;
@@ -2824,6 +2831,7 @@
     node.vy = 0;
     simulationFrames = 0;
     startSimulation();
+    if (String(node.id) === 'settings') scheduleHomeRecovery();
     return true;
   }
 
