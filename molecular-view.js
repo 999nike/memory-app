@@ -2,7 +2,7 @@
   'use strict';
 
   const SETTINGS_CONTROLS = [
-    { id: 'settings', label: 'Memory Settings', radius: 30, expandable: true, independentRoot: true, homeXRatio: 0.61, homeYRatio: 0.50 },
+    { id: 'settings', label: 'Memory Settings', radius: 30, expandable: true, homeXRatio: 0.61, homeYRatio: 0.50 },
 
     { id: 'settings:memories', parentId: 'settings', label: 'Memories', action: 'open-memories', radius: 20 },
     { id: 'settings:new-memory', parentId: 'settings', label: 'New Memory', action: 'add-memory', radius: 20 },
