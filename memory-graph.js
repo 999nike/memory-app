@@ -56,6 +56,7 @@
   const expandedAppNodeIds = new Set();
   const expansionAnchoredRootIds = new Set();
   let activeControlParentId = null;
+  let activeClusterKey = null;
   // Resident visual only: never enters graph collections, hit testing or storage.
   const orbStates = ['idle', 'listening', 'thinking', 'speaking', 'guiding', 'arrived', 'error'];
   const orbMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -997,10 +998,57 @@
     globalThis.MemoryGraphManualGravity?.scheduleHomeRecovery?.();
   }
 
-  function wakeFreeGravityPhase() {
+  function clusterKeyForNode(node) {
+    if (!node) return null;
+    if (node.__manualGroupCanonical) {
+      return node.manualGroupId ? `manual:${String(node.manualGroupId)}` : null;
+    }
+    if (node.__manualGroupId) return `manual:${String(node.__manualGroupId)}`;
+
+    const id = String(node.id || '');
+    if (id === 'settings' || id.startsWith('settings:')) return 'settings';
+    if (node.appId) return `app:${String(node.appId)}`;
+    if (node.kind === 'space' || node.kind === 'memory') return 'memory';
+    return null;
+  }
+
+  function nodeInActiveCluster(node) {
+    return !activeClusterKey || clusterKeyForNode(node) === activeClusterKey;
+  }
+
+  function collapseInactiveAppExpansions(activeAppId = null) {
+    if (!graph) return false;
+    const keepAppId = activeAppId == null ? null : String(activeAppId);
+    const changedApps = new Set();
+
+    for (const node of graph.appNodes || []) {
+      if (!node || node.appRoot || !expandedAppNodeIds.has(node.id)) continue;
+      if (keepAppId && String(node.appId) === keepAppId) continue;
+      expandedAppNodeIds.delete(node.id);
+      changedApps.add(String(node.appId));
+    }
+
+    for (const appId of changedApps) syncAppNodeVisibility(appId);
+    return changedApps.size > 0;
+  }
+
+  function activateClusterForNode(node) {
+    const nextKey = clusterKeyForNode(node);
+    if (!nextKey) return false;
+
+    activeClusterKey = nextKey;
+    const activeAppId = node?.appId ? String(node.appId) : null;
+    collapseInactiveAppExpansions(activeAppId);
+
+    if (nextKey !== 'settings') collapsePresentationControls();
+    return true;
+  }
+
+  function wakeFreeGravityPhase(node = null) {
     cancelHomeRecovery();
+    if (node) activateClusterForNode(node);
     simulationFrames = 0;
-    startSimulation();
+    if (activeClusterKey) startSimulation();
   }
 
   function rebuildGraph(width, height) {
@@ -1550,7 +1598,9 @@
   }
 
   function simulateStep() {
-    const nodes = graph.nodes.filter((node) => (!node.fixed || node.appRoot) && !node.hidden);
+    const nodes = graph.nodes.filter((node) =>
+      (!node.fixed || node.appRoot) && !node.hidden && nodeInActiveCluster(node)
+    );
     let totalSpeed = 0;
     let simulatedCount = 0;
     let boundaryActive = false;
@@ -1625,7 +1675,7 @@
     }
 
     for (const root of graph.nodes) {
-      if (!root.fixed || root.appRoot || !root.clusterRoot || root.hidden || root.dragging) continue;
+      if (!root.fixed || root.appRoot || !root.clusterRoot || root.hidden || root.dragging || !nodeInActiveCluster(root)) continue;
       const boundaryForce = universeBoundaryForce(root);
       if (!boundaryForce.x && !boundaryForce.y && !root.vx && !root.vy) continue;
       boundaryActive ||= Boolean(boundaryForce.x || boundaryForce.y);
@@ -1975,7 +2025,7 @@
 
   function handlePointerDown(event) {
     if (!graph || event.button !== 0) return;
-    wakeFreeGravityPhase();
+    cancelHomeRecovery();
     homePresentation = false;
     stopViewTransition();
 
@@ -2007,6 +2057,8 @@
       world ||= screenToWorld(point);
       node ||= findNodeAt(world.x, world.y);
       const rotated = rotationActive();
+
+      if (node) wakeFreeGravityPhase(node);
 
       pointerState = {
         pointerId: event.pointerId,
@@ -2613,6 +2665,7 @@
 
   function activatePresentationControl(node) {
     if (!node || node.hidden) return false;
+    activateClusterForNode(node);
     if (node.expandable) {
       if (node.appId) {
         const expanding = toggleAppNodeExpansion(node);
@@ -2702,7 +2755,10 @@
   function toggleAppNodeExpansion(node) {
     if (!graph || !node?.appId || !node.expandable) return false;
     const expanding = !expandedAppNodeIds.has(node.id);
-    if (expanding) expandedAppNodeIds.add(node.id);
+    if (expanding) {
+      activateClusterForNode(node);
+      expandedAppNodeIds.add(node.id);
+    }
     else collapseExpandedAppDescendants(node.id);
     syncAppNodeVisibility(node.appId);
     simulationFrames = 0;
@@ -3013,6 +3069,12 @@
     projectPresentationNode,
     focusPresentationNode,
     presentationState,
+    activeClusterState: () => ({
+      key: activeClusterKey,
+      nodeIds: activeClusterKey && graph
+        ? graph.nodes.filter((node) => clusterKeyForNode(node) === activeClusterKey).map((node) => String(node.id))
+        : []
+    }),
     homeRecoveryState: () => ({
       waiting: Boolean(homeRecoveryTimer),
       returning: Boolean(homeRecoveryFrame),
