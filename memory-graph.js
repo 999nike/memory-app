@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 18;
+  const VERSION = 19;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -2520,6 +2520,7 @@
     if (!graph) return true;
     buildPresentationControlNodes(graph.width, graph.height, graph.centreX, graph.centreY, graph.orbitRadius);
     syncCanonicalGraphCollections();
+    captureHomeTargets();
     for (const node of visibleControlNodes()) containNode(node);
     simulationFrames = 0;
     drawGraph();
@@ -2978,6 +2979,7 @@
       simulationFrames = 0;
       startSimulation();
     },
+    pauseSimulation: stopSimulation,
     focusMemory,
     focusHome,
     focusSpace,
