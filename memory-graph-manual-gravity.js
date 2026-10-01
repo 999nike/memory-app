@@ -217,6 +217,41 @@
     homeRecoveryTimer = window.setTimeout(beginHomeRecovery, HOME_IDLE_DELAY_MS);
   }
 
+  function snapGroupHomeNow(groupId) {
+    const id = String(groupId || '');
+    const graph = lastGraph;
+    const group = groupsForSpace().find((item) => String(item.id) === id);
+    const home = groupHomeTargets.get(id);
+    const groupNode = graph?.nodes?.find((node) =>
+      node?.__manualGroupCanonical && String(node.manualGroupId) === id
+    );
+    if (!group || !home || !groupNode) return false;
+
+    groupNode.x = home.x;
+    groupNode.y = home.y;
+    groupNode.vx = 0;
+    groupNode.vy = 0;
+
+    (group.members || []).map(String).forEach((memoryId, index) => {
+      const node = graph.memoryNodes?.find((item) => String(item.id) === memoryId);
+      if (!node || String(node.__manualGroupId || '') !== id) return;
+      const layout = memberLayout(group, node, index);
+      node.x = home.x + Math.cos(layout.angle) * layout.orbit;
+      node.y = home.y + Math.sin(layout.angle) * layout.orbit;
+      node.vx = 0;
+      node.vy = 0;
+    });
+
+    globalThis.MemoryGraph?.redraw?.();
+    persistGroupPositions();
+    return true;
+  }
+
+  function returnHomeNow() {
+    cancelHomeRecovery();
+    return beginHomeRecovery();
+  }
+
   globalThis.MemoryGraphClusterLayout = Object.freeze({
     version: 1,
     radiusForCount: clusterRadiusForCount,
@@ -663,6 +698,8 @@
     wake: () => redrawGraph(true),
     cancelHomeRecovery,
     scheduleHomeRecovery,
+    snapGroupHomeNow,
+    returnHomeNow,
     homeRecoveryState: () => ({
       waiting: Boolean(homeRecoveryTimer),
       returning: Boolean(homeRecoveryFrame),
