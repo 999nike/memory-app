@@ -57,6 +57,8 @@
   const expansionAnchoredRootIds = new Set();
   let activeControlParentId = null;
   let activeClusterKey = null;
+  let clusterReturnFrame = 0;
+  const clusterReturnStates = new Map();
   // Resident visual only: never enters graph collections, hit testing or storage.
   const orbStates = ['idle', 'listening', 'thinking', 'speaking', 'guiding', 'arrived', 'error'];
   const orbMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -940,6 +942,7 @@
     if (!graph || !homeTargets.size || pointerState) return false;
 
     activeClusterKey = null;
+    cancelClusterReturns();
     stopSimulation();
     const starts = new Map();
     const homeRecoveryNode = (id) => {
@@ -1018,34 +1021,89 @@
     return Boolean(activeClusterKey) && clusterKeyForNode(node) === activeClusterKey;
   }
 
-  function snapClusterHome(key) {
+  function cancelClusterReturns(key = null) {
+    if (key == null) {
+      clusterReturnStates.clear();
+    } else {
+      const clusterKey = String(key);
+      clusterReturnStates.delete(clusterKey);
+      if (clusterKey.startsWith('manual:')) {
+        globalThis.MemoryGraphManualGravity?.cancelGroupReturnNow?.(
+          clusterKey.slice('manual:'.length)
+        );
+      }
+    }
+    if (!clusterReturnStates.size && clusterReturnFrame) {
+      cancelAnimationFrame(clusterReturnFrame);
+      clusterReturnFrame = 0;
+    }
+  }
+
+  function animateClusterReturns(timestamp) {
+    clusterReturnFrame = 0;
+    if (!graph || !clusterReturnStates.size) return;
+
+    for (const [key, state] of [...clusterReturnStates]) {
+      const raw = clamp((timestamp - state.startedAt) / HOME_RETURN_DURATION_MS, 0, 1);
+      const progress = easeHomeProgress(raw);
+
+      for (const entry of state.entries) {
+        const node = entry.node;
+        if (!node) continue;
+        node.x = entry.startX + (entry.targetX - entry.startX) * progress;
+        node.y = entry.startY + (entry.targetY - entry.startY) * progress;
+        node.vx = 0;
+        node.vy = 0;
+        node.dragging = false;
+        if (node === graph.spaceNode) {
+          graph.centreX = node.x;
+          graph.centreY = node.y;
+        }
+      }
+
+      if (raw >= 1) clusterReturnStates.delete(key);
+    }
+
+    drawGraph();
+    if (clusterReturnStates.size) {
+      clusterReturnFrame = requestAnimationFrame(animateClusterReturns);
+    } else {
+      persistGraphState(false);
+    }
+  }
+
+  function returnClusterHomeSmooth(key) {
     const clusterKey = String(key || '');
     if (!clusterKey || !graph) return false;
 
     if (clusterKey.startsWith('manual:')) {
-      return Boolean(globalThis.MemoryGraphManualGravity?.snapGroupHomeNow?.(
+      return Boolean(globalThis.MemoryGraphManualGravity?.returnGroupHomeNow?.(
         clusterKey.slice('manual:'.length)
       ));
     }
 
-    let changed = false;
+    const entries = [];
     for (const [id, target] of homeTargets) {
       const node = String(id) === 'settings'
         ? presentationControlNodes.get('settings') || graph.nodes.find((item) => String(item.id) === String(id))
         : graph.nodes.find((item) => String(item.id) === String(id));
       if (!node || clusterKeyForNode(node) !== clusterKey) continue;
-      node.x = Number(target.x) || 0;
-      node.y = Number(target.y) || 0;
-      node.vx = 0;
-      node.vy = 0;
-      node.dragging = false;
-      if (node === graph.spaceNode) {
-        graph.centreX = node.x;
-        graph.centreY = node.y;
-      }
-      changed = true;
+      entries.push({
+        node,
+        startX: Number(node.x) || 0,
+        startY: Number(node.y) || 0,
+        targetX: Number(target.x) || 0,
+        targetY: Number(target.y) || 0
+      });
     }
-    return changed;
+    if (!entries.length) return false;
+
+    clusterReturnStates.set(clusterKey, {
+      startedAt: performance.now(),
+      entries
+    });
+    if (!clusterReturnFrame) clusterReturnFrame = requestAnimationFrame(animateClusterReturns);
+    return true;
   }
 
   function collapseAppExpansionsExcept(appId = null) {
@@ -1071,11 +1129,12 @@
     const previousKey = activeClusterKey;
     const nextAppId = node?.appId ? String(node.appId) : null;
 
+    cancelClusterReturns(nextKey);
     if (nextKey !== 'settings') collapsePresentationControls();
     collapseAppExpansionsExcept(nextAppId);
 
     activeClusterKey = nextKey;
-    if (previousKey) snapClusterHome(previousKey);
+    if (previousKey) returnClusterHomeSmooth(previousKey);
     drawGraph();
     return true;
   }
@@ -1092,6 +1151,7 @@
 
     cancelHomeRecovery();
     activeClusterKey = null;
+    cancelClusterReturns();
     stopSimulation();
     collapseAppExpansionsExcept(null);
     collapsePresentationControls();
