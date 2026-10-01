@@ -547,7 +547,7 @@
         Object.freeze({ id: 'dispatch:cancelled', label: 'Cancelled', action: 'office.dispatch.cancelled.open', view: 'office' })
       ]) }),
       Object.freeze({ id: 'projects', label: 'Projects', action: 'office.projects.open', view: 'office' }),
-      Object.freeze({ id: 'settings', label: 'Settings', action: 'office.settings.open', view: 'office' }),
+      Object.freeze({ id: 'office-settings', label: 'Office Settings', action: 'office.settings.open', view: 'office' }),
       Object.freeze({ id: 'open-office', label: 'Open Office', action: 'office.open', view: 'office' })
     ])
   });
