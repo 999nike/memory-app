@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 17;
+  const VERSION = 18;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -1018,7 +1018,6 @@
     if (previousSpaceId && previousSpaceId !== data.space.id) resetView();
 
     graph = buildGraph(data, width, height, savedState, liveRoot);
-    captureHomeTargets();
     if (liveRoot && liveRoot.id === String(graph.spaceNode.id)) {
       graph.spaceNode.x = liveRoot.x;
       graph.spaceNode.y = liveRoot.y;
@@ -1028,6 +1027,7 @@
       graph.centreY = liveRoot.y;
     }
     syncCanonicalGraphCollections();
+    captureHomeTargets();
     startupLog('memory-graph.rebuildGraph:built', {
       spaceId: String(graph.spaceNode.id),
       nodes: graph.nodes.length,
@@ -1124,15 +1124,12 @@
       const layout = titledClusterLayout(memories.length, profile.radius, index, -Math.PI / 2);
       const angle = layout.angle;
       const localOrbit = layout.orbit;
-      const isMemorySettings = String(memory.title || '').trim().toLowerCase() === 'settings';
-      const memorySettingsX = centreX + Math.max(150, baseOrbit * 0.92);
-      const memorySettingsY = centreY - Math.max(8, baseOrbit * 0.05);
       return {
         id: memory.id,
         kind: 'memory',
         label: memory.title || 'Untitled memory',
-        x: isMemorySettings ? memorySettingsX : centreX + Math.cos(angle) * localOrbit,
-        y: isMemorySettings ? memorySettingsY : centreY + Math.sin(angle) * localOrbit,
+        x: centreX + Math.cos(angle) * localOrbit,
+        y: centreY + Math.sin(angle) * localOrbit,
         vx: 0,
         vy: 0,
         radius: profile.radius,
@@ -1272,16 +1269,17 @@
       let node = presentationControlNodes.get(id);
       if (!node) {
         const angle = Number(spec.sectorAngle || 0);
+        const rootOrbit = targetOrbit * clamp(Number(spec.orbitScale) || 1, 0.65, 1.8);
         node = {
           id,
           kind: 'control',
           label: String(spec.label || 'Control'),
-          x: centreX + Math.cos(angle) * targetOrbit,
-          y: centreY + Math.sin(angle) * targetOrbit * 0.76,
+          x: centreX + Math.cos(angle) * rootOrbit,
+          y: centreY + Math.sin(angle) * rootOrbit * 0.76,
           vx: 0,
           vy: 0,
           radius: 18,
-          targetOrbit,
+          targetOrbit: rootOrbit,
           localOrbit: 0,
           parentId: null,
           clusterRoot: true,
@@ -1297,7 +1295,7 @@
       }
       node.label = String(spec.label || node.label || 'Control');
       node.radius = Math.max(12, Number(spec.radius) || 18);
-      node.targetOrbit = targetOrbit;
+      node.targetOrbit = targetOrbit * clamp(Number(spec.orbitScale) || 1, 0.65, 1.8);
       node.localOrbit = 0;
       node.parentId = null;
       node.clusterRoot = true;
@@ -2513,6 +2511,7 @@
         label: String(definition.label || 'Control'),
         sectorAngle: Number(definition.sectorAngle) || 0,
         radius: Number(definition.radius) || 18,
+        orbitScale: Number(definition.orbitScale) || 1,
         parentId: definition.parentId ? String(definition.parentId) : null,
         action: String(definition.action || ''),
         expandable: Boolean(definition.expandable)
