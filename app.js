@@ -2,6 +2,19 @@
   'use strict';
 
   const STORAGE_KEY = 'memory-space-v1';
+  const AI_INSTRUCTIONS_KEY = 'memory-space-ai-instructions-v1';
+  const DEFAULT_AI_INSTRUCTIONS = [
+    'You are my local AI coding assistant.',
+    'Read the relevant files before making changes.',
+    'Do not guess about existing code, architecture, paths, APIs, or project state.',
+    'Prefer the smallest targeted change that solves the requested problem.',
+    'Preserve working behaviour and existing architecture unless explicitly asked to change them.',
+    'Find the cause before patching bugs.',
+    'Do not delete files, overwrite working code, or make destructive changes without explicit permission.',
+    'Keep changes maintainable and avoid unnecessary dependencies.',
+    'Explain significant changes clearly.',
+    'When something cannot be verified, say what is unknown instead of inventing details.'
+  ].join('\n');
   const TYPE_LABELS = {
     decision: 'Decision',
     fact: 'Fact',
@@ -136,7 +149,7 @@
     spaceNameInput: document.getElementById('spaceNameInput'),
     spaceDescriptionInput: document.getElementById('spaceDescriptionInput'),
     contextDialog: document.getElementById('contextDialog'),
-    contextPreview: document.getElementById('contextPreview'),
+    aiInstructionsInput: document.getElementById('aiInstructionsInput'),
     toast: document.getElementById('toast'),
     importInput: document.getElementById('importInput')
   };
@@ -484,36 +497,25 @@
     }
   }
 
-  function buildContext() {
-    const space = activeSpace();
-    const memories = memoriesForSpace()
-      .filter((memory) => (memory.status || 'confirmed') === 'confirmed' && memory.type !== 'job')
-      .sort((a, b) => {
-      const order = { critical: 0, high: 1, normal: 2, low: 3 };
-      return (order[a.importance] - order[b.importance]) || a.type.localeCompare(b.type);
-    });
-
-    const lines = [
-      `SPACE: ${space.name}`,
-      `PURPOSE: ${space.description}`,
-      '',
-      'TRUSTED MEMORY:'
-    ];
-
-    if (!memories.length) lines.push('- No confirmed memories yet.');
-    memories.forEach((memory) => {
-      lines.push(`- [${memory.importance.toUpperCase()}] [${TYPE_LABELS[memory.type]?.toUpperCase() || memory.type.toUpperCase()}] ${memory.title}`);
-      lines.push(`  ${memory.content}`);
-      lines.push(`  Source: ${memory.source || 'Not recorded'}${memory.locked ? ' · Locked by user' : ''}`);
-    });
-
-    lines.push('', 'RULE: Treat locked memories as user-confirmed constraints. Ask before changing or superseding them.');
-    return lines.join('\n');
+  function loadAiInstructions() {
+    const saved = localStorage.getItem(AI_INSTRUCTIONS_KEY);
+    return saved === null ? DEFAULT_AI_INSTRUCTIONS : saved;
   }
 
   function showContext() {
-    els.contextPreview.textContent = buildContext();
+    els.aiInstructionsInput.value = loadAiInstructions();
     els.contextDialog.showModal();
+    requestAnimationFrame(() => els.aiInstructionsInput.focus());
+  }
+
+  function saveAiInstructions() {
+    const instructions = els.aiInstructionsInput.value;
+    localStorage.setItem(AI_INSTRUCTIONS_KEY, instructions);
+    window.dispatchEvent(new CustomEvent('ai-instructions-changed', {
+      detail: { instructions }
+    }));
+    els.contextDialog.close();
+    showToast('AI instructions saved');
   }
 
   function updateJobFields() {
@@ -643,6 +645,9 @@
 
   globalThis.MemoryApp = Object.freeze({
     openMemoryInspector,
+    aiInstructions() {
+      return loadAiInstructions();
+    },
     graphNodeIds() {
       const space = activeSpace();
       if (!space?.id) return [];
@@ -668,9 +673,7 @@
   });
   document.getElementById('contextButton').addEventListener('click', showContext);
   document.getElementById('exportButton').addEventListener('click', exportWorkspace);
-  document.getElementById('copyContextButton').addEventListener('click', () => {
-    copyText(buildContext()).then(() => showToast('Context copied'));
-  });
+  document.getElementById('saveInstructionsButton').addEventListener('click', saveAiInstructions);
   document.getElementById('closeDetailButton').addEventListener('click', closeInspector);
   document.getElementById('openSidebarButton').addEventListener('click', openMobileSidebar);
   document.getElementById('closeSidebarButton').addEventListener('click', closeMobileSidebar);
