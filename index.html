@@ -10,7 +10,7 @@
     #memoryBuildVersion{position:fixed;top:72px;left:10px;z-index:10000;padding:3px 6px;border:1px solid rgba(91,207,255,.22);border-radius:6px;background:rgba(3,14,21,.76);color:#8fb5c7;font:600 11px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.08em;pointer-events:none}
   </style>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=recovery-20260905-01">
+  <link rel="stylesheet" href="./styles.css?v=ai-instructions-20261001">
   <link rel="stylesheet" href="./product-onboarding.css?v=1">
   <link rel="stylesheet" href="./phase2.css?v=8">
   <link rel="stylesheet" href="./memory-lifecycle.css?v=1">
@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="./molecular-view.css?v=space-junkz-visible-20260921">
 </head>
 <body>
-  <div id="memoryBuildVersion" aria-label="Build version">v1.3.23</div>
+  <div id="memoryBuildVersion" aria-label="Build version">v1.3.24</div>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <div class="brand-row">
@@ -66,7 +66,7 @@
         </div>
         <div class="topbar-actions">
           <button class="ghost-button spatial-view-button" id="spatialViewButton">Spatial View</button>
-          <button class="ghost-button" id="contextButton">Context view</button>
+          <button class="ghost-button ai-instructions-button" id="contextButton">AI Instructions</button>
           <button class="primary-button" id="newMemoryButton">+ Add memory</button>
         </div>
       </header>
@@ -261,23 +261,25 @@
   <dialog id="contextDialog" class="modal context-modal">
     <div class="modal-header">
       <div>
-        <p class="eyebrow">Context builder</p>
-        <h2>What the active AI receives</h2>
+        <p class="eyebrow">Local AI</p>
+        <h2>AI Instructions</h2>
       </div>
       <button class="icon-button" type="button" data-close-dialog="contextDialog" aria-label="Close">×</button>
     </div>
-    <p class="context-explainer">This preview contains current confirmed memory only. Superseded and archived versions remain in history but are excluded from active AI context.</p>
-    <pre id="contextPreview" class="context-preview"></pre>
+    <p class="context-explainer">User-controlled instructions for the local AI. This area is separate from Memories and does not automatically include Memory Space content.</p>
+    <label class="ai-instructions-label" for="aiInstructionsInput">Instructions</label>
+    <textarea id="aiInstructionsInput" class="ai-instructions-input" spellcheck="true" aria-label="Local AI instructions"></textarea>
+    <p class="context-explainer ai-instructions-note">Saved locally for now. We can wire these instructions into the local AI later.</p>
     <div class="modal-actions">
-      <button class="ghost-button" type="button" data-close-dialog="contextDialog">Close</button>
-      <button class="primary-button" type="button" id="copyContextButton">Copy context</button>
+      <button class="ghost-button" type="button" data-close-dialog="contextDialog">Cancel</button>
+      <button class="primary-button" type="button" id="saveInstructionsButton">Save instructions</button>
     </div>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="./product-onboarding.js?v=1" defer></script>
-  <script src="./app.js?v=codex-model-20260913" defer></script>
+  <script src="./app.js?v=ai-instructions-20261001" defer></script>
   <script src="./memory-graph-visuals.js?v=static-neural-20260930" defer></script>
   <script src="./memory-graph-mobile.js?v=label-fix-20260905-01" defer></script>
   <script src="./memory-graph-rotation.js?v=1" defer></script>
