@@ -1,11 +1,13 @@
 (() => {
   'use strict';
 
-  const VERSION = 13;
+  const VERSION = 14;
   const GROUP_KEY = 'memory-graph-folders-v1';
   const GROUP_PREFIX = 'manual-group:';
   const PERSIST_DELAY_MS = 420;
   const GROUP_DRAG_THRESHOLD = 6;
+  const HOME_IDLE_DELAY_MS = 10000;
+  const HOME_RETURN_DURATION_MS = 5000;
 
   const baseRotation = globalThis.MemoryGraphRotation || null;
   if (!baseRotation || baseRotation.__manualGravityPhysicsWrapped) return;
@@ -17,6 +19,10 @@
   let lastScheduledSignature = '';
   let memoryPointer = null;
   let groupPointer = null;
+  let homeRecoveryTimer = 0;
+  let homeRecoveryFrame = 0;
+  let homeRecoveryStartedAt = 0;
+  const groupHomeTargets = new Map();
   const pendingReleaseIds = new Set();
 
   function clamp(value, min, max) {
@@ -97,6 +103,118 @@
       index,
       Number(group?.phase || 0)
     );
+  }
+
+  function easeHomeProgress(value) {
+    const t = clamp(Number(value) || 0, 0, 1);
+    return t < 0.5
+      ? 4 * t * t * t
+      : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function cancelHomeRecovery() {
+    if (homeRecoveryTimer) clearTimeout(homeRecoveryTimer);
+    homeRecoveryTimer = 0;
+    if (homeRecoveryFrame) cancelAnimationFrame(homeRecoveryFrame);
+    homeRecoveryFrame = 0;
+    homeRecoveryStartedAt = 0;
+  }
+
+  function captureGroupHomeTargets(graph, groups, canonicalByGroupId) {
+    const liveIds = new Set(groups.map((group) => String(group.id)));
+    for (const id of [...groupHomeTargets.keys()]) {
+      if (!liveIds.has(id)) groupHomeTargets.delete(id);
+    }
+    for (const group of groups) {
+      const id = String(group.id);
+      if (groupHomeTargets.has(id)) continue;
+      const node = canonicalByGroupId.get(id);
+      if (!node) continue;
+      groupHomeTargets.set(id, {
+        x: Number(node.x) || 0,
+        y: Number(node.y) || 0
+      });
+    }
+    return groupHomeTargets.size > 0;
+  }
+
+  function beginHomeRecovery() {
+    homeRecoveryTimer = 0;
+    const graph = lastGraph;
+    const groups = groupsForSpace();
+    if (!graph || !groupHomeTargets.size || groupPointer || memoryPointer) return false;
+
+    // Main graph recovery pauses the same gravity solver. This public hook lets
+    // titled groups use the identical 10s free / 5s return phase without
+    // introducing another physics loop.
+    globalThis.MemoryGraph?.pauseSimulation?.();
+
+    const starts = new Map();
+    const targets = new Map();
+
+    for (const group of groups) {
+      const id = String(group.id);
+      const home = groupHomeTargets.get(id);
+      const groupNode = graph.nodes?.find((node) =>
+        node?.__manualGroupCanonical && String(node.manualGroupId) === id
+      );
+      if (!home || !groupNode) continue;
+
+      starts.set(String(groupNode.id), { x: Number(groupNode.x) || 0, y: Number(groupNode.y) || 0 });
+      targets.set(String(groupNode.id), { x: home.x, y: home.y });
+
+      const members = (group.members || []).map(String);
+      members.forEach((memoryId, index) => {
+        const node = graph.memoryNodes?.find((item) => String(item.id) === memoryId);
+        if (!node || String(node.__manualGroupId || '') !== id) return;
+        const layout = memberLayout(group, node, index);
+        starts.set(String(node.id), { x: Number(node.x) || 0, y: Number(node.y) || 0 });
+        targets.set(String(node.id), {
+          x: home.x + Math.cos(layout.angle) * layout.orbit,
+          y: home.y + Math.sin(layout.angle) * layout.orbit
+        });
+      });
+    }
+
+    if (!targets.size) return false;
+
+    homeRecoveryStartedAt = performance.now();
+    const animate = (timestamp) => {
+      homeRecoveryFrame = 0;
+      if (!lastGraph || groupPointer || memoryPointer) return;
+
+      const raw = clamp((timestamp - homeRecoveryStartedAt) / HOME_RETURN_DURATION_MS, 0, 1);
+      const progress = easeHomeProgress(raw);
+
+      for (const [id, target] of targets) {
+        const node = lastGraph.nodes?.find((item) => String(item.id) === id);
+        const start = starts.get(id);
+        if (!node || !start) continue;
+        node.x = start.x + (target.x - start.x) * progress;
+        node.y = start.y + (target.y - start.y) * progress;
+        node.vx = 0;
+        node.vy = 0;
+      }
+
+      globalThis.MemoryGraph?.redraw?.();
+      globalThis.MemoryGraphNeuralScaffold?.redraw?.();
+      globalThis.MemoryGraphNeuralFlow?.redraw?.();
+
+      if (raw < 1) {
+        homeRecoveryFrame = requestAnimationFrame(animate);
+      } else {
+        homeRecoveryStartedAt = 0;
+        persistGroupPositions();
+      }
+    };
+
+    homeRecoveryFrame = requestAnimationFrame(animate);
+    return true;
+  }
+
+  function scheduleHomeRecovery() {
+    cancelHomeRecovery();
+    homeRecoveryTimer = window.setTimeout(beginHomeRecovery, HOME_IDLE_DELAY_MS);
   }
 
   globalThis.MemoryGraphClusterLayout = Object.freeze({
@@ -234,6 +352,7 @@
     }
 
     const canonicalByGroupId = new Map(canonicalGroups.map((node) => [String(node.manualGroupId), node]));
+    captureGroupHomeTargets(graph, groups, canonicalByGroupId);
     for (const node of graph.memoryNodes) {
       const memoryId = String(node.id);
       const group = memberToGroup.get(memoryId);
@@ -380,6 +499,7 @@
 
     surface.addEventListener('pointerdown', (event) => {
       if (event.target !== canvas || event.button !== 0 || baseRotation.isActive?.()) return;
+      cancelHomeRecovery();
       const point = canvasPoint(event);
       const groupNode = groupNodeAt(point);
       groupPointer = groupNode ? {
@@ -435,24 +555,26 @@
       if (memoryPointer?.pointerId === event.pointerId) {
         const active = memoryPointer;
         memoryPointer = null;
-        if (!active.moved) return;
-        const target = groupNodeAt(point);
-        const targetId = String(target?.manualGroupId || '');
-        if (targetId && targetId !== active.startGroupId) {
-          if (groupsApi()?.addMemoryToGroup?.(active.memoryId, targetId)) refreshAfterMembershipChange();
-          return;
-        }
-        if (!targetId && active.startGroupId) {
-          if (prepareGroupedMemoryRelease(active.memoryId) && groupsApi()?.detachMemory?.(active.memoryId)) {
-            refreshAfterMembershipChange();
+        if (active.moved) {
+          const target = groupNodeAt(point);
+          const targetId = String(target?.manualGroupId || '');
+          if (targetId && targetId !== active.startGroupId) {
+            if (groupsApi()?.addMemoryToGroup?.(active.memoryId, targetId)) refreshAfterMembershipChange();
+          } else if (!targetId && active.startGroupId) {
+            if (prepareGroupedMemoryRelease(active.memoryId) && groupsApi()?.detachMemory?.(active.memoryId)) {
+              refreshAfterMembershipChange();
+            }
           }
         }
       }
+
+      scheduleHomeRecovery();
     });
 
     surface.addEventListener('pointercancel', (event) => {
       if (groupPointer?.pointerId === event.pointerId) groupPointer = null;
       if (memoryPointer?.pointerId === event.pointerId) memoryPointer = null;
+      scheduleHomeRecovery();
     });
   }
 
@@ -538,6 +660,13 @@
     persist: persistGroupPositions,
     redraw: () => redrawGraph(true),
     redrawOnly: () => redrawGraph(false),
-    wake: () => redrawGraph(true)
+    wake: () => redrawGraph(true),
+    homeRecoveryState: () => ({
+      waiting: Boolean(homeRecoveryTimer),
+      returning: Boolean(homeRecoveryFrame),
+      delayMs: HOME_IDLE_DELAY_MS,
+      durationMs: HOME_RETURN_DURATION_MS,
+      targets: groupHomeTargets.size
+    })
   });
 })();
