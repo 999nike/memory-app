@@ -661,6 +661,8 @@
     redraw: () => redrawGraph(true),
     redrawOnly: () => redrawGraph(false),
     wake: () => redrawGraph(true),
+    cancelHomeRecovery,
+    scheduleHomeRecovery,
     homeRecoveryState: () => ({
       waiting: Boolean(homeRecoveryTimer),
       returning: Boolean(homeRecoveryFrame),
