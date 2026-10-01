@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 16;
+  const VERSION = 17;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -1124,12 +1124,15 @@
       const layout = titledClusterLayout(memories.length, profile.radius, index, -Math.PI / 2);
       const angle = layout.angle;
       const localOrbit = layout.orbit;
+      const isMemorySettings = String(memory.title || '').trim().toLowerCase() === 'settings';
+      const memorySettingsX = centreX + Math.max(150, baseOrbit * 0.92);
+      const memorySettingsY = centreY - Math.max(8, baseOrbit * 0.05);
       return {
         id: memory.id,
         kind: 'memory',
         label: memory.title || 'Untitled memory',
-        x: centreX + Math.cos(angle) * localOrbit,
-        y: centreY + Math.sin(angle) * localOrbit,
+        x: isMemorySettings ? memorySettingsX : centreX + Math.cos(angle) * localOrbit,
+        y: isMemorySettings ? memorySettingsY : centreY + Math.sin(angle) * localOrbit,
         vx: 0,
         vy: 0,
         radius: profile.radius,
@@ -1154,9 +1157,6 @@
     const appEdges = [];
     appDefinitions.forEach((appDefinition, appIndex, definitions) => {
       const appAngle = Math.PI * 0.78 + (appIndex / Math.max(1, definitions.length)) * Math.PI * 2;
-      const isSettingsDemo = String(appDefinition.id) === 'example-settings';
-      const settingsHomeX = centreX + Math.max(210, baseOrbit * 1.55);
-      const settingsHomeY = centreY + Math.max(18, baseOrbit * 0.18);
       const appRoot = {
         id: appDefinition.id,
         appId: appDefinition.id,
@@ -1165,8 +1165,8 @@
         appRoot: true,
         clusterRoot: true,
         label: appDefinition.name,
-        x: isSettingsDemo ? settingsHomeX : universeCentreX + Math.cos(appAngle) * appOrbit,
-        y: isSettingsDemo ? settingsHomeY : universeCentreY + Math.sin(appAngle) * appOrbit,
+        x: universeCentreX + Math.cos(appAngle) * appOrbit,
+        y: universeCentreY + Math.sin(appAngle) * appOrbit,
         vx: 0,
         vy: 0,
         radius: 34,
