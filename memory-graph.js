@@ -1279,12 +1279,18 @@
       if (!node) {
         const angle = Number(spec.sectorAngle || 0);
         const rootOrbit = targetOrbit * clamp(Number(spec.orbitScale) || 1, 0.65, 1.8);
+        const independentHomeX = spec.independentRoot && Number.isFinite(spec.homeXRatio)
+          ? width * clamp(spec.homeXRatio, 0.12, 0.88)
+          : null;
+        const independentHomeY = spec.independentRoot && Number.isFinite(spec.homeYRatio)
+          ? height * clamp(spec.homeYRatio, 0.12, 0.88)
+          : null;
         node = {
           id,
           kind: 'control',
           label: String(spec.label || 'Control'),
-          x: centreX + Math.cos(angle) * rootOrbit,
-          y: centreY + Math.sin(angle) * rootOrbit * 0.76,
+          x: independentHomeX ?? (centreX + Math.cos(angle) * rootOrbit),
+          y: independentHomeY ?? (centreY + Math.sin(angle) * rootOrbit * 0.76),
           vx: 0,
           vy: 0,
           radius: 18,
@@ -1311,6 +1317,8 @@
       node.action = String(spec.action || '');
       node.expandable = Boolean(spec.expandable);
       node.controlDepth = 0;
+      node.__independentPresentationRoot = Boolean(spec.independentRoot);
+      node.__independentPresentationGroup = spec.independentRoot ? String(id) : null;
       node.hidden = false;
       nodes.push(node);
     }
@@ -1358,6 +1366,8 @@
       node.action = String(spec.action || '');
       node.expandable = Boolean(spec.expandable);
       node.controlDepth = depth;
+      node.__independentPresentationRoot = false;
+      node.__independentPresentationGroup = parent.__independentPresentationGroup || null;
       node.hidden = !presentationControlVisible(node);
       nodes.push(node);
     }
@@ -1543,6 +1553,11 @@
       const node = nodes[i];
       if (node.dragging) continue;
       const expansionAnchored = expansionAnchoredRootIds.has(String(node.id));
+      if (node.__independentPresentationRoot) {
+        node.vx = 0;
+        node.vy = 0;
+        continue;
+      }
 
       let fx = 0;
       let fy = 0;
@@ -1572,6 +1587,10 @@
 
       for (let j = i + 1; j < nodes.length; j += 1) {
         const other = nodes[j];
+        const nodeIndependentGroup = node.__independentPresentationGroup || null;
+        const otherIndependentGroup = other.__independentPresentationGroup || null;
+        if ((nodeIndependentGroup || otherIndependentGroup) &&
+            nodeIndependentGroup !== otherIndependentGroup) continue;
         const pairX = node.x - other.x;
         const pairY = node.y - other.y;
         const pairDistanceSq = Math.max(100, pairX * pairX + pairY * pairY);
@@ -1581,7 +1600,8 @@
         const pushY = (pairY / pairDistance) * repulsion;
         fx += pushX / Math.max(0.85, node.gravityWeight || 1);
         fy += pushY / Math.max(0.85, node.gravityWeight || 1);
-        if (!other.dragging && !expansionAnchoredRootIds.has(String(other.id))) {
+        if (!other.dragging && !other.__independentPresentationRoot &&
+            !expansionAnchoredRootIds.has(String(other.id))) {
           const otherInertia = other.clusterRoot ? CLUSTER_ROOT_INERTIA : 1;
           other.vx -= pushX / (Math.max(0.85, other.gravityWeight || 1) * otherInertia);
           other.vy -= pushY / (Math.max(0.85, other.gravityWeight || 1) * otherInertia);
@@ -2521,6 +2541,9 @@
         sectorAngle: Number(definition.sectorAngle) || 0,
         radius: Number(definition.radius) || 18,
         orbitScale: Number(definition.orbitScale) || 1,
+        homeXRatio: Number.isFinite(Number(definition.homeXRatio)) ? Number(definition.homeXRatio) : null,
+        homeYRatio: Number.isFinite(Number(definition.homeYRatio)) ? Number(definition.homeYRatio) : null,
+        independentRoot: Boolean(definition.independentRoot),
         parentId: definition.parentId ? String(definition.parentId) : null,
         action: String(definition.action || ''),
         expandable: Boolean(definition.expandable)
