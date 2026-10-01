@@ -575,13 +575,10 @@
 
       const scaffold = globalThis.MemoryGraphNeuralScaffold;
       const api = threeApi();
-      const activeState = globalThis.MemoryGraph?.activeClusterState?.();
-      const activeIds = activeState?.key ? new Set(activeState.nodeIds || []) : null;
       const routes = (scaffold?.routes?.() || []).filter((route) =>
         route?.sourceHub === true &&
         route?.sourceId &&
         route?.targetId &&
-        (!activeIds || activeIds.has(String(route.sourceId)) || activeIds.has(String(route.targetId))) &&
         api?.routeSurface?.(route.sourceId, route.targetId)
       );
 
