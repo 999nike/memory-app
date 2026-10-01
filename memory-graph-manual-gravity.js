@@ -22,6 +22,8 @@
   let homeRecoveryTimer = 0;
   let homeRecoveryFrame = 0;
   let homeRecoveryStartedAt = 0;
+  let groupReturnFrame = 0;
+  const groupReturnStates = new Map();
   const groupHomeTargets = new Map();
   const pendingReleaseIds = new Set();
 
@@ -140,6 +142,7 @@
 
   function beginHomeRecovery() {
     homeRecoveryTimer = 0;
+    cancelGroupReturnNow();
     const graph = lastGraph;
     const groups = groupsForSpace();
     if (!graph || !groupHomeTargets.size || groupPointer || memoryPointer) return false;
@@ -217,7 +220,45 @@
     homeRecoveryTimer = window.setTimeout(beginHomeRecovery, HOME_IDLE_DELAY_MS);
   }
 
-  function snapGroupHomeNow(groupId) {
+  function cancelGroupReturnNow(groupId = null) {
+    if (groupId == null) groupReturnStates.clear();
+    else groupReturnStates.delete(String(groupId));
+    if (!groupReturnStates.size && groupReturnFrame) {
+      cancelAnimationFrame(groupReturnFrame);
+      groupReturnFrame = 0;
+    }
+  }
+
+  function animateGroupReturns(timestamp) {
+    groupReturnFrame = 0;
+    if (!lastGraph || !groupReturnStates.size) return;
+
+    for (const [id, state] of [...groupReturnStates]) {
+      const raw = clamp((timestamp - state.startedAt) / HOME_RETURN_DURATION_MS, 0, 1);
+      const progress = easeHomeProgress(raw);
+      for (const entry of state.entries) {
+        const node = entry.node;
+        if (!node) continue;
+        node.x = entry.startX + (entry.targetX - entry.startX) * progress;
+        node.y = entry.startY + (entry.targetY - entry.startY) * progress;
+        node.vx = 0;
+        node.vy = 0;
+      }
+      if (raw >= 1) groupReturnStates.delete(id);
+    }
+
+    globalThis.MemoryGraph?.redraw?.();
+    globalThis.MemoryGraphNeuralScaffold?.redraw?.();
+    globalThis.MemoryGraphNeuralFlow?.redraw?.();
+
+    if (groupReturnStates.size) {
+      groupReturnFrame = requestAnimationFrame(animateGroupReturns);
+    } else {
+      persistGroupPositions();
+    }
+  }
+
+  function returnGroupHomeNow(groupId) {
     const id = String(groupId || '');
     const graph = lastGraph;
     const group = groupsForSpace().find((item) => String(item.id) === id);
@@ -227,23 +268,29 @@
     );
     if (!group || !home || !groupNode) return false;
 
-    groupNode.x = home.x;
-    groupNode.y = home.y;
-    groupNode.vx = 0;
-    groupNode.vy = 0;
+    const entries = [{
+      node: groupNode,
+      startX: Number(groupNode.x) || 0,
+      startY: Number(groupNode.y) || 0,
+      targetX: home.x,
+      targetY: home.y
+    }];
 
     (group.members || []).map(String).forEach((memoryId, index) => {
       const node = graph.memoryNodes?.find((item) => String(item.id) === memoryId);
       if (!node || String(node.__manualGroupId || '') !== id) return;
       const layout = memberLayout(group, node, index);
-      node.x = home.x + Math.cos(layout.angle) * layout.orbit;
-      node.y = home.y + Math.sin(layout.angle) * layout.orbit;
-      node.vx = 0;
-      node.vy = 0;
+      entries.push({
+        node,
+        startX: Number(node.x) || 0,
+        startY: Number(node.y) || 0,
+        targetX: home.x + Math.cos(layout.angle) * layout.orbit,
+        targetY: home.y + Math.sin(layout.angle) * layout.orbit
+      });
     });
 
-    globalThis.MemoryGraph?.redraw?.();
-    persistGroupPositions();
+    groupReturnStates.set(id, { startedAt: performance.now(), entries });
+    if (!groupReturnFrame) groupReturnFrame = requestAnimationFrame(animateGroupReturns);
     return true;
   }
 
@@ -698,7 +745,8 @@
     wake: () => redrawGraph(true),
     cancelHomeRecovery,
     scheduleHomeRecovery,
-    snapGroupHomeNow,
+    cancelGroupReturnNow,
+    returnGroupHomeNow,
     returnHomeNow,
     homeRecoveryState: () => ({
       waiting: Boolean(homeRecoveryTimer),
