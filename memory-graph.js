@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 15;
+  const VERSION = 16;
   const WORKSPACE_KEY = 'memory-space-v1';
   const GRAPH_STATE_KEY = 'memory-graph-layout-v1';
   const GRAPH_STATE_VERSION = 1;
@@ -45,6 +45,12 @@
   let homePresentation = false;
   let persistTimer = 0;
   let viewTransitionFrame = 0;
+  const HOME_IDLE_DELAY_MS = 10000;
+  const HOME_RETURN_DURATION_MS = 5000;
+  let homeRecoveryTimer = 0;
+  let homeRecoveryFrame = 0;
+  let homeRecoveryStartedAt = 0;
+  let homeTargets = new Map();
   const presentationControlSpecs = new Map();
   const presentationControlNodes = new Map();
   const expandedAppNodeIds = new Set();
@@ -885,6 +891,99 @@
     });
   }
 
+  function cancelHomeRecovery() {
+    if (homeRecoveryTimer) clearTimeout(homeRecoveryTimer);
+    homeRecoveryTimer = 0;
+    if (homeRecoveryFrame) cancelAnimationFrame(homeRecoveryFrame);
+    homeRecoveryFrame = 0;
+    homeRecoveryStartedAt = 0;
+  }
+
+  function captureHomeTargets() {
+    homeTargets = new Map();
+    if (!graph) return false;
+
+    for (const node of graph.nodes || []) {
+      if (!node || node.hidden || node.__manualGroupCanonical) continue;
+      // Manual titled groups own their members. Do not pull grouped memories
+      // back into the main Memory cluster during the neat-home return.
+      if (node.__manualGroupId) continue;
+      homeTargets.set(String(node.id), {
+        x: Number(node.x) || 0,
+        y: Number(node.y) || 0
+      });
+    }
+    return homeTargets.size > 0;
+  }
+
+  function easeHomeProgress(value) {
+    const t = clamp(Number(value) || 0, 0, 1);
+    return t < 0.5
+      ? 4 * t * t * t
+      : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function beginHomeRecovery() {
+    homeRecoveryTimer = 0;
+    if (!graph || !homeTargets.size || pointerState) return false;
+
+    stopSimulation();
+    const starts = new Map();
+    for (const [id] of homeTargets) {
+      const node = graph.nodes.find((item) => String(item.id) === id);
+      if (!node || node.__manualGroupId || node.__manualGroupCanonical) continue;
+      starts.set(id, { x: Number(node.x) || 0, y: Number(node.y) || 0 });
+    }
+
+    homeRecoveryStartedAt = performance.now();
+    const animate = (timestamp) => {
+      homeRecoveryFrame = 0;
+      if (!graph || pointerState) return;
+
+      const raw = clamp((timestamp - homeRecoveryStartedAt) / HOME_RETURN_DURATION_MS, 0, 1);
+      const progress = easeHomeProgress(raw);
+
+      for (const [id, target] of homeTargets) {
+        const node = graph.nodes.find((item) => String(item.id) === id);
+        const start = starts.get(id);
+        if (!node || !start || node.__manualGroupId || node.__manualGroupCanonical) continue;
+        node.x = start.x + (target.x - start.x) * progress;
+        node.y = start.y + (target.y - start.y) * progress;
+        node.vx = 0;
+        node.vy = 0;
+        node.dragging = false;
+      }
+
+      if (graph.spaceNode) {
+        graph.centreX = graph.spaceNode.x;
+        graph.centreY = graph.spaceNode.y;
+      }
+      drawGraph();
+
+      if (raw < 1) {
+        homeRecoveryFrame = requestAnimationFrame(animate);
+      } else {
+        homeRecoveryStartedAt = 0;
+        // Stay in the clean home formation until the next interaction.
+        persistGraphState(false);
+      }
+    };
+
+    homeRecoveryFrame = requestAnimationFrame(animate);
+    return true;
+  }
+
+  function scheduleHomeRecovery() {
+    cancelHomeRecovery();
+    homeRecoveryTimer = window.setTimeout(beginHomeRecovery, HOME_IDLE_DELAY_MS);
+  }
+
+  function wakeFreeGravityPhase() {
+    cancelHomeRecovery();
+    simulationFrames = 0;
+    startSimulation();
+  }
+
   function rebuildGraph(width, height) {
     const existingRoot = graph?.spaceNode;
     const liveRoot = existingRoot && Number.isFinite(existingRoot.x) && Number.isFinite(existingRoot.y)
@@ -919,6 +1018,7 @@
     if (previousSpaceId && previousSpaceId !== data.space.id) resetView();
 
     graph = buildGraph(data, width, height, savedState, liveRoot);
+    captureHomeTargets();
     if (liveRoot && liveRoot.id === String(graph.spaceNode.id)) {
       graph.spaceNode.x = liveRoot.x;
       graph.spaceNode.y = liveRoot.y;
@@ -1054,6 +1154,9 @@
     const appEdges = [];
     appDefinitions.forEach((appDefinition, appIndex, definitions) => {
       const appAngle = Math.PI * 0.78 + (appIndex / Math.max(1, definitions.length)) * Math.PI * 2;
+      const isSettingsDemo = String(appDefinition.id) === 'example-settings';
+      const settingsHomeX = centreX + Math.max(210, baseOrbit * 1.55);
+      const settingsHomeY = centreY + Math.max(18, baseOrbit * 0.18);
       const appRoot = {
         id: appDefinition.id,
         appId: appDefinition.id,
@@ -1062,8 +1165,8 @@
         appRoot: true,
         clusterRoot: true,
         label: appDefinition.name,
-        x: universeCentreX + Math.cos(appAngle) * appOrbit,
-        y: universeCentreY + Math.sin(appAngle) * appOrbit,
+        x: isSettingsDemo ? settingsHomeX : universeCentreX + Math.cos(appAngle) * appOrbit,
+        y: isSettingsDemo ? settingsHomeY : universeCentreY + Math.sin(appAngle) * appOrbit,
         vx: 0,
         vy: 0,
         radius: 34,
@@ -1849,6 +1952,7 @@
 
   function handlePointerDown(event) {
     if (!graph || event.button !== 0) return;
+    wakeFreeGravityPhase();
     homePresentation = false;
     stopViewTransition();
 
@@ -2068,6 +2172,7 @@
     } catch {}
     syncRotationState();
     drawGraph();
+    scheduleHomeRecovery();
   }
 
   function handleGraphDoubleClick(event) {
@@ -2099,6 +2204,7 @@
   function handleWheel(event) {
     homePresentation = false;
     if (!graph || !canvas) return;
+    wakeFreeGravityPhase();
     if (event.deltaY > 0 && returnFromOrbFocus()) {
       event.preventDefault();
       return;
@@ -2119,6 +2225,7 @@
     view.y = point.y - worldBefore.y * view.scale;
     drawGraph();
     schedulePersistGraphState(true, 180);
+    scheduleHomeRecovery();
     event.preventDefault();
   }
 
@@ -2878,6 +2985,13 @@
     projectPresentationNode,
     focusPresentationNode,
     presentationState,
+    homeRecoveryState: () => ({
+      waiting: Boolean(homeRecoveryTimer),
+      returning: Boolean(homeRecoveryFrame),
+      delayMs: HOME_IDLE_DELAY_MS,
+      durationMs: HOME_RETURN_DURATION_MS,
+      targets: homeTargets.size
+    }),
     registerPresentationControls,
     collapsePresentationControls,
     projectPresentationControl,
