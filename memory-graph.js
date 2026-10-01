@@ -930,8 +930,16 @@
 
     stopSimulation();
     const starts = new Map();
+    const homeRecoveryNode = (id) => {
+      const key = String(id);
+      if (key === 'settings') {
+        return presentationControlNodes.get(key) ||
+          graph.nodes.find((item) => String(item.id) === key);
+      }
+      return graph.nodes.find((item) => String(item.id) === key);
+    };
     for (const [id] of homeTargets) {
-      const node = graph.nodes.find((item) => String(item.id) === id);
+      const node = homeRecoveryNode(id);
       if (!node || node.__manualGroupId || node.__manualGroupCanonical) continue;
       starts.set(id, { x: Number(node.x) || 0, y: Number(node.y) || 0 });
     }
@@ -945,7 +953,7 @@
       const progress = easeHomeProgress(raw);
 
       for (const [id, target] of homeTargets) {
-        const node = graph.nodes.find((item) => String(item.id) === id);
+        const node = homeRecoveryNode(id);
         const start = starts.get(id);
         if (!node || !start || node.__manualGroupId || node.__manualGroupCanonical) continue;
         node.x = start.x + (target.x - start.x) * progress;
