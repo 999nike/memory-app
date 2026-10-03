@@ -124,13 +124,13 @@
     root.className = 'world-view';
     root.setAttribute('aria-label', 'Universal World cyberpunk city');
     root.innerHTML = `
-      <div class="world-canvas-wrap" aria-label="Interactive isometric city. Drag to pan and scroll to zoom."></div>
+      <div class="world-canvas-wrap" aria-label="Interactive isometric city. Drag left/right to rotate, Shift/right-drag to pan, and scroll to zoom."></div>
       <div class="world-vignette" aria-hidden="true"></div>
       <div class="world-loading"><strong>ASSEMBLING DISTRICT 01</strong><span>Loading the local Three.js renderer…</span></div>
       <div class="world-fallback"><strong>WORLD VIEW UNAVAILABLE</strong><span>Use Neural or Classic to continue.</span></div>
       <header class="world-topbar">
         <div class="world-brand"><span class="world-brand-mark">W</span><span><strong>Universal World</strong><small>DISTRICT 01 / LOCAL</small></span></div>
-        <div class="world-scene-meta"><strong>CYBERNETIC OPERATIONS BLOCK</strong><span>Fixed isometric view · drag to pan · wheel zoom</span></div>
+        <div class="world-scene-meta"><strong>CYBERNETIC OPERATIONS BLOCK</strong><span>Fixed isometric pitch · drag left/right to rotate · Shift/right-drag pan · wheel zoom</span></div>
       </header>
       <aside class="world-panel" aria-live="polite" aria-label="Building details">
         <div class="world-panel-accent"></div>
@@ -620,10 +620,10 @@
 
   function createDistrict() {
     world = new THREE.Group(); scene.add(world);
-    const islandBase = box(world, [30, .75, 22], [0, -.43, 0], material(0x080d11, 0x03080b, .08, { roughness: .82, metalness: .72 }));
-    islandBase.receiveShadow = true;
-    box(world, [28.9, .18, 20.9], [0, -.06, 0], material(0x121a20, 0x07131a, .12, { roughness: .68, metalness: .78 }));
-
+    // The old full rectangular island slab and perimeter outline made the
+    // whole district read as a giant wedge/triangle while orbiting. Keep the
+    // modular deck plates instead so the camera can rotate without a single
+    // dominant skewed silhouette.
     // Modular steel deck plates give the generated buildings a shared
     // industrial foundation without baking their individual accent colours
     // into the island itself.
@@ -636,12 +636,6 @@
         box(world, [5.35, .055, 3.75], [x, .06, z], (row + column) % 2 ? deckA : deckB);
       }
     }
-
-    const edge = material(0x1a2b33, 0x174554, .48, { roughness: .55, metalness: .82 });
-    box(world, [29.4, .12, .16], [0, .08, -10.55], edge);
-    box(world, [29.4, .12, .16], [0, .08, 10.55], edge);
-    box(world, [.16, .12, 21.1], [-14.25, .08, 0], edge);
-    box(world, [.16, .12, 21.1], [14.25, .08, 0], edge);
 
     const foundation = material(0x1b252b, 0x09151c, .12, { roughness: .67, metalness: .8 });
     box(world, [8.1, .18, 7], [0, .16, -5.4], foundation);
@@ -772,7 +766,7 @@
     const canvas = renderer.domElement;
     canvas.tabIndex = 0;
     canvas.setAttribute('role', 'application');
-    canvas.setAttribute('aria-label', 'Universal World city. Fixed isometric view. Drag to pan, use the mouse wheel to zoom, or use arrow and plus/minus keys.');
+    canvas.setAttribute('aria-label', 'Universal World city. Fixed isometric pitch. Drag left or right to rotate, Shift-drag or right-drag to pan, use the mouse wheel to zoom, or use arrow and plus/minus keys.');
     canvas.addEventListener('contextmenu', event => event.preventDefault());
     canvas.addEventListener('pointerdown', event => {
       drag = {
@@ -782,19 +776,24 @@
         startX: event.clientX,
         startY: event.clientY,
         angle: viewAngle,
-        mode: 'pan'
+        mode: event.shiftKey || event.button === 2 ? 'pan' : 'orbit'
       };
       canvas.setPointerCapture(event.pointerId);
     });
     canvas.addEventListener('pointermove', event => {
       if (!drag || drag.id !== event.pointerId) return;
-      const width = Math.max(1, canvas.clientWidth);
-      const height = Math.max(1, canvas.clientHeight);
-      panX -= (event.clientX - drag.x) * ((camera.right - camera.left) / width);
-      panY += (event.clientY - drag.y) * ((camera.top - camera.bottom) / height);
-      drag.x = event.clientX;
-      drag.y = event.clientY;
-      resize();
+      if (drag.mode === 'pan') {
+        const width = Math.max(1, canvas.clientWidth);
+        const height = Math.max(1, canvas.clientHeight);
+        panX -= (event.clientX - drag.x) * ((camera.right - camera.left) / width);
+        panY += (event.clientY - drag.y) * ((camera.top - camera.bottom) / height);
+        drag.x = event.clientX;
+        drag.y = event.clientY;
+        resize();
+      } else {
+        viewAngle = drag.angle + (event.clientX - drag.startX) * .006;
+        updateCameraOrbit();
+      }
     });
     canvas.addEventListener('pointerup', event => {
       if (!drag || drag.id !== event.pointerId) return;
@@ -847,7 +846,7 @@
     // Lock pitch to the authored isometric angle so rotating the world never
     // makes the imported GLBs appear squashed, stretched or top-down.
     const pitch = DEFAULT_VIEW_PITCH;
-    const angle = DEFAULT_VIEW_ANGLE;
+    const angle = viewAngle;
     const horizontalDistance = CAMERA_DISTANCE * Math.cos(pitch);
     camera.position.set(
       Math.sin(angle) * horizontalDistance,
