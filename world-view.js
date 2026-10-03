@@ -8,10 +8,10 @@
   const GLTF_LOADER_MODULE = './vendor/three/addons/loaders/GLTFLoader.js';
   const MIN_ZOOM = .55;
   const MAX_ZOOM = 3;
-  // Canonical game-style isometric camera: 45° azimuth, 35.264° elevation.
-  // Keeping these fixed prevents the rectangular district and GLB silhouettes
-  // from shearing into acute diamond/triangle shapes during free orbit.
-  const DEFAULT_VIEW_ANGLE = Math.PI / 4;
+  // Square-aligned orthographic camera: zero azimuth keeps the district axes,
+  // GLB facades and screen axes parallel instead of presenting the world on a
+  // diagonal/isometric corner.
+  const DEFAULT_VIEW_ANGLE = 0;
   const DEFAULT_VIEW_PITCH = Math.atan(1 / Math.sqrt(2));
   const CAMERA_DISTANCE = Math.hypot(18, 13.65, 20);
   const CAMERA_TARGET_Y = 2.35;
@@ -127,12 +127,12 @@
     root.className = 'world-view';
     root.setAttribute('aria-label', 'Universal World cyberpunk city');
     root.innerHTML = `
-      <div class="world-canvas-wrap" aria-label="Interactive isometric city. Drag left/right to rotate, Shift/right-drag to pan, and scroll to zoom."></div>
+      <div class="world-canvas-wrap" aria-label="Interactive square-aligned city. Drag to pan and scroll to zoom."></div>
       <div class="world-loading"><strong>ASSEMBLING DISTRICT 01</strong><span>Loading the local Three.js renderer…</span></div>
       <div class="world-fallback"><strong>WORLD VIEW UNAVAILABLE</strong><span>Use Neural or Classic to continue.</span></div>
       <header class="world-topbar">
         <div class="world-brand"><span class="world-brand-mark">W</span><span><strong>Universal World</strong><small>DISTRICT 01 / LOCAL</small></span></div>
-        <div class="world-scene-meta"><strong>CYBERNETIC OPERATIONS BLOCK</strong><span>Clean isometric board · drag left/right to rotate · Shift/right-drag pan · wheel zoom</span></div>
+        <div class="world-scene-meta"><strong>CYBERNETIC OPERATIONS BLOCK</strong><span>Square-aligned orthographic board · drag to pan · wheel zoom</span></div>
       </header>
       <aside class="world-panel" aria-live="polite" aria-label="Building details">
         <div class="world-panel-accent"></div>
@@ -681,7 +681,7 @@
     const canvas = renderer.domElement;
     canvas.tabIndex = 0;
     canvas.setAttribute('role', 'application');
-    canvas.setAttribute('aria-label', 'Universal World city. Fixed isometric pitch. Drag left or right to rotate, Shift-drag or right-drag to pan, use the mouse wheel to zoom, or use arrow and plus/minus keys.');
+    canvas.setAttribute('aria-label', 'Universal World city. Square-aligned orthographic view. Drag to pan, use the mouse wheel to zoom, or use arrow and plus/minus keys.');
     canvas.addEventListener('contextmenu', event => event.preventDefault());
     canvas.addEventListener('pointerdown', event => {
       drag = {
@@ -690,25 +690,20 @@
         y: event.clientY,
         startX: event.clientX,
         startY: event.clientY,
-        angle: districtAngle,
-        mode: event.shiftKey || event.button === 2 ? 'pan' : 'orbit'
+        angle: 0,
+        mode: 'pan'
       };
       canvas.setPointerCapture(event.pointerId);
     });
     canvas.addEventListener('pointermove', event => {
       if (!drag || drag.id !== event.pointerId) return;
-      if (drag.mode === 'pan') {
-        const width = Math.max(1, canvas.clientWidth);
-        const height = Math.max(1, canvas.clientHeight);
-        panX -= (event.clientX - drag.x) * ((camera.right - camera.left) / width);
-        panY += (event.clientY - drag.y) * ((camera.top - camera.bottom) / height);
-        drag.x = event.clientX;
-        drag.y = event.clientY;
-        resize();
-      } else {
-        districtAngle = drag.angle + (event.clientX - drag.startX) * .006;
-        updateDistrictRotation();
-      }
+      const width = Math.max(1, canvas.clientWidth);
+      const height = Math.max(1, canvas.clientHeight);
+      panX -= (event.clientX - drag.x) * ((camera.right - camera.left) / width);
+      panY += (event.clientY - drag.y) * ((camera.top - camera.bottom) / height);
+      drag.x = event.clientX;
+      drag.y = event.clientY;
+      resize();
     });
     canvas.addEventListener('pointerup', event => {
       if (!drag || drag.id !== event.pointerId) return;
@@ -778,10 +773,11 @@
   function updateDistrictRotation() {
     if (!districtRoot) return;
 
-    // Rotate the board and every building as one rigid world. The GLB viewer
-    // confirms these are real straight 3D models, so counter-rotating individual
-    // buildings only breaks their alignment with the square ground/grid.
-    districtRoot.rotation.y = districtAngle;
+    // Keep the board and every GLB locked to the same world axes. Rotation is
+    // deliberately disabled so the district can never drift back into a
+    // diagonal/diamond presentation.
+    districtAngle = 0;
+    districtRoot.rotation.y = 0;
     buildingRoots.forEach(rootGroup => {
       rootGroup.rotation.y = 0;
     });
