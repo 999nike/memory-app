@@ -125,7 +125,6 @@
     root.setAttribute('aria-label', 'Universal World cyberpunk city');
     root.innerHTML = `
       <div class="world-canvas-wrap" aria-label="Interactive isometric city. Drag left/right to rotate, Shift/right-drag to pan, and scroll to zoom."></div>
-      <div class="world-vignette" aria-hidden="true"></div>
       <div class="world-loading"><strong>ASSEMBLING DISTRICT 01</strong><span>Loading the local Three.js renderer…</span></div>
       <div class="world-fallback"><strong>WORLD VIEW UNAVAILABLE</strong><span>Use Neural or Classic to continue.</span></div>
       <header class="world-topbar">
@@ -620,21 +619,20 @@
 
   function createDistrict() {
     world = new THREE.Group(); scene.add(world);
-    // The old full rectangular island slab and perimeter outline made the
-    // whole district read as a giant wedge/triangle while orbiting. Keep the
-    // modular deck plates instead so the camera can rotate without a single
-    // dominant skewed silhouette.
-    // Modular steel deck plates give the generated buildings a shared
-    // industrial foundation without baking their individual accent colours
-    // into the island itself.
-    const deckA = material(0x182229, 0x061016, .08, { roughness: .74, metalness: .7 });
-    const deckB = material(0x111a20, 0x07121a, .1, { roughness: .7, metalness: .76 });
-    for (let row = 0; row < 5; row += 1) {
-      for (let column = 0; column < 5; column += 1) {
-        const x = -11.2 + column * 5.6;
-        const z = -8 + row * 4;
-        box(world, [5.35, .055, 3.75], [x, .06, z], (row + column) % 2 ? deckA : deckB);
-      }
+    // Clean square district platform. One flat slab plus parallel grid lines:
+    // no staggered plates, no perimeter perspective framing, no depth fog.
+    const districtFloor = box(
+      world,
+      [24, .28, 24],
+      [0, -.08, 0],
+      material(0x0d1419, 0x020507, .04, { roughness: .88, metalness: .5 })
+    );
+    districtFloor.receiveShadow = true;
+
+    const gridLine = material(0x17242b, 0x0b2027, .22, { roughness: .7, metalness: .72 });
+    for (let grid = -12; grid <= 12; grid += 4) {
+      box(world, [24, .025, .045], [0, .075, grid], gridLine);
+      box(world, [.045, .025, 24], [grid, .075, 0], gridLine);
     }
 
     const foundation = material(0x1b252b, 0x09151c, .12, { roughness: .67, metalness: .8 });
@@ -656,10 +654,6 @@
     for (let z = -7; z <= 7; z += 2) box(world, [.16, .04, .9], [0, .1, z], roadLine);
     const path = material(0x15313a, 0x22bed1, .72);
     [[-3.1, .19, -1.6, 6.2, .05, .18], [3.2, .19, 1.8, 5.6, .05, .18], [-3, .19, 2.4, 5.1, .05, .18]].forEach(([x,y,z,w,h,d]) => box(world, [w,h,d], [x,y,z], path));
-    // Central plaza and beacon.
-    cylinder(world, 2.25, .22, [0, .12, .1], material(0x171f26), 32);
-    cylinder(world, 1.55, .12, [0, .27, .1], material(0x152d35, 0x2cd9ef, .7), 32);
-    cylinder(world, .18, 2.3, [0, 1.38, .1], material(0x1c4a5a, 0x35ddff, 2.2), 16);
     // Lamps, barriers and tiny service props.
     for (const [x,z] of [[-2.1,-2.3],[2.1,-2.3],[-2.1,2.5],[2.1,2.5],[-10,1],[10,-1]]) {
       cylinder(world, .07, 1.55, [x, .8, z], material(0x30383e), 8);
@@ -724,7 +718,6 @@
       canvasWrap.appendChild(renderer.domElement);
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x070b12);
-      scene.fog = new THREE.FogExp2(0x070b12, .018);
       camera = new THREE.OrthographicCamera(-12, 12, 8, -8, .1, 100);
       updateCameraOrbit();
       scene.add(new THREE.HemisphereLight(0x73dbff, 0x111019, 1.38));
