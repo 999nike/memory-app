@@ -777,13 +777,13 @@
 
   function updateDistrictRotation() {
     if (!districtRoot) return;
-    districtRoot.rotation.y = districtAngle;
 
-    // Single-image Meshy assets look best from their generated hero angle.
-    // Their positions rotate with the square board, but the models themselves
-    // counter-rotate so their readable face stays presented to the camera.
+    // Rotate the board and every building as one rigid world. The GLB viewer
+    // confirms these are real straight 3D models, so counter-rotating individual
+    // buildings only breaks their alignment with the square ground/grid.
+    districtRoot.rotation.y = districtAngle;
     buildingRoots.forEach(rootGroup => {
-      rootGroup.rotation.y = -districtAngle;
+      rootGroup.rotation.y = 0;
     });
   }
 
