@@ -6,13 +6,12 @@
   const RENDER_PASS_MODULE = './vendor/three/addons/postprocessing/RenderPass.js';
   const BLOOM_PASS_MODULE = './vendor/three/addons/postprocessing/UnrealBloomPass.js';
   const GLTF_LOADER_MODULE = './vendor/three/addons/loaders/GLTFLoader.js';
-  const MIN_ZOOM = .55;
-  const MAX_ZOOM = 3;
-  // Square-aligned orthographic camera: zero azimuth keeps the district axes,
-  // GLB facades and screen axes parallel instead of presenting the world on a
-  // diagonal/isometric corner.
-  const DEFAULT_VIEW_ANGLE = 0;
-  const DEFAULT_VIEW_PITCH = Math.atan(1 / Math.sqrt(2));
+  const MIN_ZOOM = .08;
+  const MAX_ZOOM = 10;
+  const MIN_VIEW_PITCH = .04;
+  const MAX_VIEW_PITCH = 1.48;
+  const DEFAULT_VIEW_ANGLE = Math.atan2(18, 20);
+  const DEFAULT_VIEW_PITCH = Math.atan2(13.65, Math.hypot(18, 20));
   const CAMERA_DISTANCE = Math.hypot(18, 13.65, 20);
   const CAMERA_TARGET_Y = 2.35;
   const WORLD_ASSETS = Object.freeze({
@@ -41,8 +40,8 @@
   const QUALITY_KEY = 'universal-world-quality-v1';
   const QUALITY = Object.freeze({
     low: Object.freeze({ dpr: 1, bloom: 0, shadows: false }),
-    medium: Object.freeze({ dpr: 1.5, bloom: .10, shadows: true }),
-    high: Object.freeze({ dpr: 2, bloom: .16, shadows: true })
+    medium: Object.freeze({ dpr: 1.3, bloom: .27, shadows: true }),
+    high: Object.freeze({ dpr: 1.75, bloom: .46, shadows: true })
   });
   const APPS = Object.freeze({
     office: {
@@ -94,9 +93,6 @@
   let scene;
   let camera;
   let world;
-  let districtRoot;
-  let districtAngle = 0;
-  const buildingRoots = new Map();
   let animationFrame = 0;
   let resizeObserver;
   let raycaster;
@@ -127,12 +123,13 @@
     root.className = 'world-view';
     root.setAttribute('aria-label', 'Universal World cyberpunk city');
     root.innerHTML = `
-      <div class="world-canvas-wrap" aria-label="Interactive square-aligned city. Drag to pan and scroll to zoom."></div>
+      <div class="world-canvas-wrap" aria-label="Interactive three-dimensional city. Drag to orbit and scroll to zoom."></div>
+      <div class="world-vignette" aria-hidden="true"></div>
       <div class="world-loading"><strong>ASSEMBLING DISTRICT 01</strong><span>Loading the local Three.js renderer…</span></div>
       <div class="world-fallback"><strong>WORLD VIEW UNAVAILABLE</strong><span>Use Neural or Classic to continue.</span></div>
       <header class="world-topbar">
         <div class="world-brand"><span class="world-brand-mark">W</span><span><strong>Universal World</strong><small>DISTRICT 01 / LOCAL</small></span></div>
-        <div class="world-scene-meta"><strong>CYBERNETIC OPERATIONS BLOCK</strong><span>Square-aligned orthographic board · drag to pan · wheel zoom</span></div>
+        <div class="world-scene-meta"><strong>CYBERNETIC OPERATIONS BLOCK</strong><span>Drag orbit in any direction · Shift/right-drag pan · wheel zoom</span></div>
       </header>
       <aside class="world-panel" aria-live="polite" aria-label="Building details">
         <div class="world-panel-accent"></div>
@@ -142,7 +139,7 @@
       </aside>
       <aside class="world-activity" aria-label="Demo activity">
         <div class="world-activity-head"><strong>VISIBLE ACTIVITY</strong><span class="world-demo-pill" data-world-activity-mode>DEMO LOOP</span></div>
-        <div class="world-event" data-world-event="code" style="--event-color:#4cecff"><i></i><span><b>Code Space</b> execution bay ready</span><time>DEMO</time></div>
+        <div class="world-event" data-world-event="code" style="--event-color:#4cecff"><i></i><span><b>Code Space</b> worker approaching desk</span><time>NOW</time></div>
         <div class="world-event" data-world-event="office" style="--event-color:#ff4ad8"><i></i><span><b>Office</b> dispatch queue illuminated</span><time>DEMO</time></div>
         <div class="world-event" data-world-event="memory" style="--event-color:#5cff98"><i></i><span><b>Memory</b> archive banks indexing</span><time>DEMO</time></div>
       </aside>
@@ -151,7 +148,7 @@
         <button type="button" data-building="code" style="--dock-color:#4cecff"><i></i>CODE SPACE</button>
         <button type="button" data-building="memory" style="--dock-color:#5cff98"><i></i>MEMORY</button>
       </div>
-      <div class="world-controls"><button type="button" data-world-control="quality">QUALITY · MED</button><button type="button" data-world-control="zoom-out" aria-label="Zoom out">ZOOM −</button><input class="world-zoom-slider" data-world-control="zoom-slider" type="range" min="0.55" max="3" step="0.05" value="1" aria-label="World zoom"><button type="button" data-world-control="zoom-in" aria-label="Zoom in">ZOOM +</button><button type="button" data-world-control="reset">RESET VIEW</button><button type="button" data-world-control="motion">PAUSE</button></div>`;
+      <div class="world-controls"><button type="button" data-world-control="quality">QUALITY · MED</button><button type="button" data-world-control="zoom-out" aria-label="Zoom out">ZOOM −</button><input class="world-zoom-slider" data-world-control="zoom-slider" type="range" min="0.08" max="10" step="0.05" value="1" aria-label="World zoom"><button type="button" data-world-control="zoom-in" aria-label="Zoom in">ZOOM +</button><button type="button" data-world-control="reset">RESET VIEW</button><button type="button" data-world-control="motion">PAUSE</button></div>`;
     document.body.appendChild(root);
     canvasWrap = root.querySelector('.world-canvas-wrap');
     panel = root.querySelector('.world-panel');
@@ -355,7 +352,7 @@
       const selected = positions[selectedId];
       selectionRing.visible = Boolean(selected);
       if (selected) {
-        selectionRing.position.set(selected[0], .035, selected[2]);
+        selectionRing.position.set(selected[0], selected[1], selected[2]);
         selectionRing.material.color.setHex(selected[3]);
       }
     }
@@ -453,17 +450,32 @@
   }
 
   function createOffice() {
-    const g = new THREE.Group();
-    g.position.set(0, 0, -5.4);
-    g.userData.appId = 'office';
-    buildingRoots.set('office', g);
-    districtRoot.add(g);
-
-    const fallback = new THREE.Group();
-    fallback.name = 'office-empty-fallback';
-    g.add(fallback);
-    addSign(g, 'OFFICE', '#ff4ad8', [0, 10.7, 0], 3.15, 'office');
-    queueBuildingAsset('office', 'office', g, fallback);
+    const g = new THREE.Group(); g.position.set(0, 0, -5.4); g.userData.appId = 'office'; world.add(g);
+    const proceduralShell = new THREE.Group();
+    proceduralShell.name = 'office-procedural-shell';
+    g.add(proceduralShell);
+    const shell = material(0x273640, 0x240d29, .24);
+    const trim = material(0x351c38, 0xff39cf, 2.1);
+    box(proceduralShell, [5.2, .65, 4.5], [0, .32, 0], material(0x111820), 'office');
+    box(proceduralShell, [4.45, 2.1, 3.8], [0, 1.65, 0], shell, 'office');
+    box(proceduralShell, [3.9, 2.7, 3.35], [.1, 4.05, -.1], shell, 'office');
+    box(proceduralShell, [3.25, 2.65, 2.9], [.05, 6.72, -.2], shell, 'office');
+    box(proceduralShell, [4.75, .15, 4.05], [0, 2.72, 0], trim, 'office');
+    box(proceduralShell, [4.2, .12, 3.55], [.1, 5.42, -.1], trim, 'office');
+    addWindows(proceduralShell, 'office', 5, 5, [-1.35, 1.35, 1.93], [.68, 1.18]);
+    box(proceduralShell, [2.7, .13, .12], [0, 7.65, 1.32], trim, 'office');
+    addSign(g, 'OFFICE', '#ff4ad8', [0, 7.25, 1.68], 3.2, 'office');
+    // Visible dispatch bay and workstation.
+    box(g, [2.3, 1.45, .08], [0, 1.15, 1.94], material(0x090d12), 'office');
+    box(g, [1.8, .7, .75], [0, .8, 1.45], material(0x242b32), 'office');
+    const dispatchScreen = box(g, [.95, .6, .08], [0, 1.45, 1.08], material(0x17404c, 0x35ddff, 3), 'office');
+    dispatchScreen.rotation.x = -.1;
+    createPerson(g, [-.75, .64, 1.15], 0xff4ad8, .72);
+    // Roof machinery.
+    cylinder(proceduralShell, .48, 1.45, [-.72, 8.68, -.3], material(0x27313a), 14, 'office');
+    cylinder(proceduralShell, .2, 2.2, [.75, 8.9, -.45], trim, 10, 'office');
+    box(proceduralShell, [1.1, .6, .8], [1.05, 8.3, .45], material(0x29333c), 'office');
+    queueBuildingAsset('office', 'office', g, proceduralShell);
     return g;
   }
 
@@ -514,9 +526,6 @@
         object.userData.appId = appId;
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         materials.filter(Boolean).forEach(entry => {
-          // Keep the authored Meshy PBR materials intact. Only improve texture
-          // sampling so the embedded high-resolution maps stay crisp at oblique
-          // angles instead of being smeared by low anisotropy.
           ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'].forEach(key => {
             const texture = entry[key];
             if (!texture) return;
@@ -545,32 +554,62 @@
   }
 
   function createCodeLab() {
-    const g = new THREE.Group();
-    g.position.set(6.15, 0, 2.7);
-    g.userData.appId = 'code';
-    buildingRoots.set('code', g);
-    districtRoot.add(g);
-
-    const fallback = new THREE.Group();
-    fallback.name = 'code-space-empty-fallback';
-    g.add(fallback);
-    addSign(g, 'CODE SPACE', '#4cecff', [0, 7.7, 0], 3.75, 'code');
-    queueBuildingAsset('codeLab', 'code', g, fallback);
+    const g = new THREE.Group(); g.position.set(6.15, 0, 2.7); g.userData.appId = 'code'; world.add(g);
+    const proceduralShell = new THREE.Group();
+    proceduralShell.name = 'code-space-procedural-shell';
+    g.add(proceduralShell);
+    const shell = material(0x203640, 0x082e38, .28);
+    const cyan = material(0x173a42, 0x34e8ff, 2.2);
+    box(proceduralShell, [7, .55, 5.1], [0, .28, 0], material(0x10191f), 'code');
+    box(proceduralShell, [6.3, 2.7, .45], [0, 1.7, -2.25], shell, 'code');
+    box(proceduralShell, [.45, 2.7, 4.1], [-2.95, 1.7, -.15], shell, 'code');
+    box(proceduralShell, [.45, 2.7, 4.1], [2.95, 1.7, -.15], shell, 'code');
+    box(proceduralShell, [6.3, .35, 2.45], [0, 3.16, -1.05], shell, 'code');
+    box(proceduralShell, [6.6, .11, 5], [0, .62, 0], cyan, 'code');
+    // Cutaway computer room.
+    for (const x of [-1.65, 0, 1.65]) {
+      box(g, [1.25, .62, .62], [x, .94, -.45], material(0x242f35), 'code');
+      const screen = box(g, [.85, .62, .08], [x, 1.55, -.82], material(0x0b3542, 0x20c9ed, 1.8), 'code');
+      screen.rotation.x = -.08;
+      codeScreens.push(screen);
+      box(g, [.7, .12, .7], [x, .45, .65], material(0x21282d), 'code');
+      box(g, [.12, .72, .12], [x, .32, .65], material(0x313a40), 'code');
+    }
+    addSign(g, 'CODE SPACE', '#4cecff', [0, 3.25, -2.02], 4.1, 'code');
+    // Roof vents and pipes.
+    for (const x of [-1.6, 0, 1.6]) cylinder(proceduralShell, .38, .72, [x, 3.65, -1], material(0x27343b), 12, 'code');
+    const pipe = cylinder(proceduralShell, .12, 4.4, [2.65, 3.75, -.7], cyan, 10, 'code'); pipe.rotation.z = Math.PI / 2;
+    worker = createPerson(g, [2.2, .7, 2.35], 0x4cecff, .82);
+    worker.userData.origin = new THREE.Vector3(2.2, .7, 2.35);
+    worker.userData.desk = new THREE.Vector3(0, .7, .85);
+    queueBuildingAsset('codeLab', 'code', g, proceduralShell);
     return g;
   }
 
   function createMemory() {
-    const g = new THREE.Group();
-    g.position.set(-6.2, 0, 2.9);
-    g.userData.appId = 'memory';
-    buildingRoots.set('memory', g);
-    districtRoot.add(g);
-
-    const fallback = new THREE.Group();
-    fallback.name = 'memory-empty-fallback';
-    g.add(fallback);
-    addSign(g, 'MEMORY', '#5cff98', [0, 6.2, 0], 3.15, 'memory');
-    queueBuildingAsset('memory', 'memory', g, fallback);
+    const g = new THREE.Group(); g.position.set(-6.2, 0, 2.9); g.userData.appId = 'memory'; world.add(g);
+    const proceduralShell = new THREE.Group();
+    proceduralShell.name = 'memory-procedural-shell';
+    g.add(proceduralShell);
+    const shell = material(0x1c382f, 0x0b321e, .34);
+    const green = material(0x194831, 0x55ff93, 2.25);
+    const blue = material(0x154356, 0x29bde9, 1.25, { transparent: true, opacity: .68 });
+    box(proceduralShell, [6.2, .55, 4.7], [0, .28, 0], material(0x0d1817), 'memory');
+    box(proceduralShell, [5.6, 3.1, 4.05], [0, 1.82, 0], shell, 'memory');
+    box(proceduralShell, [6, .12, 4.35], [0, 3.38, 0], green, 'memory');
+    // Archive banks.
+    for (const x of [-2.15, -1.45, 1.45, 2.15]) {
+      for (let y = 0; y < 4; y += 1) box(g, [.48, .22, .1], [x, .95 + y * .56, 2.08], green, 'memory');
+    }
+    // Visible blue core.
+    core = cylinder(g, .72, 2.55, [0, 1.85, 2.08], blue, 24, 'memory');
+    const ringMat = material(0x205365, 0x47eaff, 2.6);
+    for (const y of [.72, 1.85, 3]) cylinder(g, .92, .1, [0, y, 2.08], ringMat, 24, 'memory');
+    addSign(g, 'MEMORY', '#5cff98', [0, 3.85, .85], 3.35, 'memory');
+    // Rooftop node and conduits.
+    const node = new THREE.Mesh(new THREE.IcosahedronGeometry(.65, 1), blue); node.position.set(0, 4.25, 0); node.userData.appId = 'memory'; pickables.push(node); proceduralShell.add(node);
+    for (const x of [-1.55, 1.55]) cylinder(proceduralShell, .28, .8, [x, 3.83, -.65], material(0x27362f), 12, 'memory');
+    queueBuildingAsset('memory', 'memory', g, proceduralShell);
     return g;
   }
 
@@ -589,53 +628,102 @@
   }
 
   function createDistrict() {
-    world = new THREE.Group();
-    scene.add(world);
+    world = new THREE.Group(); scene.add(world);
+    const islandBase = box(world, [30, .75, 22], [0, -.43, 0], material(0x080d11, 0x03080b, .08, { roughness: .82, metalness: .72 }));
+    islandBase.receiveShadow = true;
+    box(world, [28.9, .18, 20.9], [0, -.06, 0], material(0x121a20, 0x07131a, .12, { roughness: .68, metalness: .78 }));
 
-    districtRoot = new THREE.Group();
-    districtRoot.name = 'universal-district-clean';
-    world.add(districtRoot);
+    // Modular steel deck plates give the generated buildings a shared
+    // industrial foundation without baking their individual accent colours
+    // into the island itself.
+    const deckA = material(0x182229, 0x061016, .08, { roughness: .74, metalness: .7 });
+    const deckB = material(0x111a20, 0x07121a, .1, { roughness: .7, metalness: .76 });
+    for (let row = 0; row < 5; row += 1) {
+      for (let column = 0; column < 5; column += 1) {
+        const x = -11.2 + column * 5.6;
+        const z = -8 + row * 4;
+        box(world, [5.35, .055, 3.75], [x, .06, z], (row + column) % 2 ? deckA : deckB);
+      }
+    }
 
-    // One single zero-thickness board. PlaneGeometry avoids the visible side
-    // faces and overlapping slabs that made the previous world read as wedges.
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(200, 200),
-      // Match the WebGL scene background exactly and ignore lighting so the
-      // district has no visible board edge even when zoomed or panned.
-      new THREE.MeshBasicMaterial({ color: 0x070b12 })
-    );
-    floor.name = 'district-square-floor';
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = 0;
-    floor.receiveShadow = false;
-    districtRoot.add(floor);
+    const edge = material(0x1a2b33, 0x174554, .48, { roughness: .55, metalness: .82 });
+    box(world, [29.4, .12, .16], [0, .08, -10.55], edge);
+    box(world, [29.4, .12, .16], [0, .08, 10.55], edge);
+    box(world, [.16, .12, 21.1], [-14.25, .08, 0], edge);
+    box(world, [.16, .12, 21.1], [14.25, .08, 0], edge);
 
-    // GridHelper supplies one mathematically regular square grid: no staggered
-    // tiles, perspective artwork, decorative road strips or layered foundations.
-    const grid = new THREE.GridHelper(24, 12, 0x173944, 0x10242c);
-    grid.name = 'district-square-grid';
-    grid.position.y = .01;
-    districtRoot.add(grid);
-
+    const foundation = material(0x1b252b, 0x09151c, .12, { roughness: .67, metalness: .8 });
+    box(world, [8.1, .18, 7], [0, .16, -5.4], foundation);
+    box(world, [9.1, .18, 7.2], [6.15, .16, 2.8], foundation);
+    box(world, [9.1, .18, 7.2], [-6.2, .16, 2.9], foundation);
     selectionRing = new THREE.Mesh(
-      new THREE.RingGeometry(2.65, 2.78, 48),
-      new THREE.MeshBasicMaterial({
-        color: 0x4cecff,
-        transparent: true,
-        opacity: .7,
-        depthWrite: false,
-        side: THREE.DoubleSide
-      })
+      new THREE.RingGeometry(2.75, 2.88, 48),
+      new THREE.MeshBasicMaterial({ color: 0x4cecff, transparent: true, opacity: .8, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
     );
     selectionRing.rotation.x = -Math.PI / 2;
-    selectionRing.position.y = .035;
     selectionRing.visible = false;
-    districtRoot.add(selectionRing);
-
-    createOffice();
-    createCodeLab();
-    createMemory();
-    updateDistrictRotation();
+    selectionRing.renderOrder = 4;
+    world.add(selectionRing);
+    box(world, [5.4, .08, 20], [0, .13, 0], material(0x0d1419, 0x04090d, .08));
+    box(world, [26.5, .09, 4], [0, .14, .1], material(0x0e161c, 0x050a0e, .1));
+    // Road markings and connected luminous walkways.
+    const roadLine = material(0x2b3032, 0xd8923c, .8);
+    for (let z = -7; z <= 7; z += 2) box(world, [.16, .04, .9], [0, .1, z], roadLine);
+    const path = material(0x15313a, 0x22bed1, .72);
+    [[-3.1, .19, -1.6, 6.2, .05, .18], [3.2, .19, 1.8, 5.6, .05, .18], [-3, .19, 2.4, 5.1, .05, .18]].forEach(([x,y,z,w,h,d]) => box(world, [w,h,d], [x,y,z], path));
+    // Central plaza and beacon.
+    cylinder(world, 2.25, .22, [0, .12, .1], material(0x171f26), 32);
+    cylinder(world, 1.55, .12, [0, .27, .1], material(0x152d35, 0x2cd9ef, .7), 32);
+    cylinder(world, .18, 2.3, [0, 1.38, .1], material(0x1c4a5a, 0x35ddff, 2.2), 16);
+    // Lamps, barriers and tiny service props.
+    for (const [x,z] of [[-2.1,-2.3],[2.1,-2.3],[-2.1,2.5],[2.1,2.5],[-10,1],[10,-1]]) {
+      cylinder(world, .07, 1.55, [x, .8, z], material(0x30383e), 8);
+      const lamp = box(world, [.2,.15,.2], [x,1.58,z], material(0x4b4a3d, 0xffc36b, 2.4)); lamp.castShadow = false;
+    }
+    // Modular stairs and safety rails make the block read as one connected
+    // working district rather than three isolated display models.
+    const stepMaterial = material(0x2a353c);
+    for (let index = 0; index < 5; index += 1) {
+      box(world, [2.1, .14 + index * .08, .42], [0, .08 + index * .04, -2.1 - index * .4], stepMaterial);
+    }
+    const railMaterial = material(0x223a43, 0x35d8ee, 1.2);
+    for (const x of [-1.05, 1.05]) {
+      for (let z = -2.2; z >= -4.2; z -= .65) cylinder(world, .035, .62, [x, .42, z], railMaterial, 7);
+      const rail = cylinder(world, .035, 2.5, [x, .72, -3.2], railMaterial, 7);
+      rail.rotation.x = Math.PI / 2;
+    }
+    createOffice(); createCodeLab(); createMemory();
+    // Soft colour pools give the emissive buildings the same grounded neon
+    // presence as the visual reference without adding expensive shadow lights.
+    const glowDisc = (x, z, radius, color) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128; canvas.height = 128;
+      const context = canvas.getContext('2d');
+      const shade = new THREE.Color(color);
+      const rgb = `${Math.round(shade.r * 255)},${Math.round(shade.g * 255)},${Math.round(shade.b * 255)}`;
+      const gradient = context.createRadialGradient(64, 64, 2, 64, 64, 62);
+      gradient.addColorStop(0, `rgba(${rgb},.38)`);
+      gradient.addColorStop(.42, `rgba(${rgb},.18)`);
+      gradient.addColorStop(1, `rgba(${rgb},0)`);
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, 128, 128);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(radius * 2, radius * 2),
+        new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: .68, depthWrite: false, blending: THREE.AdditiveBlending })
+      );
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(x, .125, z);
+      world.add(mesh);
+    };
+    glowDisc(0, -4.4, 4.3, 0xff2fc8);
+    glowDisc(5.5, 2.7, 4.5, 0x22cce9);
+    glowDisc(-5.5, 2.9, 4.2, 0x36e77d);
+    for (const [x,z,w,d] of [[8,-5,1.1,.8],[10,4,1.5,.8],[-9,-.2,1,.7],[-1,6,1.3,.7]]) {
+      box(world, [w,.65,d], [x,.34,z], material(0x222a30));
+      box(world, [w*.7,.05,d*.72], [x,.69,z], path);
+    }
   }
 
   async function initThree() {
@@ -644,27 +732,22 @@
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, QUALITY[quality].dpr));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
-      // The standalone glTF viewer presents these assets with neutral/linear
-      // lighting. ACES plus saturated world lights was crushing blacks and
-      // making the same GLBs look muddy and lower-resolution.
-      renderer.toneMapping = THREE.LinearToneMapping;
-      renderer.toneMappingExposure = 1.0;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.08;
       renderer.shadowMap.enabled = QUALITY[quality].shadows;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       canvasWrap.appendChild(renderer.domElement);
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x070b12);
+      scene.fog = new THREE.FogExp2(0x070b12, .018);
       camera = new THREE.OrthographicCamera(-12, 12, 8, -8, .1, 100);
       updateCameraOrbit();
-      // Neutral studio-style fill first, then very restrained coloured accent
-      // lights. The old saturated lights were recolouring whole GLB facades.
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x29313a, 1.65));
-      scene.add(new THREE.AmbientLight(0xffffff, .72));
-      const key = new THREE.DirectionalLight(0xffffff, 2.3); key.position.set(8, 18, 10); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.camera.left = -16; key.shadow.camera.right = 16; key.shadow.camera.top = 16; key.shadow.camera.bottom = -16; scene.add(key);
-      const fill = new THREE.DirectionalLight(0xcfe4ff, 1.1); fill.position.set(-10, 9, -8); scene.add(fill);
-      const magenta = new THREE.PointLight(0xff34c8, 2.2, 13, 2); magenta.position.set(0, 5, -3); scene.add(magenta);
-      const cyan = new THREE.PointLight(0x35dcff, 2.1, 12, 2); cyan.position.set(5, 3, 2); scene.add(cyan);
-      const green = new THREE.PointLight(0x4fff8c, 1.8, 11, 2); green.position.set(-5, 3, 3); scene.add(green);
+      scene.add(new THREE.HemisphereLight(0x73dbff, 0x111019, 1.38));
+      scene.add(new THREE.AmbientLight(0x294454, .28));
+      const key = new THREE.DirectionalLight(0xe2f4ff, 1.9); key.position.set(8, 18, 10); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.camera.left = -16; key.shadow.camera.right = 16; key.shadow.camera.top = 16; key.shadow.camera.bottom = -16; scene.add(key);
+      const magenta = new THREE.PointLight(0xff34c8, 22, 16, 2); magenta.position.set(0, 5, -3); scene.add(magenta);
+      const cyan = new THREE.PointLight(0x35dcff, 20, 15, 2); cyan.position.set(5, 3, 2); scene.add(cyan);
+      const green = new THREE.PointLight(0x4fff8c, 18, 14, 2); green.position.set(-5, 3, 3); scene.add(green);
       raycaster = new THREE.Raycaster(); pointer = new THREE.Vector2(); clock = new THREE.Clock();
       createDistrict(); bindCanvas(); resize();
       try {
@@ -698,7 +781,7 @@
     const canvas = renderer.domElement;
     canvas.tabIndex = 0;
     canvas.setAttribute('role', 'application');
-    canvas.setAttribute('aria-label', 'Universal World city. Square-aligned orthographic view. Drag to pan, use the mouse wheel to zoom, or use arrow and plus/minus keys.');
+    canvas.setAttribute('aria-label', 'Universal World city. Drag in any direction to orbit, Shift-drag or right-drag to pan freely, use the mouse wheel to zoom, or use arrow and plus/minus keys.');
     canvas.addEventListener('contextmenu', event => event.preventDefault());
     canvas.addEventListener('pointerdown', event => {
       drag = {
@@ -707,20 +790,27 @@
         y: event.clientY,
         startX: event.clientX,
         startY: event.clientY,
-        angle: 0,
-        mode: 'pan'
+        angle: viewAngle,
+        pitch: viewPitch,
+        mode: event.shiftKey || event.button === 2 ? 'pan' : 'orbit'
       };
       canvas.setPointerCapture(event.pointerId);
     });
     canvas.addEventListener('pointermove', event => {
       if (!drag || drag.id !== event.pointerId) return;
-      const width = Math.max(1, canvas.clientWidth);
-      const height = Math.max(1, canvas.clientHeight);
-      panX -= (event.clientX - drag.x) * ((camera.right - camera.left) / width);
-      panY += (event.clientY - drag.y) * ((camera.top - camera.bottom) / height);
-      drag.x = event.clientX;
-      drag.y = event.clientY;
-      resize();
+      if (drag.mode === 'pan') {
+        const width = Math.max(1, canvas.clientWidth);
+        const height = Math.max(1, canvas.clientHeight);
+        panX -= (event.clientX - drag.x) * ((camera.right - camera.left) / width);
+        panY += (event.clientY - drag.y) * ((camera.top - camera.bottom) / height);
+        drag.x = event.clientX;
+        drag.y = event.clientY;
+        resize();
+      } else {
+        viewAngle = drag.angle + (event.clientX - drag.startX) * .006;
+        viewPitch = Math.max(MIN_VIEW_PITCH, Math.min(MAX_VIEW_PITCH, drag.pitch - (event.clientY - drag.startY) * .006));
+        updateCameraOrbit();
+      }
     });
     canvas.addEventListener('pointerup', event => {
       if (!drag || drag.id !== event.pointerId) return;
@@ -757,16 +847,11 @@
   }
 
   function resetView() {
-    viewAngle = DEFAULT_VIEW_ANGLE;
-    viewPitch = DEFAULT_VIEW_PITCH;
-    districtAngle = 0;
-    zoom = 1;
+    viewAngle = DEFAULT_VIEW_ANGLE; viewPitch = DEFAULT_VIEW_PITCH;
+    zoom = 1; panX = 0; panY = 0;
     const zoomSlider = root?.querySelector('[data-world-control="zoom-slider"]');
     if (zoomSlider) zoomSlider.value = String(zoom);
-    panX = 0;
-    panY = 0;
     updateCameraOrbit();
-    updateDistrictRotation();
     resize();
   }
 
@@ -779,29 +864,14 @@
 
   function updateCameraOrbit() {
     if (!camera) return;
-    const pitch = DEFAULT_VIEW_PITCH;
-    const angle = DEFAULT_VIEW_ANGLE;
-    const horizontalDistance = CAMERA_DISTANCE * Math.cos(pitch);
+    const horizontalDistance = CAMERA_DISTANCE * Math.cos(viewPitch);
     camera.position.set(
-      Math.sin(angle) * horizontalDistance,
-      CAMERA_TARGET_Y + Math.sin(pitch) * CAMERA_DISTANCE,
-      Math.cos(angle) * horizontalDistance
+      Math.sin(viewAngle) * horizontalDistance,
+      CAMERA_TARGET_Y + Math.sin(viewPitch) * CAMERA_DISTANCE,
+      Math.cos(viewAngle) * horizontalDistance
     );
     camera.up.set(0, 1, 0);
     camera.lookAt(0, CAMERA_TARGET_Y, 0);
-  }
-
-  function updateDistrictRotation() {
-    if (!districtRoot) return;
-
-    // Keep the board and every GLB locked to the same world axes. Rotation is
-    // deliberately disabled so the district can never drift back into a
-    // diagonal/diamond presentation.
-    districtAngle = 0;
-    districtRoot.rotation.y = 0;
-    buildingRoots.forEach(rootGroup => {
-      rootGroup.rotation.y = 0;
-    });
   }
 
   function resize() {
