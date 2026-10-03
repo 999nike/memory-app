@@ -151,7 +151,7 @@
         <button type="button" data-building="code" style="--dock-color:#4cecff"><i></i>CODE SPACE</button>
         <button type="button" data-building="memory" style="--dock-color:#5cff98"><i></i>MEMORY</button>
       </div>
-      <div class="world-controls"><button type="button" data-world-control="quality">QUALITY · MED</button><button type="button" data-world-control="zoom-out" aria-label="Zoom out">ZOOM −</button><button type="button" data-world-control="zoom-in" aria-label="Zoom in">ZOOM +</button><button type="button" data-world-control="reset">RESET VIEW</button><button type="button" data-world-control="motion">PAUSE</button></div>`;
+      <div class="world-controls"><button type="button" data-world-control="quality">QUALITY · MED</button><button type="button" data-world-control="zoom-out" aria-label="Zoom out">ZOOM −</button><input class="world-zoom-slider" data-world-control="zoom-slider" type="range" min="0.55" max="3" step="0.05" value="1" aria-label="World zoom"><button type="button" data-world-control="zoom-in" aria-label="Zoom in">ZOOM +</button><button type="button" data-world-control="reset">RESET VIEW</button><button type="button" data-world-control="motion">PAUSE</button></div>`;
     document.body.appendChild(root);
     canvasWrap = root.querySelector('.world-canvas-wrap');
     panel = root.querySelector('.world-panel');
@@ -171,6 +171,10 @@
     root.querySelectorAll('[data-building]').forEach(button => button.addEventListener('click', () => selectBuilding(button.dataset.building)));
     root.querySelector('[data-world-control="zoom-out"]').addEventListener('click', () => adjustZoom(1 / 1.25));
     root.querySelector('[data-world-control="zoom-in"]').addEventListener('click', () => adjustZoom(1.25));
+    root.querySelector('[data-world-control="zoom-slider"]').addEventListener('input', event => {
+      zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number(event.currentTarget.value) || 1));
+      resize();
+    });
     root.querySelector('[data-world-control="reset"]').addEventListener('click', resetView);
     root.querySelector('[data-world-control="quality"]').addEventListener('click', cycleQuality);
     root.querySelector('[data-world-control="motion"]').addEventListener('click', event => {
@@ -595,17 +599,15 @@
     // One single zero-thickness board. PlaneGeometry avoids the visible side
     // faces and overlapping slabs that made the previous world read as wedges.
     const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(24, 24),
-      new THREE.MeshStandardMaterial({
-        color: 0x0b1117,
-        roughness: .96,
-        metalness: .08
-      })
+      new THREE.PlaneGeometry(200, 200),
+      // Match the WebGL scene background exactly and ignore lighting so the
+      // district has no visible board edge even when zoomed or panned.
+      new THREE.MeshBasicMaterial({ color: 0x070b12 })
     );
     floor.name = 'district-square-floor';
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = 0;
-    floor.receiveShadow = true;
+    floor.receiveShadow = false;
     districtRoot.add(floor);
 
     // GridHelper supplies one mathematically regular square grid: no staggered
@@ -759,6 +761,8 @@
     viewPitch = DEFAULT_VIEW_PITCH;
     districtAngle = 0;
     zoom = 1;
+    const zoomSlider = root?.querySelector('[data-world-control="zoom-slider"]');
+    if (zoomSlider) zoomSlider.value = String(zoom);
     panX = 0;
     panY = 0;
     updateCameraOrbit();
@@ -768,6 +772,8 @@
 
   function adjustZoom(factor) {
     zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * factor));
+    const zoomSlider = root?.querySelector('[data-world-control="zoom-slider"]');
+    if (zoomSlider) zoomSlider.value = String(zoom);
     resize();
   }
 
