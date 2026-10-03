@@ -446,32 +446,17 @@
   }
 
   function createOffice() {
-    const g = new THREE.Group(); g.position.set(0, 0, -5.4); g.userData.appId = 'office'; world.add(g);
-    const proceduralShell = new THREE.Group();
-    proceduralShell.name = 'office-procedural-shell';
-    g.add(proceduralShell);
-    const shell = material(0x273640, 0x240d29, .24);
-    const trim = material(0x351c38, 0xff39cf, 2.1);
-    box(proceduralShell, [5.2, .65, 4.5], [0, .32, 0], material(0x111820), 'office');
-    box(proceduralShell, [4.45, 2.1, 3.8], [0, 1.65, 0], shell, 'office');
-    box(proceduralShell, [3.9, 2.7, 3.35], [.1, 4.05, -.1], shell, 'office');
-    box(proceduralShell, [3.25, 2.65, 2.9], [.05, 6.72, -.2], shell, 'office');
-    box(proceduralShell, [4.75, .15, 4.05], [0, 2.72, 0], trim, 'office');
-    box(proceduralShell, [4.2, .12, 3.55], [.1, 5.42, -.1], trim, 'office');
-    addWindows(proceduralShell, 'office', 5, 5, [-1.35, 1.35, 1.93], [.68, 1.18]);
-    box(proceduralShell, [2.7, .13, .12], [0, 7.65, 1.32], trim, 'office');
-    addSign(g, 'OFFICE', '#ff4ad8', [0, 7.25, 1.68], 3.2, 'office');
-    // Visible dispatch bay and workstation.
-    box(g, [2.3, 1.45, .08], [0, 1.15, 1.94], material(0x090d12), 'office');
-    box(g, [1.8, .7, .75], [0, .8, 1.45], material(0x242b32), 'office');
-    const dispatchScreen = box(g, [.95, .6, .08], [0, 1.45, 1.08], material(0x17404c, 0x35ddff, 3), 'office');
-    dispatchScreen.rotation.x = -.1;
-    createPerson(g, [-.75, .64, 1.15], 0xff4ad8, .72);
-    // Roof machinery.
-    cylinder(proceduralShell, .48, 1.45, [-.72, 8.68, -.3], material(0x27313a), 14, 'office');
-    cylinder(proceduralShell, .2, 2.2, [.75, 8.9, -.45], trim, 10, 'office');
-    box(proceduralShell, [1.1, .6, .8], [1.05, 8.3, .45], material(0x29333c), 'office');
-    queueBuildingAsset('office', 'office', g, proceduralShell);
+    const g = new THREE.Group();
+    g.position.set(0, 0, -5.4);
+    g.userData.appId = 'office';
+    world.add(g);
+
+    // Deliberately empty fallback: current cleanup pass renders only the
+    // original Meshy GLB so no procedural geometry can distort the scene.
+    const fallback = new THREE.Group();
+    fallback.name = 'office-empty-fallback';
+    g.add(fallback);
+    queueBuildingAsset('office', 'office', g, fallback);
     return g;
   }
 
@@ -544,62 +529,28 @@
   }
 
   function createCodeLab() {
-    const g = new THREE.Group(); g.position.set(6.15, 0, 2.7); g.userData.appId = 'code'; world.add(g);
-    const proceduralShell = new THREE.Group();
-    proceduralShell.name = 'code-space-procedural-shell';
-    g.add(proceduralShell);
-    const shell = material(0x203640, 0x082e38, .28);
-    const cyan = material(0x173a42, 0x34e8ff, 2.2);
-    box(proceduralShell, [7, .55, 5.1], [0, .28, 0], material(0x10191f), 'code');
-    box(proceduralShell, [6.3, 2.7, .45], [0, 1.7, -2.25], shell, 'code');
-    box(proceduralShell, [.45, 2.7, 4.1], [-2.95, 1.7, -.15], shell, 'code');
-    box(proceduralShell, [.45, 2.7, 4.1], [2.95, 1.7, -.15], shell, 'code');
-    box(proceduralShell, [6.3, .35, 2.45], [0, 3.16, -1.05], shell, 'code');
-    box(proceduralShell, [6.6, .11, 5], [0, .62, 0], cyan, 'code');
-    // Cutaway computer room.
-    for (const x of [-1.65, 0, 1.65]) {
-      box(g, [1.25, .62, .62], [x, .94, -.45], material(0x242f35), 'code');
-      const screen = box(g, [.85, .62, .08], [x, 1.55, -.82], material(0x0b3542, 0x20c9ed, 1.8), 'code');
-      screen.rotation.x = -.08;
-      codeScreens.push(screen);
-      box(g, [.7, .12, .7], [x, .45, .65], material(0x21282d), 'code');
-      box(g, [.12, .72, .12], [x, .32, .65], material(0x313a40), 'code');
-    }
-    addSign(g, 'CODE SPACE', '#4cecff', [0, 3.25, -2.02], 4.1, 'code');
-    // Roof vents and pipes.
-    for (const x of [-1.6, 0, 1.6]) cylinder(proceduralShell, .38, .72, [x, 3.65, -1], material(0x27343b), 12, 'code');
-    const pipe = cylinder(proceduralShell, .12, 4.4, [2.65, 3.75, -.7], cyan, 10, 'code'); pipe.rotation.z = Math.PI / 2;
-    worker = createPerson(g, [2.2, .7, 2.35], 0x4cecff, .82);
-    worker.userData.origin = new THREE.Vector3(2.2, .7, 2.35);
-    worker.userData.desk = new THREE.Vector3(0, .7, .85);
-    queueBuildingAsset('codeLab', 'code', g, proceduralShell);
+    const g = new THREE.Group();
+    g.position.set(6.15, 0, 2.7);
+    g.userData.appId = 'code';
+    world.add(g);
+
+    const fallback = new THREE.Group();
+    fallback.name = 'code-space-empty-fallback';
+    g.add(fallback);
+    queueBuildingAsset('codeLab', 'code', g, fallback);
     return g;
   }
 
   function createMemory() {
-    const g = new THREE.Group(); g.position.set(-6.2, 0, 2.9); g.userData.appId = 'memory'; world.add(g);
-    const proceduralShell = new THREE.Group();
-    proceduralShell.name = 'memory-procedural-shell';
-    g.add(proceduralShell);
-    const shell = material(0x1c382f, 0x0b321e, .34);
-    const green = material(0x194831, 0x55ff93, 2.25);
-    const blue = material(0x154356, 0x29bde9, 1.25, { transparent: true, opacity: .68 });
-    box(proceduralShell, [6.2, .55, 4.7], [0, .28, 0], material(0x0d1817), 'memory');
-    box(proceduralShell, [5.6, 3.1, 4.05], [0, 1.82, 0], shell, 'memory');
-    box(proceduralShell, [6, .12, 4.35], [0, 3.38, 0], green, 'memory');
-    // Archive banks.
-    for (const x of [-2.15, -1.45, 1.45, 2.15]) {
-      for (let y = 0; y < 4; y += 1) box(g, [.48, .22, .1], [x, .95 + y * .56, 2.08], green, 'memory');
-    }
-    // Visible blue core.
-    core = cylinder(g, .72, 2.55, [0, 1.85, 2.08], blue, 24, 'memory');
-    const ringMat = material(0x205365, 0x47eaff, 2.6);
-    for (const y of [.72, 1.85, 3]) cylinder(g, .92, .1, [0, y, 2.08], ringMat, 24, 'memory');
-    addSign(g, 'MEMORY', '#5cff98', [0, 3.85, .85], 3.35, 'memory');
-    // Rooftop node and conduits.
-    const node = new THREE.Mesh(new THREE.IcosahedronGeometry(.65, 1), blue); node.position.set(0, 4.25, 0); node.userData.appId = 'memory'; pickables.push(node); proceduralShell.add(node);
-    for (const x of [-1.55, 1.55]) cylinder(proceduralShell, .28, .8, [x, 3.83, -.65], material(0x27362f), 12, 'memory');
-    queueBuildingAsset('memory', 'memory', g, proceduralShell);
+    const g = new THREE.Group();
+    g.position.set(-6.2, 0, 2.9);
+    g.userData.appId = 'memory';
+    world.add(g);
+
+    const fallback = new THREE.Group();
+    fallback.name = 'memory-empty-fallback';
+    g.add(fallback);
+    queueBuildingAsset('memory', 'memory', g, fallback);
     return g;
   }
 
@@ -618,91 +569,14 @@
   }
 
   function createDistrict() {
-    world = new THREE.Group(); scene.add(world);
-    // Clean square district platform. One flat slab plus parallel grid lines:
-    // no staggered plates, no perimeter perspective framing, no depth fog.
-    const districtFloor = box(
-      world,
-      [24, .28, 24],
-      [0, -.08, 0],
-      material(0x0d1419, 0x020507, .04, { roughness: .88, metalness: .5 })
-    );
-    districtFloor.receiveShadow = true;
-
-    const gridLine = material(0x17242b, 0x0b2027, .22, { roughness: .7, metalness: .72 });
-    for (let grid = -12; grid <= 12; grid += 4) {
-      box(world, [24, .025, .045], [0, .075, grid], gridLine);
-      box(world, [.045, .025, 24], [grid, .075, 0], gridLine);
-    }
-
-    const foundation = material(0x1b252b, 0x09151c, .12, { roughness: .67, metalness: .8 });
-    box(world, [8.1, .18, 7], [0, .16, -5.4], foundation);
-    box(world, [9.1, .18, 7.2], [6.15, .16, 2.8], foundation);
-    box(world, [9.1, .18, 7.2], [-6.2, .16, 2.9], foundation);
-    selectionRing = new THREE.Mesh(
-      new THREE.RingGeometry(2.75, 2.88, 48),
-      new THREE.MeshBasicMaterial({ color: 0x4cecff, transparent: true, opacity: .8, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })
-    );
-    selectionRing.rotation.x = -Math.PI / 2;
-    selectionRing.visible = false;
-    selectionRing.renderOrder = 4;
-    world.add(selectionRing);
-    box(world, [5.4, .08, 20], [0, .13, 0], material(0x0d1419, 0x04090d, .08));
-    box(world, [26.5, .09, 4], [0, .14, .1], material(0x0e161c, 0x050a0e, .1));
-    // Road markings and connected luminous walkways.
-    const roadLine = material(0x2b3032, 0xd8923c, .8);
-    for (let z = -7; z <= 7; z += 2) box(world, [.16, .04, .9], [0, .1, z], roadLine);
-    const path = material(0x15313a, 0x22bed1, .72);
-    [[-3.1, .19, -1.6, 6.2, .05, .18], [3.2, .19, 1.8, 5.6, .05, .18], [-3, .19, 2.4, 5.1, .05, .18]].forEach(([x,y,z,w,h,d]) => box(world, [w,h,d], [x,y,z], path));
-    // Lamps, barriers and tiny service props.
-    for (const [x,z] of [[-2.1,-2.3],[2.1,-2.3],[-2.1,2.5],[2.1,2.5],[-10,1],[10,-1]]) {
-      cylinder(world, .07, 1.55, [x, .8, z], material(0x30383e), 8);
-      const lamp = box(world, [.2,.15,.2], [x,1.58,z], material(0x4b4a3d, 0xffc36b, 2.4)); lamp.castShadow = false;
-    }
-    // Modular stairs and safety rails make the block read as one connected
-    // working district rather than three isolated display models.
-    const stepMaterial = material(0x2a353c);
-    for (let index = 0; index < 5; index += 1) {
-      box(world, [2.1, .14 + index * .08, .42], [0, .08 + index * .04, -2.1 - index * .4], stepMaterial);
-    }
-    const railMaterial = material(0x223a43, 0x35d8ee, 1.2);
-    for (const x of [-1.05, 1.05]) {
-      for (let z = -2.2; z >= -4.2; z -= .65) cylinder(world, .035, .62, [x, .42, z], railMaterial, 7);
-      const rail = cylinder(world, .035, 2.5, [x, .72, -3.2], railMaterial, 7);
-      rail.rotation.x = Math.PI / 2;
-    }
-    createOffice(); createCodeLab(); createMemory();
-    // Soft colour pools give the emissive buildings the same grounded neon
-    // presence as the visual reference without adding expensive shadow lights.
-    const glowDisc = (x, z, radius, color) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 128; canvas.height = 128;
-      const context = canvas.getContext('2d');
-      const shade = new THREE.Color(color);
-      const rgb = `${Math.round(shade.r * 255)},${Math.round(shade.g * 255)},${Math.round(shade.b * 255)}`;
-      const gradient = context.createRadialGradient(64, 64, 2, 64, 64, 62);
-      gradient.addColorStop(0, `rgba(${rgb},.38)`);
-      gradient.addColorStop(.42, `rgba(${rgb},.18)`);
-      gradient.addColorStop(1, `rgba(${rgb},0)`);
-      context.fillStyle = gradient;
-      context.fillRect(0, 0, 128, 128);
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      const mesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(radius * 2, radius * 2),
-        new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: .68, depthWrite: false, blending: THREE.AdditiveBlending })
-      );
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(x, .125, z);
-      world.add(mesh);
-    };
-    glowDisc(0, -4.4, 4.3, 0xff2fc8);
-    glowDisc(5.5, 2.7, 4.5, 0x22cce9);
-    glowDisc(-5.5, 2.9, 4.2, 0x36e77d);
-    for (const [x,z,w,d] of [[8,-5,1.1,.8],[10,4,1.5,.8],[-9,-.2,1,.7],[-1,6,1.3,.7]]) {
-      box(world, [w,.65,d], [x,.34,z], material(0x222a30));
-      box(world, [w*.7,.05,d*.72], [x,.69,z], path);
-    }
+    // Diagnostic clean-room scene: GLBs only.
+    // No floor, grid, foundations, roads, pads, plaza, fountain, rails,
+    // lamps, glow discs, procedural buildings, people or service props.
+    world = new THREE.Group();
+    scene.add(world);
+    createOffice();
+    createCodeLab();
+    createMemory();
   }
 
   async function initThree() {
