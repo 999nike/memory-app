@@ -8,8 +8,11 @@
   const GLTF_LOADER_MODULE = './vendor/three/addons/loaders/GLTFLoader.js';
   const MIN_ZOOM = .55;
   const MAX_ZOOM = 3;
-  const DEFAULT_VIEW_ANGLE = Math.atan2(18, 20);
-  const DEFAULT_VIEW_PITCH = Math.atan2(13.65, Math.hypot(18, 20));
+  // Canonical game-style isometric camera: 45° azimuth, 35.264° elevation.
+  // Keeping these fixed prevents the rectangular district and GLB silhouettes
+  // from shearing into acute diamond/triangle shapes during free orbit.
+  const DEFAULT_VIEW_ANGLE = Math.PI / 4;
+  const DEFAULT_VIEW_PITCH = Math.atan(1 / Math.sqrt(2));
   const CAMERA_DISTANCE = Math.hypot(18, 13.65, 20);
   const CAMERA_TARGET_Y = 2.35;
   const WORLD_ASSETS = Object.freeze({
@@ -121,13 +124,13 @@
     root.className = 'world-view';
     root.setAttribute('aria-label', 'Universal World cyberpunk city');
     root.innerHTML = `
-      <div class="world-canvas-wrap" aria-label="Interactive three-dimensional city. Drag to orbit and scroll to zoom."></div>
+      <div class="world-canvas-wrap" aria-label="Interactive isometric city. Drag to pan and scroll to zoom."></div>
       <div class="world-vignette" aria-hidden="true"></div>
       <div class="world-loading"><strong>ASSEMBLING DISTRICT 01</strong><span>Loading the local Three.js renderer…</span></div>
       <div class="world-fallback"><strong>WORLD VIEW UNAVAILABLE</strong><span>Use Neural or Classic to continue.</span></div>
       <header class="world-topbar">
         <div class="world-brand"><span class="world-brand-mark">W</span><span><strong>Universal World</strong><small>DISTRICT 01 / LOCAL</small></span></div>
-        <div class="world-scene-meta"><strong>CYBERNETIC OPERATIONS BLOCK</strong><span>Drag left/right to rotate · Shift/right-drag pan · wheel zoom</span></div>
+        <div class="world-scene-meta"><strong>CYBERNETIC OPERATIONS BLOCK</strong><span>Fixed isometric view · drag to pan · wheel zoom</span></div>
       </header>
       <aside class="world-panel" aria-live="polite" aria-label="Building details">
         <div class="world-panel-accent"></div>
@@ -769,7 +772,7 @@
     const canvas = renderer.domElement;
     canvas.tabIndex = 0;
     canvas.setAttribute('role', 'application');
-    canvas.setAttribute('aria-label', 'Universal World city. Drag left or right to rotate around the fixed isometric view, Shift-drag or right-drag to pan, use the mouse wheel to zoom, or use arrow and plus/minus keys.');
+    canvas.setAttribute('aria-label', 'Universal World city. Fixed isometric view. Drag to pan, use the mouse wheel to zoom, or use arrow and plus/minus keys.');
     canvas.addEventListener('contextmenu', event => event.preventDefault());
     canvas.addEventListener('pointerdown', event => {
       drag = {
@@ -779,27 +782,19 @@
         startX: event.clientX,
         startY: event.clientY,
         angle: viewAngle,
-        mode: event.shiftKey || event.button === 2 ? 'pan' : 'orbit'
+        mode: 'pan'
       };
       canvas.setPointerCapture(event.pointerId);
     });
     canvas.addEventListener('pointermove', event => {
       if (!drag || drag.id !== event.pointerId) return;
-      if (drag.mode === 'pan') {
-        const width = Math.max(1, canvas.clientWidth);
-        const height = Math.max(1, canvas.clientHeight);
-        panX -= (event.clientX - drag.x) * ((camera.right - camera.left) / width);
-        panY += (event.clientY - drag.y) * ((camera.top - camera.bottom) / height);
-        drag.x = event.clientX;
-        drag.y = event.clientY;
-        resize();
-      } else {
-        // Keep a true fixed-pitch isometric presentation. Horizontal drag rotates
-        // around the district; vertical drag no longer tilts the camera and
-        // changes the apparent proportions of the Meshy building shells.
-        viewAngle = drag.angle + (event.clientX - drag.startX) * .006;
-        updateCameraOrbit();
-      }
+      const width = Math.max(1, canvas.clientWidth);
+      const height = Math.max(1, canvas.clientHeight);
+      panX -= (event.clientX - drag.x) * ((camera.right - camera.left) / width);
+      panY += (event.clientY - drag.y) * ((camera.top - camera.bottom) / height);
+      drag.x = event.clientX;
+      drag.y = event.clientY;
+      resize();
     });
     canvas.addEventListener('pointerup', event => {
       if (!drag || drag.id !== event.pointerId) return;
@@ -852,11 +847,12 @@
     // Lock pitch to the authored isometric angle so rotating the world never
     // makes the imported GLBs appear squashed, stretched or top-down.
     const pitch = DEFAULT_VIEW_PITCH;
+    const angle = DEFAULT_VIEW_ANGLE;
     const horizontalDistance = CAMERA_DISTANCE * Math.cos(pitch);
     camera.position.set(
-      Math.sin(viewAngle) * horizontalDistance,
+      Math.sin(angle) * horizontalDistance,
       CAMERA_TARGET_Y + Math.sin(pitch) * CAMERA_DISTANCE,
-      Math.cos(viewAngle) * horizontalDistance
+      Math.cos(angle) * horizontalDistance
     );
     camera.up.set(0, 1, 0);
     camera.lookAt(0, CAMERA_TARGET_Y, 0);
