@@ -94,6 +94,9 @@
   let scene;
   let camera;
   let world;
+  let districtRoot;
+  let districtAngle = 0;
+  const buildingRoots = new Map();
   let animationFrame = 0;
   let resizeObserver;
   let raycaster;
@@ -129,7 +132,7 @@
       <div class="world-fallback"><strong>WORLD VIEW UNAVAILABLE</strong><span>Use Neural or Classic to continue.</span></div>
       <header class="world-topbar">
         <div class="world-brand"><span class="world-brand-mark">W</span><span><strong>Universal World</strong><small>DISTRICT 01 / LOCAL</small></span></div>
-        <div class="world-scene-meta"><strong>CYBERNETIC OPERATIONS BLOCK</strong><span>Fixed isometric pitch · drag left/right to rotate · Shift/right-drag pan · wheel zoom</span></div>
+        <div class="world-scene-meta"><strong>CYBERNETIC OPERATIONS BLOCK</strong><span>Clean isometric board · drag left/right to rotate · Shift/right-drag pan · wheel zoom</span></div>
       </header>
       <aside class="world-panel" aria-live="polite" aria-label="Building details">
         <div class="world-panel-accent"></div>
@@ -139,7 +142,7 @@
       </aside>
       <aside class="world-activity" aria-label="Demo activity">
         <div class="world-activity-head"><strong>VISIBLE ACTIVITY</strong><span class="world-demo-pill" data-world-activity-mode>DEMO LOOP</span></div>
-        <div class="world-event" data-world-event="code" style="--event-color:#4cecff"><i></i><span><b>Code Space</b> worker approaching desk</span><time>NOW</time></div>
+        <div class="world-event" data-world-event="code" style="--event-color:#4cecff"><i></i><span><b>Code Space</b> execution bay ready</span><time>DEMO</time></div>
         <div class="world-event" data-world-event="office" style="--event-color:#ff4ad8"><i></i><span><b>Office</b> dispatch queue illuminated</span><time>DEMO</time></div>
         <div class="world-event" data-world-event="memory" style="--event-color:#5cff98"><i></i><span><b>Memory</b> archive banks indexing</span><time>DEMO</time></div>
       </aside>
@@ -348,7 +351,7 @@
       const selected = positions[selectedId];
       selectionRing.visible = Boolean(selected);
       if (selected) {
-        selectionRing.position.set(selected[0], selected[1], selected[2]);
+        selectionRing.position.set(selected[0], .035, selected[2]);
         selectionRing.material.color.setHex(selected[3]);
       }
     }
@@ -449,13 +452,13 @@
     const g = new THREE.Group();
     g.position.set(0, 0, -5.4);
     g.userData.appId = 'office';
-    world.add(g);
+    buildingRoots.set('office', g);
+    districtRoot.add(g);
 
-    // Deliberately empty fallback: current cleanup pass renders only the
-    // original Meshy GLB so no procedural geometry can distort the scene.
     const fallback = new THREE.Group();
     fallback.name = 'office-empty-fallback';
     g.add(fallback);
+    addSign(g, 'OFFICE', '#ff4ad8', [0, 10.7, 0], 3.15, 'office');
     queueBuildingAsset('office', 'office', g, fallback);
     return g;
   }
@@ -532,11 +535,13 @@
     const g = new THREE.Group();
     g.position.set(6.15, 0, 2.7);
     g.userData.appId = 'code';
-    world.add(g);
+    buildingRoots.set('code', g);
+    districtRoot.add(g);
 
     const fallback = new THREE.Group();
     fallback.name = 'code-space-empty-fallback';
     g.add(fallback);
+    addSign(g, 'CODE SPACE', '#4cecff', [0, 7.7, 0], 3.75, 'code');
     queueBuildingAsset('codeLab', 'code', g, fallback);
     return g;
   }
@@ -545,11 +550,13 @@
     const g = new THREE.Group();
     g.position.set(-6.2, 0, 2.9);
     g.userData.appId = 'memory';
-    world.add(g);
+    buildingRoots.set('memory', g);
+    districtRoot.add(g);
 
     const fallback = new THREE.Group();
     fallback.name = 'memory-empty-fallback';
     g.add(fallback);
+    addSign(g, 'MEMORY', '#5cff98', [0, 6.2, 0], 3.15, 'memory');
     queueBuildingAsset('memory', 'memory', g, fallback);
     return g;
   }
@@ -569,14 +576,55 @@
   }
 
   function createDistrict() {
-    // Diagnostic clean-room scene: GLBs only.
-    // No floor, grid, foundations, roads, pads, plaza, fountain, rails,
-    // lamps, glow discs, procedural buildings, people or service props.
     world = new THREE.Group();
     scene.add(world);
+
+    districtRoot = new THREE.Group();
+    districtRoot.name = 'universal-district-clean';
+    world.add(districtRoot);
+
+    // One single zero-thickness board. PlaneGeometry avoids the visible side
+    // faces and overlapping slabs that made the previous world read as wedges.
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(24, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0x0b1117,
+        roughness: .96,
+        metalness: .08
+      })
+    );
+    floor.name = 'district-square-floor';
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0;
+    floor.receiveShadow = true;
+    districtRoot.add(floor);
+
+    // GridHelper supplies one mathematically regular square grid: no staggered
+    // tiles, perspective artwork, decorative road strips or layered foundations.
+    const grid = new THREE.GridHelper(24, 12, 0x173944, 0x10242c);
+    grid.name = 'district-square-grid';
+    grid.position.y = .01;
+    districtRoot.add(grid);
+
+    selectionRing = new THREE.Mesh(
+      new THREE.RingGeometry(2.65, 2.78, 48),
+      new THREE.MeshBasicMaterial({
+        color: 0x4cecff,
+        transparent: true,
+        opacity: .7,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      })
+    );
+    selectionRing.rotation.x = -Math.PI / 2;
+    selectionRing.position.y = .035;
+    selectionRing.visible = false;
+    districtRoot.add(selectionRing);
+
     createOffice();
     createCodeLab();
     createMemory();
+    updateDistrictRotation();
   }
 
   async function initThree() {
@@ -642,7 +690,7 @@
         y: event.clientY,
         startX: event.clientX,
         startY: event.clientY,
-        angle: viewAngle,
+        angle: districtAngle,
         mode: event.shiftKey || event.button === 2 ? 'pan' : 'orbit'
       };
       canvas.setPointerCapture(event.pointerId);
@@ -658,8 +706,8 @@
         drag.y = event.clientY;
         resize();
       } else {
-        viewAngle = drag.angle + (event.clientX - drag.startX) * .006;
-        updateCameraOrbit();
+        districtAngle = drag.angle + (event.clientX - drag.startX) * .006;
+        updateDistrictRotation();
       }
     });
     canvas.addEventListener('pointerup', event => {
@@ -697,9 +745,14 @@
   }
 
   function resetView() {
-    viewAngle = DEFAULT_VIEW_ANGLE; viewPitch = DEFAULT_VIEW_PITCH;
-    zoom = 1; panX = 0; panY = 0;
+    viewAngle = DEFAULT_VIEW_ANGLE;
+    viewPitch = DEFAULT_VIEW_PITCH;
+    districtAngle = 0;
+    zoom = 1;
+    panX = 0;
+    panY = 0;
     updateCameraOrbit();
+    updateDistrictRotation();
     resize();
   }
 
@@ -710,10 +763,8 @@
 
   function updateCameraOrbit() {
     if (!camera) return;
-    // Lock pitch to the authored isometric angle so rotating the world never
-    // makes the imported GLBs appear squashed, stretched or top-down.
     const pitch = DEFAULT_VIEW_PITCH;
-    const angle = viewAngle;
+    const angle = DEFAULT_VIEW_ANGLE;
     const horizontalDistance = CAMERA_DISTANCE * Math.cos(pitch);
     camera.position.set(
       Math.sin(angle) * horizontalDistance,
@@ -722,6 +773,18 @@
     );
     camera.up.set(0, 1, 0);
     camera.lookAt(0, CAMERA_TARGET_Y, 0);
+  }
+
+  function updateDistrictRotation() {
+    if (!districtRoot) return;
+    districtRoot.rotation.y = districtAngle;
+
+    // Single-image Meshy assets look best from their generated hero angle.
+    // Their positions rotate with the square board, but the models themselves
+    // counter-rotate so their readable face stays presented to the camera.
+    buildingRoots.forEach(rootGroup => {
+      rootGroup.rotation.y = -districtAngle;
+    });
   }
 
   function resize() {
