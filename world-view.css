@@ -215,6 +215,11 @@ body.world-view-active .world-view { display: block; }
 .world-controls button { border: 0; border-radius: 7px; padding: 8px 10px; color: #8ea4af; background: rgba(255,255,255,.035); font: 700 9px/1 ui-monospace, monospace; cursor: pointer; }
 .world-controls button:hover,
 .world-controls button:focus-visible { color: var(--world-cyan); background: rgba(76,236,255,.08); outline: none; }
+.world-zoom-slider {
+  width: 120px;
+  accent-color: var(--world-cyan);
+  cursor: pointer;
+}
 
 .world-loading,
 .world-fallback {
