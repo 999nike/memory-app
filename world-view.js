@@ -41,8 +41,8 @@
   const QUALITY_KEY = 'universal-world-quality-v1';
   const QUALITY = Object.freeze({
     low: Object.freeze({ dpr: 1, bloom: 0, shadows: false }),
-    medium: Object.freeze({ dpr: 1.3, bloom: .27, shadows: true }),
-    high: Object.freeze({ dpr: 1.75, bloom: .46, shadows: true })
+    medium: Object.freeze({ dpr: 1.5, bloom: .10, shadows: true }),
+    high: Object.freeze({ dpr: 2, bloom: .16, shadows: true })
   });
   const APPS = Object.freeze({
     office: {
@@ -510,6 +510,15 @@
         object.userData.appId = appId;
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         materials.filter(Boolean).forEach(entry => {
+          // Keep the authored Meshy PBR materials intact. Only improve texture
+          // sampling so the embedded high-resolution maps stay crisp at oblique
+          // angles instead of being smeared by low anisotropy.
+          ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap'].forEach(key => {
+            const texture = entry[key];
+            if (!texture) return;
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            texture.needsUpdate = true;
+          });
           if (entry.emissive) {
             object.userData.baseEmissive = entry.emissive.getHex();
             object.userData.baseIntensity = entry.emissiveIntensity || 0;
@@ -633,8 +642,11 @@
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, QUALITY[quality].dpr));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.08;
+      // The standalone glTF viewer presents these assets with neutral/linear
+      // lighting. ACES plus saturated world lights was crushing blacks and
+      // making the same GLBs look muddy and lower-resolution.
+      renderer.toneMapping = THREE.LinearToneMapping;
+      renderer.toneMappingExposure = 1.0;
       renderer.shadowMap.enabled = QUALITY[quality].shadows;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       canvasWrap.appendChild(renderer.domElement);
@@ -642,12 +654,15 @@
       scene.background = new THREE.Color(0x070b12);
       camera = new THREE.OrthographicCamera(-12, 12, 8, -8, .1, 100);
       updateCameraOrbit();
-      scene.add(new THREE.HemisphereLight(0x73dbff, 0x111019, 1.38));
-      scene.add(new THREE.AmbientLight(0x294454, .28));
-      const key = new THREE.DirectionalLight(0xe2f4ff, 1.9); key.position.set(8, 18, 10); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.camera.left = -16; key.shadow.camera.right = 16; key.shadow.camera.top = 16; key.shadow.camera.bottom = -16; scene.add(key);
-      const magenta = new THREE.PointLight(0xff34c8, 22, 16, 2); magenta.position.set(0, 5, -3); scene.add(magenta);
-      const cyan = new THREE.PointLight(0x35dcff, 20, 15, 2); cyan.position.set(5, 3, 2); scene.add(cyan);
-      const green = new THREE.PointLight(0x4fff8c, 18, 14, 2); green.position.set(-5, 3, 3); scene.add(green);
+      // Neutral studio-style fill first, then very restrained coloured accent
+      // lights. The old saturated lights were recolouring whole GLB facades.
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x29313a, 1.65));
+      scene.add(new THREE.AmbientLight(0xffffff, .72));
+      const key = new THREE.DirectionalLight(0xffffff, 2.3); key.position.set(8, 18, 10); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.camera.left = -16; key.shadow.camera.right = 16; key.shadow.camera.top = 16; key.shadow.camera.bottom = -16; scene.add(key);
+      const fill = new THREE.DirectionalLight(0xcfe4ff, 1.1); fill.position.set(-10, 9, -8); scene.add(fill);
+      const magenta = new THREE.PointLight(0xff34c8, 2.2, 13, 2); magenta.position.set(0, 5, -3); scene.add(magenta);
+      const cyan = new THREE.PointLight(0x35dcff, 2.1, 12, 2); cyan.position.set(5, 3, 2); scene.add(cyan);
+      const green = new THREE.PointLight(0x4fff8c, 1.8, 11, 2); green.position.set(-5, 3, 3); scene.add(green);
       raycaster = new THREE.Raycaster(); pointer = new THREE.Vector2(); clock = new THREE.Clock();
       createDistrict(); bindCanvas(); resize();
       try {
