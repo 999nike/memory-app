@@ -60,13 +60,29 @@ function legacyDerivedSecret(masterToken, connectionId) {
     .digest('base64url');
 }
 
-function normalizeRecord(recordValue, masterToken, connectionId) {
+function accessCode(record, connectionId, publicBase, bridgeName) {
+  const payload = {
+    version: 2,
+    name: record.name || bridgeName,
+    baseUrl: `${publicBase}/c/${encodeURIComponent(connectionId)}`,
+    connectionId,
+    token: String(record.secret || '')
+  };
+  return `MSB2.${Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')}`;
+}
+
+function normalizeRecord(recordValue, masterToken, connectionId, publicBase = '', bridgeName = 'Memory Bridge') {
   const record = recordValue && typeof recordValue === 'object' && !Array.isArray(recordValue)
     ? { ...recordValue }
     : {};
   let migrated = false;
   if (!String(record.secret || '').trim()) {
     record.secret = legacyDerivedSecret(masterToken, connectionId);
+    migrated = true;
+  }
+  if (!String(record.credential || '').trim() && publicBase) {
+    // Pin server-derived credentials before the advertised origin can change.
+    record.credential = accessCode(record, connectionId, publicBase, bridgeName);
     migrated = true;
   }
   return { record, migrated };
@@ -121,7 +137,7 @@ export function createConnectionState({ masterToken, publicUrl, bridgeName = 'Me
       for (const item of Array.isArray(payload?.connections) ? payload.connections : []) {
         if (!Array.isArray(item) || item.length !== 2 || !CONNECTION_ID_RE.test(String(item[0] || ''))) continue;
         const connectionId = String(item[0]);
-        const { record, migrated } = normalizeRecord(item[1], masterToken, connectionId);
+        const { record, migrated } = normalizeRecord(item[1], masterToken, connectionId, publicBase, bridgeName);
         records.set(connectionId, record);
         if (migrated) needsMigrationSave = true;
       }
@@ -142,7 +158,7 @@ export function createConnectionState({ masterToken, publicUrl, bridgeName = 'Me
 
   if (needsMigrationSave) {
     save();
-    console.log(`[bridge] customer connection credentials migrated to rotation-safe secrets count=${records.size}`);
+    console.log(`[bridge] customer connection credentials migrated to compatibility-safe records count=${records.size}`);
   }
 
   function deriveSecret(connectionIdValue) {
@@ -155,14 +171,7 @@ export function createConnectionState({ masterToken, publicUrl, bridgeName = 'Me
     const connectionId = String(connectionIdValue || '');
     const record = records.get(connectionId);
     if (!record) return null;
-    const payload = {
-      version: 2,
-      name: record.name || bridgeName,
-      baseUrl: `${publicBase}/c/${encodeURIComponent(connectionId)}`,
-      connectionId,
-      token: deriveSecret(connectionId)
-    };
-    return `MSB2.${Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')}`;
+    return accessCode(record, connectionId, publicBase, bridgeName);
   }
 
   function exists(connectionIdValue) {
@@ -179,6 +188,7 @@ export function createConnectionState({ masterToken, publicUrl, bridgeName = 'Me
       createdAt: new Date().toISOString(),
       secret: crypto.randomBytes(32).toString('base64url')
     };
+    record.credential = accessCode(record, connectionId, publicBase, bridgeName);
     records.set(connectionId, record);
     save();
     return {
@@ -201,13 +211,17 @@ export function createConnectionState({ masterToken, publicUrl, bridgeName = 'Me
 
   function verify(connectionIdValue, suppliedCredential) {
     const connectionId = String(connectionIdValue || '');
-    if (!exists(connectionId)) return false;
-    return safeEqual(accessCodeFor(connectionId), suppliedCredential) || safeEqual(deriveSecret(connectionId), suppliedCredential);
+    const record = records.get(connectionId);
+    if (!record) return false;
+    return safeEqual(accessCodeFor(connectionId), suppliedCredential)
+      || safeEqual(record.credential, suppliedCredential)
+      || safeEqual(deriveSecret(connectionId), suppliedCredential);
   }
 
   function credentialFor(connectionIdValue) {
     const connectionId = String(connectionIdValue || '');
-    return exists(connectionId) ? accessCodeFor(connectionId) : null;
+    const record = records.get(connectionId);
+    return record ? String(record.credential || accessCodeFor(connectionId)) : null;
   }
 
   function revoke(connectionIdValue) {

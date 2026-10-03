@@ -1,5 +1,58 @@
 # Universal Space Ledger
 
+## Untouched Memory shell, industrial island and free camera - 3 October 2026
+
+- Inspected and retained the user's exact `world-glbs/Meshy_AI_Memory_Vault_City_1003010357_texture.glb`: 83.14 MB, 2,355,052 triangles, one fused mesh/material and three embedded 2048px JPEG textures. No geometry or texture reduction was performed. It joins the sequential Office -> Code Space -> Memory load queue with the procedural Memory architecture as fallback; the archive lights, blue core and code-rendered sign remain independent.
+- Rebuilt the flat prototype ground as a 30 × 22 layered industrial island: deep structural base, inset metal deck, 25 alternating modular steel plates, perimeter edge structure, three low building foundations, darker road slabs and restrained connector lighting. Existing plaza, stairs, lamps, service props, glow pools and selection anchors remain.
+- Replaced horizontal-only bounded orbit with two-axis mouse orbit: unrestricted horizontal rotation and vertical elevation from near-ground to near-top-down, using the camera around the island. Removed pan clamps from Shift/right-drag and arrow movement; `RESET VIEW`/`R` restores the original framing.
+- Expanded zoom to 0.08–10 and added visible `ZOOM −` / `ZOOM +` controls alongside wheel and keyboard zoom. No separate wide-view mode was added. Updated the World cache key to `simcity-world-v1-13`.
+- Verification: `world-view.js` passed syntax checking; Memory GLB validation found no errors and only the same generated-tangent warning plus explicit identity-matrix info seen on the other Meshy exports; the original Memory GLB and cache-busted assets returned HTTP 200; the focused cached-neural-route/pulse-cap regression remained green. Final appearance, controls and console cleanliness await the next user screenshot because no controllable browser session is available.
+
+## Expanded manual World zoom - 3 October 2026
+
+- Kept the normal island framing and existing `RESET VIEW`; no separate wide-view button or forced wide view was added.
+- Expanded wheel and keyboard `+`/`-` zoom from the previous 0.72–1.55 range to 0.25–4.5, with slightly stronger per-step control. Updated the World cache key to `simcity-world-v1-11`.
+
+## Untouched Meshy Office beast integration - 3 October 2026
+
+- Inspected and retained the user's exact `world-glbs/Meshy_AI_Neon_Helipad_Tower_1003004722_texture.glb`: 56.46 MB, 1,557,964 triangles, one fused mesh/material and three embedded 2048px JPEG textures. No geometry or texture reduction was performed.
+- Added the Office source to the existing bounded World asset manifest at a `6.6 × 10 × 6.2` target envelope. The prior procedural Office architecture remains as load/validation fallback, while its dispatch bay, desk, screen, worker and code-rendered sign remain independent.
+- Original Office and Code Space GLBs now load sequentially to reduce peak decoding pressure without lowering their quality. Office loads first because its building is constructed first; each procedural shell remains visible until its corresponding GLB succeeds.
+- Verification: `world-view.js` passed syntax checking; the original Office asset and cache-busted `simcity-world-v1-10` page returned HTTP 200 from the existing service. glTF validation found no errors, one generated-tangent warning for the normal map and one harmless explicit identity-matrix info item. Visual scale/orientation and activity-piece placement await the next user screenshot. No backend service, Git operation or real job was started.
+
+## Code Space shell 140% scale pass - 3 October 2026
+
+- User reported that the untouched full-quality Meshy asset was working without observed lag or crashes and requested the building be 40% larger.
+- Increased only the Code Space GLB manifest target from `5.4 × 5 × 4.2` to `7.56 × 7 × 5.88`. The independent procedural worker, workstation, sign, activity pieces, paths and other buildings retain their existing scale. Updated the World cache key to `simcity-world-v1-9`.
+
+## Code Space original-quality correction - 3 October 2026
+
+- The first screenshot of the optimized Code Space derivative showed unacceptable loss of generated surface quality. It also confirmed that the generated shell occluded the still-present procedural workstation/worker and sat in front of the independent Code Space sign.
+- Switched the World asset manifest to the user's untouched `world-glbs/Meshy_AI_Neon_Nexus_Station_1003000450_texture.glb` for the next honest visual review: 82.23 MB, 2,369,782 triangles and the original three 2048px textures. The rejected 2.52 MB derivative is no longer loaded. Updated the World cache key to `simcity-world-v1-8`.
+- The procedural fallback and independent desk, monitor, worker, sign, status lights and selection anchor remain in code. Performance optimization and their final placement are deferred until the original model appearance is visually accepted.
+
+## First Meshy Code Space shell integration - 3 October 2026
+
+- Inspected the user's untouched `world-glbs/Meshy_AI_Neon_Nexus_Station_1003000450_texture.glb`: one fused mesh/material, 2,369,782 triangles, three embedded 2048px JPEG textures and an 82.23 MB file. No separate generated people were present.
+- Produced `assets/world/models/code-space-lab.glb` non-destructively at 34,988 triangles with 1024px textures and a 2.52 MB file; the original remains untouched. The resulting GLB has one mesh/material, three textures, no required glTF extensions and no validator errors. One non-blocking generated-tangent warning remains for the normal map.
+- Added the matching repository-local Three r170 `GLTFLoader` and `BufferGeometryUtils`. `world-view.js` now loads the Code Space asset through a bounded manifest, validates finite bounds/mesh count/triangle count, normalizes scale and ground pivot, makes it selectable, and hides the procedural architectural shell only after success. Any import, load or validation failure retains the prior procedural shell.
+- Kept the procedural desks, monitors, animated worker, code sign, status lights and selection anchor independent from the generated building. Updated the World cache key to `simcity-world-v1-7`.
+- Verification: JavaScript syntax passed for World and both local loader modules; the optimized GLB and all loader/World URLs returned HTTP 200 from the existing `127.0.0.1:4173` service; the focused cached-neural-route/pulse-cap regression test remained green. Browser discovery returned no available session, so scale, front orientation, lighting, workstation visibility, selection and console cleanliness still require the next human screenshot/check. No backend service or real job was started.
+
+## Universal World interaction, quality and observed activity slice - 2 October 2026
+
+- Moved the shared `World | Neural | Classic` switcher into the established Neural and Classic headers so it no longer overlays graph controls, summary statistics or primary actions; it remains centred in World.
+- Added bounded World orbit, Shift/right-drag pan, wheel and keyboard zoom/pan, reset, a pulsing building-selection ring, local UnrealBloom post-processing and persistent low/medium/high device quality presets. All modules remain repository-local and inactive rendering remains paused when another view or browser tab is active.
+- Connected the Code Space worker presentation to the existing `code-space-memory-dispatch-*` browser events without starting or authorising jobs. Waiting, authorised travel, running, completed, failed and unknown states now replace the demo worker loop only when those existing events are actually observed; Office and Memory rows remain explicitly labelled demo activity.
+- Verification: `world-view.js` passed syntax checking; Three.js, EffectComposer, RenderPass and UnrealBloomPass imported successfully; the focused Neural renderer regression test remained green; and the active `127.0.0.1:4173` server returned HTTP 200 for the cache-busted World assets. No new backend service or real job was launched.
+
+## Universal World procedural prototype - 2 October 2026
+
+- Added an isolated Three.js `World` view on the current `design/three-neural-v1` working files without starting Universal, Supervisor, Office or Code Space services. The view uses the repository's bundled Three.js module and an orthographic camera.
+- Built one cyberpunk district with three selectable procedural buildings: a tiered Office HQ with a visible dispatch desk, an open Code Space industrial computer bay with a worker walk/sit/type demo loop, and a green/blue Memory archive with a visible energy core. Added neon code-rendered signs, warm windows, rooftop machinery, lamps, service props and connected illuminated walkways.
+- Added a persistent `World | Neural | Classic` switcher. Building panels are accessible HTML and route actions back through the established Memory controls or `UniversalAppAdapters`; all simulated visual activity is labelled `DEMO LOOP` or `Demo` until telemetry is connected.
+- Verification: `world-view.js` passed `node --check`; the root route, World script and local bundled Three.js module returned HTTP 200 from a static-only preview on `127.0.0.1:4187`; the focused cached-neural-route/pulse-cap regression test passed. No visual browser result is claimed because the connected browser list was empty in this session.
+
 ## Approved August shared-branching neural transplant - 30 September 2026
 
 - Ported the approved visual/routing behavior directly from scaffold blob `a04fc6d1f23a72df4f76a0e9e8ac5b9cb8f9e45f` into the current cached renderer: outgoing targets are clustered by angle, nearby nodes share a primary trunk and luminous junction, larger clusters may share a second stem, and only then split into child branches. The approved thick blue/cyan tube passes, companion fibres, curved/forked dendrites, junction blooms and major-hub centre mass now paint from current projected canonical edges.

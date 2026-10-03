@@ -1,6 +1,14 @@
 # Universal Space Handoff
 
-Updated: 4 September 2026. Read `UNIVERSAL_SPACE_RULES.txt` first.
+Updated: 3 October 2026. Read `UNIVERSAL_SPACE_RULES.txt` first.
+
+## Immediate user-authorized task override — Universal World
+
+The current user-authorized work is the miniature cyberpunk city prototype. Before changing code, read the large **CURRENT CHECKPOINT — RESUME HERE** block at the top of [visual-targets/simcitypan.md](visual-targets/simcitypan.md). It records the implemented World view, three untouched sequential Meshy shells, rebuilt industrial island, free camera controls, exact next screenshot/transform review, verification boundary and remaining delivery gates.
+
+Work directly in `E:\WIZZ-Server\new-version\universal-space` using its current uncommitted files. The user has their own backup and explicitly overrode the backup/branch/worktree workflow in the original city plan. Do not run Git commands, switch branches, commit, push, copy patches, or modify the abandoned `universal-space-world` sibling. Do not launch duplicate backend services or disturb the user's existing `127.0.0.1:4173` server and Supervisor ownership on `8790`.
+
+This override adds the user-requested World frontend while preserving the established Neural/Classic views and adapters. It does not authorize a new graph generator, backend replacement, real job execution, service restart, or removal of the active Universal Product Push history below.
 
 ## Current baseline and task
 

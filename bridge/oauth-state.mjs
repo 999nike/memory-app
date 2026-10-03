@@ -95,6 +95,49 @@ function activeTokenEntries(value) {
   );
 }
 
+function issuerPath(url) {
+  return url.pathname.replace(/\/+$/, '') || '/';
+}
+
+function pinnedCustomerIssuer(pairingToken) {
+  const value = String(pairingToken || '');
+  if (!value.startsWith('MSB2.')) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(value.slice(5), 'base64url').toString('utf8'));
+    const connectionId = String(payload?.connectionId || '');
+    const url = new URL(String(payload?.baseUrl || ''));
+    const expectedPath = `/c/${encodeURIComponent(connectionId)}`;
+    return Number(payload?.version) !== 2
+      || !/^conn_[A-Za-z0-9_-]{8,80}$/.test(connectionId)
+      || issuerPath(url) !== expectedPath
+      || url.username || url.password || url.search || url.hash ? null : url;
+  } catch {
+    return null;
+  }
+}
+
+function issuerMigrationAllowed(previousIssuer, nextIssuer, pairingToken) {
+  const configuredPublicUrl = new URL(String(process.env.MEMORY_BRIDGE_PUBLIC_URL || ''));
+  const pinnedIssuer = pinnedCustomerIssuer(pairingToken);
+  const previousIsLoopback = previousIssuer.protocol === 'http:'
+    && (previousIssuer.hostname === '127.0.0.1' || previousIssuer.hostname === 'localhost');
+  return Boolean(
+    pinnedIssuer
+    && previousIsLoopback
+    && nextIssuer.protocol === 'https:'
+    && configuredPublicUrl.protocol === 'https:'
+    && issuerPath(configuredPublicUrl) === '/'
+    && !configuredPublicUrl.username && !configuredPublicUrl.password
+    && !configuredPublicUrl.search && !configuredPublicUrl.hash
+    && nextIssuer.origin === configuredPublicUrl.origin
+    && previousIssuer.origin === pinnedIssuer.origin
+    && issuerPath(previousIssuer) === issuerPath(pinnedIssuer)
+    && issuerPath(previousIssuer) === issuerPath(nextIssuer)
+    && !previousIssuer.username && !previousIssuer.password && !previousIssuer.search && !previousIssuer.hash
+    && !nextIssuer.username && !nextIssuer.password && !nextIssuer.search && !nextIssuer.hash
+  );
+}
+
 function writeEnvelopeFile(stateFile, envelope) {
   fs.mkdirSync(path.dirname(stateFile), { recursive: true });
   const tempFile = `${stateFile}.${process.pid}.tmp`;
@@ -121,13 +164,22 @@ export function rotateOAuthStatePairingToken({ stateFile = resolveStateFile(), o
 export function createPersistentOAuthState({ issuer, pairingToken, clientId }) {
   const stateFile = resolveStateFile();
   let restored = { dynamicClients: [], accessTokens: [], refreshTokens: [] };
+  let issuerMigrated = false;
 
   try {
     if (fs.existsSync(stateFile)) {
       const envelope = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
       const payload = decryptEnvelope(envelope, pairingToken);
-      if (payload.issuer !== issuer || payload.clientId !== clientId) {
+      if (payload.clientId !== clientId) {
         throw new Error('OAuth state belongs to a different bridge identity');
+      }
+      if (payload.issuer !== issuer) {
+        const previousIssuer = new URL(String(payload.issuer || ''));
+        const nextIssuer = new URL(String(issuer || ''));
+        if (!issuerMigrationAllowed(previousIssuer, nextIssuer, pairingToken)) {
+          throw new Error('OAuth state belongs to a different bridge identity');
+        }
+        issuerMigrated = true;
       }
       restored = {
         dynamicClients: validEntries(payload.dynamicClients),
@@ -177,6 +229,7 @@ export function createPersistentOAuthState({ issuer, pairingToken, clientId }) {
   dynamicClients = new PersistedMap(restored.dynamicClients, scheduleSave);
   accessTokens = new PersistedMap(restored.accessTokens, scheduleSave);
   refreshTokens = new PersistedMap(restored.refreshTokens, scheduleSave);
+  if (issuerMigrated) saveNow();
 
   return Object.freeze({
     stateFile,
